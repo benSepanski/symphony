@@ -197,6 +197,9 @@ defmodule SymphonyElixir.Codex.AppServer do
     if is_nil(executable) do
       {:error, :bash_not_found}
     else
+      settings = Config.settings!()
+      shell_command = local_launch_command(workspace, settings.codex.sandbox, settings.codex.command)
+
       port =
         Port.open(
           {:spawn_executable, String.to_charlist(executable)},
@@ -204,7 +207,7 @@ defmodule SymphonyElixir.Codex.AppServer do
             :binary,
             :exit_status,
             :stderr_to_stdout,
-            args: [~c"-lc", String.to_charlist(Config.settings!().codex.command)],
+            args: [~c"-lc", String.to_charlist(shell_command)],
             cd: String.to_charlist(workspace),
             line: @port_line_bytes
           ]
@@ -218,6 +221,15 @@ defmodule SymphonyElixir.Codex.AppServer do
     remote_command = remote_launch_command(workspace)
     SSH.start_port(worker_host, remote_command, line: @port_line_bytes)
   end
+
+  defp local_launch_command(workspace, "sbx", command) do
+    case String.split(command, ~r/\s+/, parts: 2) do
+      [binary, rest_args] -> "sbx run #{shell_escape(binary)} #{shell_escape(workspace)} -- #{rest_args}"
+      [binary] -> "sbx run #{shell_escape(binary)} #{shell_escape(workspace)}"
+    end
+  end
+
+  defp local_launch_command(_workspace, _sandbox, command), do: command
 
   defp remote_launch_command(workspace) when is_binary(workspace) do
     [
