@@ -180,93 +180,83 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
 
   defp handle_stream_line(_port, on_message, metadata, data, accumulated_result) do
     case Jason.decode(data) do
-      {:ok, %{"type" => "system", "subtype" => "init"} = payload} ->
-        session_id = Map.get(payload, "session_id")
-
-        emit_message(
-          on_message,
-          :session_started,
-          %{session_id: session_id, thread_id: session_id, turn_id: "1"},
-          metadata
-        )
-
-        {:continue, Map.merge(accumulated_result || %{}, %{session_id: session_id})}
-
-      {:ok, %{"type" => "assistant", "message" => message} = payload} ->
-        usage = extract_usage_from_message(message)
-        metadata_with_usage = if usage, do: Map.put(metadata, :usage, usage), else: metadata
-
-        emit_message(
-          on_message,
-          :notification,
-          %{payload: payload, raw: data},
-          metadata_with_usage
-        )
-
-        {:continue, maybe_update_usage(accumulated_result, usage)}
-
-      {:ok, %{"type" => "result", "subtype" => "success"} = payload} ->
-        usage = %{
-          "input_tokens" => Map.get(payload, "input_tokens"),
-          "output_tokens" => Map.get(payload, "output_tokens"),
-          "total_tokens" => Map.get(payload, "total_tokens")
-        }
-
-        cost_usd = Map.get(payload, "cost_usd")
-        result_session_id = Map.get(payload, "session_id")
-
-        result = %{
-          session_id: result_session_id || (accumulated_result && accumulated_result[:session_id]),
-          cost_usd: cost_usd,
-          usage: usage,
-          num_turns: Map.get(payload, "num_turns"),
-          duration_ms: Map.get(payload, "duration_ms")
-        }
-
-        emit_message(
-          on_message,
-          :turn_completed,
-          %{payload: payload, raw: data, details: payload, cost_usd: cost_usd},
-          Map.put(metadata, :usage, usage)
-        )
-
-        {:done, result}
-
-      {:ok, %{"type" => "result", "subtype" => "error"} = payload} ->
-        emit_message(
-          on_message,
-          :turn_failed,
-          %{payload: payload, raw: data, details: payload},
-          metadata
-        )
-
-        {:error, {:turn_failed, payload}}
-
-      {:ok, %{"type" => type} = payload} when type in ["tool_use", "tool_result"] ->
-        emit_message(
-          on_message,
-          :notification,
-          %{payload: payload, raw: data},
-          metadata
-        )
-
-        {:continue, accumulated_result}
-
       {:ok, payload} ->
-        emit_message(
-          on_message,
-          :other_message,
-          %{payload: payload, raw: data},
-          metadata
-        )
-
-        {:continue, accumulated_result}
+        handle_decoded_message(on_message, metadata, data, accumulated_result, payload)
 
       {:error, _reason} ->
         log_non_json_line(data)
         {:continue, accumulated_result}
     end
   end
+
+  defp handle_decoded_message(on_message, metadata, _data, accumulated_result, %{"type" => "system", "subtype" => "init"} = payload) do
+    session_id = Map.get(payload, "session_id")
+
+    emit_message(
+      on_message,
+      :session_started,
+      %{session_id: session_id, thread_id: session_id, turn_id: "1"},
+      metadata
+    )
+
+    {:continue, Map.merge(accumulated_result || %{}, %{session_id: session_id})}
+  end
+
+  defp handle_decoded_message(on_message, metadata, data, accumulated_result, %{"type" => "assistant", "message" => message} = payload) do
+    usage = extract_usage_from_message(message)
+    metadata_with_usage = merge_usage_into_metadata(metadata, usage)
+
+    emit_message(on_message, :notification, %{payload: payload, raw: data}, metadata_with_usage)
+
+    {:continue, maybe_update_usage(accumulated_result, usage)}
+  end
+
+  defp handle_decoded_message(on_message, metadata, data, accumulated_result, %{"type" => "result", "subtype" => "success"} = payload) do
+    usage = %{
+      "input_tokens" => Map.get(payload, "input_tokens"),
+      "output_tokens" => Map.get(payload, "output_tokens"),
+      "total_tokens" => Map.get(payload, "total_tokens")
+    }
+
+    cost_usd = Map.get(payload, "cost_usd")
+    result_session_id = Map.get(payload, "session_id") || get_in(accumulated_result, [:session_id])
+
+    result = %{
+      session_id: result_session_id,
+      cost_usd: cost_usd,
+      usage: usage,
+      num_turns: Map.get(payload, "num_turns"),
+      duration_ms: Map.get(payload, "duration_ms")
+    }
+
+    emit_message(
+      on_message,
+      :turn_completed,
+      %{payload: payload, raw: data, details: payload, cost_usd: cost_usd},
+      Map.put(metadata, :usage, usage)
+    )
+
+    {:done, result}
+  end
+
+  defp handle_decoded_message(on_message, metadata, data, _accumulated_result, %{"type" => "result", "subtype" => "error"} = payload) do
+    emit_message(on_message, :turn_failed, %{payload: payload, raw: data, details: payload}, metadata)
+    {:error, {:turn_failed, payload}}
+  end
+
+  defp handle_decoded_message(on_message, metadata, data, accumulated_result, %{"type" => type} = payload)
+       when type in ["tool_use", "tool_result"] do
+    emit_message(on_message, :notification, %{payload: payload, raw: data}, metadata)
+    {:continue, accumulated_result}
+  end
+
+  defp handle_decoded_message(on_message, metadata, data, accumulated_result, payload) do
+    emit_message(on_message, :other_message, %{payload: payload, raw: data}, metadata)
+    {:continue, accumulated_result}
+  end
+
+  defp merge_usage_into_metadata(metadata, nil), do: metadata
+  defp merge_usage_into_metadata(metadata, usage), do: Map.put(metadata, :usage, usage)
 
   # -- Usage extraction --
 

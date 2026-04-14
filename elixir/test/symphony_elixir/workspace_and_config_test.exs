@@ -23,6 +23,7 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
       System.cmd("git", ["-C", template_repo, "init", "-b", "main"])
       System.cmd("git", ["-C", template_repo, "config", "user.name", "Test User"])
       System.cmd("git", ["-C", template_repo, "config", "user.email", "test@example.com"])
+      System.cmd("git", ["-C", template_repo, "config", "commit.gpgsign", "false"])
       System.cmd("git", ["-C", template_repo, "add", "README.md", "keep/file.txt"])
       System.cmd("git", ["-C", template_repo, "commit", "-m", "initial"])
 
