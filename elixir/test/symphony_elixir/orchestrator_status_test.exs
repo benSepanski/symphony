@@ -1601,4 +1601,243 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     end)
     |> elem(1)
   end
+
+  test "orchestrator tracks claude code stream-json turn_completed token usage" do
+    issue_id = "issue-claude-code-turn-completed"
+
+    issue = %Issue{
+      id: issue_id,
+      identifier: "BEN-6",
+      title: "Claude Code token tracking",
+      description: "Track per-invocation tokens from claude code stream-json",
+      state: "In Progress",
+      url: "https://example.org/issues/BEN-6"
+    }
+
+    orchestrator_name = Module.concat(__MODULE__, :ClaudeCodeTurnCompletedOrchestrator)
+    {:ok, pid} = Orchestrator.start_link(name: orchestrator_name)
+
+    on_exit(fn ->
+      if Process.alive?(pid) do
+        Process.exit(pid, :normal)
+      end
+    end)
+
+    initial_state = :sys.get_state(pid)
+    process_ref = make_ref()
+
+    running_entry = %{
+      pid: self(),
+      ref: process_ref,
+      identifier: issue.identifier,
+      issue: issue,
+      session_id: nil,
+      last_codex_message: nil,
+      last_codex_timestamp: nil,
+      last_codex_event: nil,
+      codex_input_tokens: 0,
+      codex_output_tokens: 0,
+      codex_total_tokens: 0,
+      codex_last_reported_input_tokens: 0,
+      codex_last_reported_output_tokens: 0,
+      codex_last_reported_total_tokens: 0,
+      codex_input_cost_usd: 0.0,
+      codex_output_cost_usd: 0.0,
+      codex_total_cost_usd: 0.0,
+      started_at: DateTime.utc_now()
+    }
+
+    :sys.replace_state(pid, fn _ ->
+      initial_state
+      |> Map.put(:running, %{issue_id => running_entry})
+      |> Map.put(:claimed, MapSet.put(initial_state.claimed, issue_id))
+    end)
+
+    # Claude Code stream-json turn_completed: top-level :usage with per-invocation totals
+    send(
+      pid,
+      {:codex_worker_update, issue_id,
+       %{
+         event: :turn_completed,
+         usage: %{"input_tokens" => 100, "output_tokens" => 50, "total_tokens" => 150},
+         cost_usd: 0.003,
+         payload: %{"type" => "result", "subtype" => "success"},
+         timestamp: DateTime.utc_now()
+       }}
+    )
+
+    snapshot = GenServer.call(pid, :snapshot)
+    assert %{running: [snapshot_entry]} = snapshot
+    assert snapshot_entry.codex_input_tokens == 100
+    assert snapshot_entry.codex_output_tokens == 50
+    assert snapshot_entry.codex_total_tokens == 150
+    assert snapshot_entry.codex_total_cost_usd == 0.003
+
+    send(pid, {:DOWN, process_ref, :process, self(), :normal})
+    completed_state = :sys.get_state(pid)
+    assert completed_state.codex_totals.input_tokens == 100
+    assert completed_state.codex_totals.output_tokens == 50
+    assert completed_state.codex_totals.total_tokens == 150
+  end
+
+  test "orchestrator accumulates claude code tokens across multiple turns without high-watermark interference" do
+    issue_id = "issue-claude-code-multi-turn"
+
+    issue = %Issue{
+      id: issue_id,
+      identifier: "BEN-6-multi",
+      title: "Claude Code multi-turn token tracking",
+      description: "Each turn's per-invocation total must be fully counted",
+      state: "In Progress",
+      url: "https://example.org/issues/BEN-6-multi"
+    }
+
+    orchestrator_name = Module.concat(__MODULE__, :ClaudeCodeMultiTurnOrchestrator)
+    {:ok, pid} = Orchestrator.start_link(name: orchestrator_name)
+
+    on_exit(fn ->
+      if Process.alive?(pid) do
+        Process.exit(pid, :normal)
+      end
+    end)
+
+    initial_state = :sys.get_state(pid)
+    process_ref = make_ref()
+
+    running_entry = %{
+      pid: self(),
+      ref: process_ref,
+      identifier: issue.identifier,
+      issue: issue,
+      session_id: nil,
+      last_codex_message: nil,
+      last_codex_timestamp: nil,
+      last_codex_event: nil,
+      codex_input_tokens: 0,
+      codex_output_tokens: 0,
+      codex_total_tokens: 0,
+      codex_last_reported_input_tokens: 0,
+      codex_last_reported_output_tokens: 0,
+      codex_last_reported_total_tokens: 0,
+      codex_input_cost_usd: 0.0,
+      codex_output_cost_usd: 0.0,
+      codex_total_cost_usd: 0.0,
+      started_at: DateTime.utc_now()
+    }
+
+    :sys.replace_state(pid, fn _ ->
+      initial_state
+      |> Map.put(:running, %{issue_id => running_entry})
+      |> Map.put(:claimed, MapSet.put(initial_state.claimed, issue_id))
+    end)
+
+    # Turn 1: 100 input, 50 output
+    send(
+      pid,
+      {:codex_worker_update, issue_id,
+       %{
+         event: :turn_completed,
+         usage: %{"input_tokens" => 100, "output_tokens" => 50, "total_tokens" => 150},
+         cost_usd: 0.003,
+         payload: %{"type" => "result", "subtype" => "success"},
+         timestamp: DateTime.utc_now()
+       }}
+    )
+
+    # Turn 2: fewer tokens than turn 1 (75 input) — high-watermark would incorrectly block this
+    send(
+      pid,
+      {:codex_worker_update, issue_id,
+       %{
+         event: :turn_completed,
+         usage: %{"input_tokens" => 75, "output_tokens" => 30, "total_tokens" => 105},
+         cost_usd: 0.002,
+         payload: %{"type" => "result", "subtype" => "success"},
+         timestamp: DateTime.utc_now()
+       }}
+    )
+
+    snapshot = GenServer.call(pid, :snapshot)
+    assert %{running: [snapshot_entry]} = snapshot
+    # Both turns must be fully counted (100 + 75 = 175, not just 100)
+    assert snapshot_entry.codex_input_tokens == 175
+    assert snapshot_entry.codex_output_tokens == 80
+    assert snapshot_entry.codex_total_tokens == 255
+    assert_in_delta snapshot_entry.codex_total_cost_usd, 0.005, 0.0001
+
+    send(pid, {:DOWN, process_ref, :process, self(), :normal})
+    completed_state = :sys.get_state(pid)
+    assert completed_state.codex_totals.input_tokens == 175
+    assert completed_state.codex_totals.output_tokens == 80
+    assert completed_state.codex_totals.total_tokens == 255
+  end
+
+  test "orchestrator does not treat codex app-server turn_completed as claude code additive" do
+    issue_id = "issue-codex-turn-completed-unchanged"
+
+    issue = %Issue{
+      id: issue_id,
+      identifier: "MT-999",
+      title: "Codex turn_completed not additive",
+      description: "Codex turn/completed uses high-watermark, not additive",
+      state: "In Progress",
+      url: "https://example.org/issues/MT-999"
+    }
+
+    orchestrator_name = Module.concat(__MODULE__, :CodexTurnCompletedUnchangedOrchestrator)
+    {:ok, pid} = Orchestrator.start_link(name: orchestrator_name)
+
+    on_exit(fn ->
+      if Process.alive?(pid) do
+        Process.exit(pid, :normal)
+      end
+    end)
+
+    initial_state = :sys.get_state(pid)
+    process_ref = make_ref()
+
+    running_entry = %{
+      pid: self(),
+      ref: process_ref,
+      identifier: issue.identifier,
+      issue: issue,
+      session_id: nil,
+      last_codex_message: nil,
+      last_codex_timestamp: nil,
+      last_codex_event: nil,
+      codex_input_tokens: 0,
+      codex_output_tokens: 0,
+      codex_total_tokens: 0,
+      codex_last_reported_input_tokens: 0,
+      codex_last_reported_output_tokens: 0,
+      codex_last_reported_total_tokens: 0,
+      started_at: DateTime.utc_now()
+    }
+
+    :sys.replace_state(pid, fn _ ->
+      initial_state
+      |> Map.put(:running, %{issue_id => running_entry})
+      |> Map.put(:claimed, MapSet.put(initial_state.claimed, issue_id))
+    end)
+
+    # Codex app-server style: no top-level :usage, payload has method: "turn/completed"
+    send(
+      pid,
+      {:codex_worker_update, issue_id,
+       %{
+         event: :turn_completed,
+         payload: %{
+           method: "turn/completed",
+           usage: %{"input_tokens" => 50, "output_tokens" => 20, "total_tokens" => 70}
+         },
+         timestamp: DateTime.utc_now()
+       }}
+    )
+
+    snapshot = GenServer.call(pid, :snapshot)
+    assert %{running: [snapshot_entry]} = snapshot
+    assert snapshot_entry.codex_input_tokens == 50
+    assert snapshot_entry.codex_output_tokens == 20
+    assert snapshot_entry.codex_total_tokens == 70
+  end
 end
