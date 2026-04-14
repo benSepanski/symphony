@@ -356,7 +356,8 @@ defmodule SymphonyElixir.ExtensionsTest do
                  "last_message" => "rendered",
                  "started_at" => state_payload["running"] |> List.first() |> Map.fetch!("started_at"),
                  "last_event_at" => nil,
-                 "tokens" => %{"input_tokens" => 4, "output_tokens" => 8, "total_tokens" => 12}
+                 "tokens" => %{"input_tokens" => 4, "output_tokens" => 8, "total_tokens" => 12},
+                 "cost" => %{"input_cost_usd" => 0.0, "output_cost_usd" => 0.0, "total_cost_usd" => 0.0}
                }
              ],
              "retrying" => [
@@ -374,7 +375,10 @@ defmodule SymphonyElixir.ExtensionsTest do
                "input_tokens" => 4,
                "output_tokens" => 8,
                "total_tokens" => 12,
-               "seconds_running" => 42.5
+               "seconds_running" => 42.5,
+               "input_cost_usd" => 0.0,
+               "output_cost_usd" => 0.0,
+               "total_cost_usd" => 0.0
              },
              "rate_limits" => %{"primary" => %{"remaining" => 11}}
            }
@@ -401,7 +405,8 @@ defmodule SymphonyElixir.ExtensionsTest do
                "last_event" => "notification",
                "last_message" => "rendered",
                "last_event_at" => nil,
-               "tokens" => %{"input_tokens" => 4, "output_tokens" => 8, "total_tokens" => 12}
+               "tokens" => %{"input_tokens" => 4, "output_tokens" => 8, "total_tokens" => 12},
+               "cost" => %{"input_cost_usd" => 0.0, "output_cost_usd" => 0.0, "total_cost_usd" => 0.0}
              },
              "retry" => nil,
              "logs" => %{"codex_session_logs" => []},
@@ -547,7 +552,7 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert html =~ "Live"
     assert html =~ "Offline"
     assert html =~ "Copy ID"
-    assert html =~ "Codex update"
+    assert html =~ "Agent update"
     refute html =~ "data-runtime-clock="
     refute html =~ "setInterval(refreshRuntimeClocks"
     refute html =~ "Refresh now"

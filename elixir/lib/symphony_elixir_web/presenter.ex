@@ -19,7 +19,7 @@ defmodule SymphonyElixirWeb.Presenter do
           },
           running: Enum.map(snapshot.running, &running_entry_payload/1),
           retrying: Enum.map(snapshot.retrying, &retry_entry_payload/1),
-          codex_totals: snapshot.codex_totals,
+          codex_totals: codex_totals_with_cost_defaults(snapshot.codex_totals),
           rate_limits: snapshot.rate_limits
         }
 
@@ -207,4 +207,10 @@ defmodule SymphonyElixirWeb.Presenter do
   end
 
   defp iso8601(_datetime), do: nil
+
+  defp codex_totals_with_cost_defaults(totals) when is_map(totals) do
+    Map.merge(%{input_cost_usd: 0.0, output_cost_usd: 0.0, total_cost_usd: 0.0}, totals)
+  end
+
+  defp codex_totals_with_cost_defaults(totals), do: totals
 end
