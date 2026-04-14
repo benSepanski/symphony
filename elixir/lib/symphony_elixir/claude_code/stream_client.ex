@@ -49,9 +49,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
             result_session_id = result[:session_id] || session_id
             turn_session_id = result_session_id || "claude-#{:erlang.unique_integer([:positive])}"
 
-            Logger.info(
-              "Claude Code session completed for #{issue_context(issue)} session_id=#{turn_session_id}"
-            )
+            Logger.info("Claude Code session completed for #{issue_context(issue)} session_id=#{turn_session_id}")
 
             {:ok,
              %{
@@ -63,9 +61,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
              }}
 
           {:error, reason} ->
-            Logger.warning(
-              "Claude Code session ended with error for #{issue_context(issue)}: #{inspect(reason)}"
-            )
+            Logger.warning("Claude Code session ended with error for #{issue_context(issue)}: #{inspect(reason)}")
 
             emit_message(on_message, :turn_ended_with_error, %{reason: reason}, metadata)
             {:error, reason}
@@ -182,7 +178,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     end
   end
 
-  defp handle_stream_line(port, on_message, metadata, data, accumulated_result) do
+  defp handle_stream_line(_port, on_message, metadata, data, accumulated_result) do
     case Jason.decode(data) do
       {:ok, %{"type" => "system", "subtype" => "init"} = payload} ->
         session_id = Map.get(payload, "session_id")
