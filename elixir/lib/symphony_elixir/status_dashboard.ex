@@ -25,6 +25,7 @@ defmodule SymphonyElixir.StatusDashboard do
   @running_event_min_width 12
   @running_row_chrome_width 10
   @default_terminal_columns 115
+  @max_log_lines 15
 
   @ansi_reset IO.ANSI.reset()
   @ansi_bold IO.ANSI.bright()
@@ -53,7 +54,8 @@ defmodule SymphonyElixir.StatusDashboard do
     :last_rendered_at_ms,
     :pending_content,
     :flush_timer_ref,
-    :last_snapshot_fingerprint
+    :last_snapshot_fingerprint,
+    log_lines: []
   ]
 
   @type t :: %__MODULE__{
@@ -71,7 +73,8 @@ defmodule SymphonyElixir.StatusDashboard do
           last_rendered_at_ms: integer() | nil,
           pending_content: String.t() | nil,
           flush_timer_ref: reference() | nil,
-          last_snapshot_fingerprint: term() | nil
+          last_snapshot_fingerprint: term() | nil,
+          log_lines: [String.t()]
         }
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -87,6 +90,18 @@ defmodule SymphonyElixir.StatusDashboard do
     case GenServer.whereis(server) do
       pid when is_pid(pid) ->
         send(pid, :refresh)
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  @spec push_log(atom(), String.t()) :: :ok
+  def push_log(level, text) when is_atom(level) and is_binary(text) do
+    case GenServer.whereis(__MODULE__) do
+      pid when is_pid(pid) ->
+        send(pid, {:log_line, level, text})
         :ok
 
       _ ->
@@ -176,6 +191,13 @@ defmodule SymphonyElixir.StatusDashboard do
   def handle_info({:flush_render, _timer_ref}, state), do: {:noreply, state}
   def handle_info(:tick, state), do: {:noreply, state}
 
+  def handle_info({:log_line, _level, text}, %{enabled: true} = state) do
+    new_lines = Enum.take([text | state.log_lines], @max_log_lines)
+    {:noreply, maybe_render(%{state | log_lines: new_lines, last_snapshot_fingerprint: nil})}
+  end
+
+  def handle_info({:log_line, _level, _text}, state), do: {:noreply, state}
+
   defp refresh_runtime_config(%__MODULE__{} = state) do
     observability = Config.settings!().observability
 
@@ -215,7 +237,9 @@ defmodule SymphonyElixir.StatusDashboard do
       content =
         format_snapshot_content(
           snapshot_data,
-          tps
+          tps,
+          nil,
+          state.log_lines
         )
 
       state
@@ -330,7 +354,7 @@ defmodule SymphonyElixir.StatusDashboard do
     end
   end
 
-  defp format_snapshot_content(snapshot_data, tps, terminal_columns_override \\ nil) do
+  defp format_snapshot_content(snapshot_data, tps, terminal_columns_override \\ nil, log_lines \\ []) do
     case snapshot_data do
       {:ok, %{running: running, retrying: retrying, codex_totals: codex_totals} = snapshot} ->
         rate_limits = Map.get(snapshot, :rate_limits)
@@ -380,19 +404,21 @@ defmodule SymphonyElixir.StatusDashboard do
            running_to_backoff_spacer ++
            [colorize("├─ Backoff queue", @ansi_bold), "│"] ++
            backoff_rows ++
+           format_log_tail(log_lines) ++
            [closing_border()])
         |> List.flatten()
         |> Enum.join("\n")
 
       :error ->
-        [
-          colorize("╭─ SYMPHONY STATUS", @ansi_bold),
-          colorize("│ Orchestrator snapshot unavailable", @ansi_red),
-          colorize("│ Throughput: ", @ansi_bold) <> colorize("#{format_tps(tps)} tps", @ansi_cyan),
-          format_project_link_lines(),
-          format_project_refresh_line(nil),
-          closing_border()
-        ]
+        ([
+           colorize("╭─ SYMPHONY STATUS", @ansi_bold),
+           colorize("│ Orchestrator snapshot unavailable", @ansi_red),
+           colorize("│ Throughput: ", @ansi_bold) <> colorize("#{format_tps(tps)} tps", @ansi_cyan),
+           format_project_link_lines(),
+           format_project_refresh_line(nil)
+         ] ++
+           format_log_tail(log_lines) ++
+           [closing_border()])
         |> List.flatten()
         |> Enum.join("\n")
     end
@@ -1075,6 +1101,17 @@ defmodule SymphonyElixir.StatusDashboard do
 
   defp normalize_status_lines(content) do
     content
+  end
+
+  defp format_log_tail([]), do: []
+
+  defp format_log_tail(log_lines) do
+    rows =
+      log_lines
+      |> Enum.reverse()
+      |> Enum.map(fn line -> "│  " <> colorize(line, @ansi_dim) end)
+
+    [colorize("├─ Logs", @ansi_bold), "│"] ++ rows
   end
 
   defp closing_border, do: "╰─"

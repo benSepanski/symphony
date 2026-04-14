@@ -36,7 +36,7 @@ hooks:
     git -C "$REPO" branch -D "$BRANCH" 2>/dev/null || true
 agent:
   kind: claude_code
-  max_concurrent_agents: 10
+  max_concurrent_agents: 1
   max_turns: 20
 claude_code:
   command: claude
