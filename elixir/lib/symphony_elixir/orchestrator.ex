@@ -1427,7 +1427,7 @@ defmodule SymphonyElixir.Orchestrator do
     end
   end
 
-  defp extract_direct_cost(update) when is_map(update) do
+  defp extract_direct_cost(update) do
     cost =
       Map.get(update, :cost_usd) ||
         Map.get(update, "cost_usd") ||
@@ -1437,14 +1437,10 @@ defmodule SymphonyElixir.Orchestrator do
     if is_number(cost) and cost > 0, do: cost, else: nil
   end
 
-  defp extract_direct_cost(_update), do: nil
-
-  defp get_in_payload(update, key) when is_map(update) do
+  defp get_in_payload(update, key) do
     payload = Map.get(update, :payload) || Map.get(update, "payload")
     if is_map(payload), do: Map.get(payload, key), else: nil
   end
-
-  defp get_in_payload(_update, _key), do: nil
 
   defp compute_cost_from_tokens(token_delta) do
     pricing = safe_pricing_settings()
