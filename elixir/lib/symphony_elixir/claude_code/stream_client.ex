@@ -83,11 +83,15 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     base = [settings.command, "-p", prompt, "--output-format", "stream-json", "--verbose"]
 
     base
+    |> maybe_add_permission_flag(settings.permission_mode)
     |> maybe_add_flag("--resume", session_id)
     |> maybe_add_flag("--model", settings.model)
     |> maybe_add_flag("--max-turns", int_to_string(settings.max_turns))
     |> maybe_add_allowed_tools(settings.allowed_tools)
   end
+
+  defp maybe_add_permission_flag(args, "full"), do: args ++ ["--dangerously-skip-permissions"]
+  defp maybe_add_permission_flag(args, _mode), do: args
 
   defp maybe_add_flag(args, _flag, nil), do: args
   defp maybe_add_flag(args, _flag, ""), do: args
@@ -219,6 +223,35 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     }
 
     cost_usd = Map.get(payload, "cost_usd")
+    result_session_id = Map.get(payload, "session_id") || get_in(accumulated_result, [:session_id])
+
+    result = %{
+      session_id: result_session_id,
+      cost_usd: cost_usd,
+      usage: usage,
+      num_turns: Map.get(payload, "num_turns"),
+      duration_ms: Map.get(payload, "duration_ms")
+    }
+
+    emit_message(
+      on_message,
+      :turn_completed,
+      %{payload: payload, raw: data, details: payload, cost_usd: cost_usd},
+      Map.put(metadata, :usage, usage)
+    )
+
+    {:done, result}
+  end
+
+  defp handle_decoded_message(on_message, metadata, data, accumulated_result, %{"type" => "result", "subtype" => "error_max_turns"} = payload) do
+    cost_usd = Map.get(payload, "cost_usd")
+
+    usage = %{
+      "input_tokens" => Map.get(payload, "input_tokens"),
+      "output_tokens" => Map.get(payload, "output_tokens"),
+      "total_tokens" => Map.get(payload, "total_tokens")
+    }
+
     result_session_id = Map.get(payload, "session_id") || get_in(accumulated_result, [:session_id])
 
     result = %{
