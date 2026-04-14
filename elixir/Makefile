@@ -37,11 +37,11 @@ e2e:
 	SYMPHONY_RUN_LIVE_E2E=1 $(MIX) test test/symphony_elixir/live_e2e_test.exs
 
 ci:
-	$(MAKE) setup
-	$(MAKE) build
-	$(MAKE) fmt-check
-	$(MAKE) lint
-	$(MAKE) coverage
-	$(MAKE) dialyzer
+	@echo "::group::setup" && $(MAKE) setup && echo "::endgroup::"
+	@echo "::group::build" && $(MAKE) build && echo "::endgroup::"
+	@echo "::group::fmt-check" && $(MAKE) fmt-check && echo "::endgroup::"
+	@echo "::group::lint" && $(MAKE) lint && echo "::endgroup::"
+	@echo "::group::coverage" && $(MAKE) coverage && echo "::endgroup::"
+	@echo "::group::dialyzer" && $(MAKE) dialyzer && echo "::endgroup::"
 
 all: ci
