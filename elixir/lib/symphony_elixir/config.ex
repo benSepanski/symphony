@@ -91,6 +91,15 @@ defmodule SymphonyElixir.Config do
     end
   end
 
+  @spec agent_kind() :: String.t()
+  def agent_kind, do: settings!().agent.kind
+
+  @spec claude_code_settings() :: Schema.ClaudeCode.t()
+  def claude_code_settings, do: settings!().claude_code
+
+  @spec pricing_settings() :: Schema.Pricing.t()
+  def pricing_settings, do: settings!().pricing
+
   @spec validate!() :: :ok | {:error, term()}
   def validate! do
     with {:ok, settings} <- settings() do

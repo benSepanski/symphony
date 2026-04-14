@@ -112,6 +112,11 @@ defmodule SymphonyElixirWeb.Presenter do
         input_tokens: entry.codex_input_tokens,
         output_tokens: entry.codex_output_tokens,
         total_tokens: entry.codex_total_tokens
+      },
+      cost: %{
+        input_cost_usd: Map.get(entry, :codex_input_cost_usd, 0.0),
+        output_cost_usd: Map.get(entry, :codex_output_cost_usd, 0.0),
+        total_cost_usd: Map.get(entry, :codex_total_cost_usd, 0.0)
       }
     }
   end
@@ -143,6 +148,11 @@ defmodule SymphonyElixirWeb.Presenter do
         input_tokens: running.codex_input_tokens,
         output_tokens: running.codex_output_tokens,
         total_tokens: running.codex_total_tokens
+      },
+      cost: %{
+        input_cost_usd: Map.get(running, :codex_input_cost_usd, 0.0),
+        output_cost_usd: Map.get(running, :codex_output_cost_usd, 0.0),
+        total_cost_usd: Map.get(running, :codex_total_cost_usd, 0.0)
       }
     }
   end
