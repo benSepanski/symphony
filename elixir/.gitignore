@@ -22,6 +22,7 @@
 
 # If the VM crashes, it generates a dump, let's ignore it too.
 erl_crash.dump
+rebar3.crashdump
 
 # Elixir language server and tooling.
 /.elixir_ls/
