@@ -340,6 +340,9 @@ defmodule SymphonyElixir.StatusDashboard do
         codex_output_tokens = Map.get(codex_totals, :output_tokens, 0)
         codex_total_tokens = Map.get(codex_totals, :total_tokens, 0)
         codex_seconds_running = Map.get(codex_totals, :seconds_running, 0)
+        codex_input_cost = Map.get(codex_totals, :input_cost_usd, 0.0)
+        codex_output_cost = Map.get(codex_totals, :output_cost_usd, 0.0)
+        codex_total_cost = Map.get(codex_totals, :total_cost_usd, 0.0)
         agent_count = length(running)
         max_agents = Config.settings!().agent.max_concurrent_agents
         running_event_width = running_event_width(terminal_columns_override)
@@ -362,6 +365,9 @@ defmodule SymphonyElixir.StatusDashboard do
              colorize("out #{format_count(codex_output_tokens)}", @ansi_yellow) <>
              colorize(" | ", @ansi_gray) <>
              colorize("total #{format_count(codex_total_tokens)}", @ansi_yellow),
+           colorize("│ Cost: ", @ansi_bold) <>
+             colorize("$#{format_cost_value(codex_total_cost)}", @ansi_green) <>
+             colorize(" (in: $#{format_cost_value(codex_input_cost)} / out: $#{format_cost_value(codex_output_cost)})", @ansi_gray),
            colorize("│ Rate Limits: ", @ansi_bold) <> format_rate_limits(rate_limits),
            project_link_lines,
            project_refresh_line,
@@ -715,6 +721,16 @@ defmodule SymphonyElixir.StatusDashboard do
   end
 
   defp format_runtime_and_turns(seconds, _turn_count), do: format_runtime_seconds(seconds)
+
+  defp format_cost_value(value) when is_number(value) and value >= 0.01 do
+    :erlang.float_to_binary(value / 1, decimals: 2)
+  end
+
+  defp format_cost_value(value) when is_number(value) and value > 0 do
+    :erlang.float_to_binary(value / 1, decimals: 4)
+  end
+
+  defp format_cost_value(_value), do: "0.00"
 
   defp format_count(nil), do: "0"
 

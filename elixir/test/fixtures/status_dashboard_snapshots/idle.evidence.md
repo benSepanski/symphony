@@ -4,6 +4,7 @@
 │ Throughput: 0 tps
 │ Runtime: 0m 0s
 │ Tokens: in 0 | out 0 | total 0
+│ Cost: $0.00 (in: $0.00 / out: $0.00)
 │ Rate Limits: unavailable
 │ Project: https://linear.app/project/project/issues
 │ Next refresh: n/a

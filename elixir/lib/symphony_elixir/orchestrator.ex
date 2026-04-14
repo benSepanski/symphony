@@ -18,7 +18,10 @@ defmodule SymphonyElixir.Orchestrator do
     input_tokens: 0,
     output_tokens: 0,
     total_tokens: 0,
-    seconds_running: 0
+    seconds_running: 0,
+    input_cost_usd: 0.0,
+    output_cost_usd: 0.0,
+    total_cost_usd: 0.0
   }
 
   defmodule State do
@@ -718,6 +721,9 @@ defmodule SymphonyElixir.Orchestrator do
             codex_last_reported_input_tokens: 0,
             codex_last_reported_output_tokens: 0,
             codex_last_reported_total_tokens: 0,
+            codex_input_cost_usd: 0.0,
+            codex_output_cost_usd: 0.0,
+            codex_total_cost_usd: 0.0,
             turn_count: 0,
             retry_attempt: normalize_retry_attempt(attempt),
             started_at: DateTime.utc_now()
@@ -1117,6 +1123,9 @@ defmodule SymphonyElixir.Orchestrator do
           codex_input_tokens: metadata.codex_input_tokens,
           codex_output_tokens: metadata.codex_output_tokens,
           codex_total_tokens: metadata.codex_total_tokens,
+          codex_input_cost_usd: Map.get(metadata, :codex_input_cost_usd, 0.0),
+          codex_output_cost_usd: Map.get(metadata, :codex_output_cost_usd, 0.0),
+          codex_total_cost_usd: Map.get(metadata, :codex_total_cost_usd, 0.0),
           turn_count: Map.get(metadata, :turn_count, 0),
           started_at: metadata.started_at,
           last_codex_timestamp: metadata.last_codex_timestamp,
@@ -1171,9 +1180,13 @@ defmodule SymphonyElixir.Orchestrator do
 
   defp integrate_codex_update(running_entry, %{event: event, timestamp: timestamp} = update) do
     token_delta = extract_token_delta(running_entry, update)
+    cost_delta = extract_cost_delta(token_delta, update)
     codex_input_tokens = Map.get(running_entry, :codex_input_tokens, 0)
     codex_output_tokens = Map.get(running_entry, :codex_output_tokens, 0)
     codex_total_tokens = Map.get(running_entry, :codex_total_tokens, 0)
+    codex_input_cost = Map.get(running_entry, :codex_input_cost_usd, 0.0)
+    codex_output_cost = Map.get(running_entry, :codex_output_cost_usd, 0.0)
+    codex_total_cost = Map.get(running_entry, :codex_total_cost_usd, 0.0)
     codex_app_server_pid = Map.get(running_entry, :codex_app_server_pid)
     last_reported_input = Map.get(running_entry, :codex_last_reported_input_tokens, 0)
     last_reported_output = Map.get(running_entry, :codex_last_reported_output_tokens, 0)
@@ -1193,9 +1206,12 @@ defmodule SymphonyElixir.Orchestrator do
         codex_last_reported_input_tokens: max(last_reported_input, token_delta.input_reported),
         codex_last_reported_output_tokens: max(last_reported_output, token_delta.output_reported),
         codex_last_reported_total_tokens: max(last_reported_total, token_delta.total_reported),
+        codex_input_cost_usd: codex_input_cost + cost_delta.input_cost_usd,
+        codex_output_cost_usd: codex_output_cost + cost_delta.output_cost_usd,
+        codex_total_cost_usd: codex_total_cost + cost_delta.total_cost_usd,
         turn_count: turn_count_for_update(turn_count, running_entry.session_id, update)
       }),
-      token_delta
+      Map.merge(token_delta, cost_delta)
     }
   end
 
@@ -1342,11 +1358,23 @@ defmodule SymphonyElixir.Orchestrator do
     seconds_running =
       Map.get(codex_totals, :seconds_running, 0) + Map.get(token_delta, :seconds_running, 0)
 
+    input_cost_usd =
+      Map.get(codex_totals, :input_cost_usd, 0.0) + Map.get(token_delta, :input_cost_usd, 0.0)
+
+    output_cost_usd =
+      Map.get(codex_totals, :output_cost_usd, 0.0) + Map.get(token_delta, :output_cost_usd, 0.0)
+
+    total_cost_usd =
+      Map.get(codex_totals, :total_cost_usd, 0.0) + Map.get(token_delta, :total_cost_usd, 0.0)
+
     %{
       input_tokens: max(0, input_tokens),
       output_tokens: max(0, output_tokens),
       total_tokens: max(0, total_tokens),
-      seconds_running: max(0, seconds_running)
+      seconds_running: max(0, seconds_running),
+      input_cost_usd: max(0.0, input_cost_usd),
+      output_cost_usd: max(0.0, output_cost_usd),
+      total_cost_usd: max(0.0, total_cost_usd)
     }
   end
 
@@ -1385,6 +1413,59 @@ defmodule SymphonyElixir.Orchestrator do
         total_reported: total.reported
       }
     end)
+  end
+
+  defp extract_cost_delta(token_delta, update) do
+    # If the update contains a direct cost_usd (Claude Code provides this), use it
+    direct_cost = extract_direct_cost(update)
+
+    if direct_cost do
+      %{input_cost_usd: 0.0, output_cost_usd: 0.0, total_cost_usd: direct_cost}
+    else
+      # Calculate cost from token delta using pricing config
+      compute_cost_from_tokens(token_delta)
+    end
+  end
+
+  defp extract_direct_cost(update) do
+    cost =
+      Map.get(update, :cost_usd) ||
+        Map.get(update, "cost_usd") ||
+        get_in_payload(update, :cost_usd) ||
+        get_in_payload(update, "cost_usd")
+
+    if is_number(cost) and cost > 0, do: cost, else: nil
+  end
+
+  defp get_in_payload(update, key) do
+    payload = Map.get(update, :payload) || Map.get(update, "payload")
+    if is_map(payload), do: Map.get(payload, key), else: nil
+  end
+
+  defp compute_cost_from_tokens(token_delta) do
+    pricing = safe_pricing_settings()
+
+    if pricing.enabled do
+      input_price = pricing.input_cost_per_million || 0.0
+      output_price = pricing.output_cost_per_million || 0.0
+
+      input_cost = token_delta.input_tokens * input_price / 1_000_000
+      output_cost = token_delta.output_tokens * output_price / 1_000_000
+
+      %{
+        input_cost_usd: input_cost,
+        output_cost_usd: output_cost,
+        total_cost_usd: input_cost + output_cost
+      }
+    else
+      %{input_cost_usd: 0.0, output_cost_usd: 0.0, total_cost_usd: 0.0}
+    end
+  end
+
+  defp safe_pricing_settings do
+    Config.pricing_settings()
+  rescue
+    _ -> %{enabled: false, input_cost_per_million: nil, output_cost_per_million: nil}
   end
 
   defp compute_token_delta(running_entry, token_key, usage, reported_key) do
