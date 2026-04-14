@@ -360,12 +360,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
   end
 
   defp emit_message(on_message, event, details, metadata) when is_function(on_message, 1) do
-    message =
-      metadata
-      |> Map.merge(details)
-      |> Map.put(:event, event)
-      |> Map.put(:timestamp, DateTime.utc_now())
-
+    message = metadata |> Map.merge(details) |> Map.put(:event, event) |> Map.put(:timestamp, DateTime.utc_now())
     on_message.(message)
   end
 
