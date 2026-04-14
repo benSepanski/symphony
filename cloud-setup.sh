@@ -48,6 +48,9 @@ fi
 echo "==> Elixir $(elixir --version 2>&1 | head -1) ready"
 
 echo "==> Fetching Mix dependencies..."
+# The sandbox proxies HTTPS via TLS inspection; point Erlang/Hex at the system
+# CA bundle (which trusts the proxy CA) so mix deps.get can reach hex.pm.
+export HEX_CACERTS_PATH="/etc/ssl/certs/ca-certificates.crt"
 make setup
 
 echo "==> Cloud setup complete. Run 'make all' to validate CI."
