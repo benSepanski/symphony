@@ -1388,40 +1388,71 @@ defmodule SymphonyElixir.Orchestrator do
 
   defp extract_token_delta(running_entry, %{event: _, timestamp: _} = update) do
     running_entry = running_entry || %{}
-    usage = extract_token_usage(update)
 
-    {
-      compute_token_delta(
-        running_entry,
-        :input,
-        usage,
-        :codex_last_reported_input_tokens
-      ),
-      compute_token_delta(
-        running_entry,
-        :output,
-        usage,
-        :codex_last_reported_output_tokens
-      ),
-      compute_token_delta(
-        running_entry,
-        :total,
-        usage,
-        :codex_last_reported_total_tokens
-      )
-    }
-    |> Tuple.to_list()
-    |> then(fn [input, output, total] ->
+    if claude_code_turn_completed?(update) do
+      # Claude Code stream-json reports per-invocation totals in result/success, not
+      # cumulative thread totals. Treat as an additive delta and reset the high-watermark
+      # so each subsequent turn is also fully counted.
+      usage = Map.get(update, :usage) || %{}
+      input = get_token_usage(usage, :input) || 0
+      output = get_token_usage(usage, :output) || 0
+      total = get_token_usage(usage, :total) || 0
+
       %{
-        input_tokens: input.delta,
-        output_tokens: output.delta,
-        total_tokens: total.delta,
-        input_reported: input.reported,
-        output_reported: output.reported,
-        total_reported: total.reported
+        input_tokens: input,
+        output_tokens: output,
+        total_tokens: total,
+        input_reported: 0,
+        output_reported: 0,
+        total_reported: 0
       }
-    end)
+    else
+      usage = extract_token_usage(update)
+
+      {
+        compute_token_delta(
+          running_entry,
+          :input,
+          usage,
+          :codex_last_reported_input_tokens
+        ),
+        compute_token_delta(
+          running_entry,
+          :output,
+          usage,
+          :codex_last_reported_output_tokens
+        ),
+        compute_token_delta(
+          running_entry,
+          :total,
+          usage,
+          :codex_last_reported_total_tokens
+        )
+      }
+      |> Tuple.to_list()
+      |> then(fn [input, output, total] ->
+        %{
+          input_tokens: input.delta,
+          output_tokens: output.delta,
+          total_tokens: total.delta,
+          input_reported: input.reported,
+          output_reported: output.reported,
+          total_reported: total.reported
+        }
+      end)
+    end
   end
+
+  # Detects a Claude Code stream-json turn_completed event.
+  # These carry per-invocation totals (not cumulative thread totals), so they must
+  # be accumulated additively rather than treated as high-watermark snapshots.
+  # Distinguished from Codex app-server :turn_completed (no top-level :usage map).
+  defp claude_code_turn_completed?(%{event: :turn_completed} = update) do
+    usage = Map.get(update, :usage)
+    is_map(usage) and integer_token_map?(usage)
+  end
+
+  defp claude_code_turn_completed?(_update), do: false
 
   defp extract_cost_delta(token_delta, update) do
     # If the update contains a direct cost_usd (Claude Code provides this), use it
