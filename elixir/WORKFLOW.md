@@ -24,7 +24,12 @@ hooks:
     WORKSPACE="$(pwd)"
     cd "$(dirname "$WORKSPACE")"
     rmdir "$WORKSPACE"
-    git -C "$REPO" worktree add "$WORKSPACE" -b "$BRANCH" origin/main
+    git -C "$REPO" worktree prune
+    if git -C "$REPO" show-ref --verify --quiet "refs/heads/$BRANCH"; then
+      git -C "$REPO" worktree add "$WORKSPACE" "$BRANCH"
+    else
+      git -C "$REPO" worktree add "$WORKSPACE" -b "$BRANCH" origin/main
+    fi
     cd "$WORKSPACE"
     if command -v mise >/dev/null 2>&1; then
       cd elixir && mise trust && mise exec -- mix deps.get
@@ -40,6 +45,7 @@ agent:
   max_turns: 20
 claude_code:
   command: claude
+  model: claude-sonnet-4-6
   permission_mode: full
 ---
 
@@ -234,7 +240,13 @@ Use this only when completion is blocked by missing required tools or missing au
 11. Before moving to `Human Review`, poll PR feedback and checks:
     - Read the PR `Manual QA Plan` comment (when present) and use it to sharpen UI/runtime test coverage for the current change.
     - Run the full PR feedback sweep protocol.
-    - Confirm PR checks are passing (green) after the latest changes.
+    - Confirm all CI checks are passing (green) after the latest changes, including:
+      - The `make-all` CI check (format, lint, coverage, dialyzer).
+      - The `pr-description-lint` CI check — validates PR body format against
+        `.github/pull_request_template.md` (see `elixir/docs/pr-requirements.md`).
+        If this check fails, update the PR body to include all required sections
+        (Context, TL;DR, Summary, Alternatives, Test Plan) with no placeholder
+        comments remaining, then push and recheck.
     - Confirm every required ticket-provided validation/test-plan item is explicitly marked complete in the workpad.
     - Repeat this check-address-verify loop until no outstanding comments remain and checks are fully passing.
     - Re-open and refresh the workpad before state transition so `Plan`, `Acceptance Criteria`, and `Validation` exactly match completed work.
@@ -272,7 +284,7 @@ Use this only when completion is blocked by missing required tools or missing au
 - Acceptance criteria and required ticket-provided validation items are complete.
 - Validation/tests are green for the latest commit.
 - PR feedback sweep is complete and no actionable comments remain.
-- PR checks are green, branch is pushed, and PR is linked on the issue.
+- All CI checks are green (`make-all` and `pr-description-lint`), branch is pushed, and PR is linked on the issue.
 - Required PR metadata is present (`symphony` label).
 - If app-touching, runtime validation/media requirements from `App runtime validation (required)` are complete.
 

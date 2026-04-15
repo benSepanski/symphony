@@ -15,12 +15,13 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
   @spec start_session(Path.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def start_session(workspace, opts \\ []) do
     worker_host = Keyword.get(opts, :worker_host)
+    resume_session_id = Keyword.get(opts, :resume_session_id)
 
     with {:ok, expanded_workspace} <- validate_workspace(workspace, worker_host) do
       {:ok,
        %{
          workspace: expanded_workspace,
-         session_id: nil,
+         session_id: resume_session_id,
          worker_host: worker_host
        }}
     end
@@ -38,11 +39,15 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     settings = Config.claude_code_settings()
     timeout_ms = settings.turn_timeout_ms
 
-    command = build_command(prompt, session_id, settings)
+    command = build_command(prompt, session_id, workspace, settings)
 
     case start_port(command, workspace, worker_host) do
       {:ok, port} ->
-        metadata = port_metadata(port, worker_host)
+        metadata =
+          port_metadata(port, worker_host)
+          |> Map.put(:issue_id, Map.get(issue, :id) || Map.get(issue, "id"))
+          |> Map.put(:issue_identifier, Map.get(issue, :identifier) || Map.get(issue, "identifier"))
+          |> Map.put(:workspace, workspace)
 
         case receive_loop(port, on_message, metadata, timeout_ms, "", nil) do
           {:ok, result} ->
@@ -79,15 +84,21 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
 
   # -- Command building --
 
-  defp build_command(prompt, session_id, settings) do
-    base = [settings.command, "-p", prompt, "--output-format", "stream-json", "--verbose"]
+  @doc false
+  @spec build_command(String.t(), String.t() | nil, String.t(), map()) :: [String.t()]
+  def build_command(prompt, session_id, workspace, settings) do
+    claude_args =
+      ["-p", prompt, "--output-format", "stream-json", "--verbose"]
+      |> maybe_add_permission_flag(settings.permission_mode)
+      |> maybe_add_flag("--resume", session_id)
+      |> maybe_add_flag("--model", settings.model)
+      |> maybe_add_flag("--max-turns", int_to_string(settings.max_turns))
+      |> maybe_add_allowed_tools(settings.allowed_tools)
 
-    base
-    |> maybe_add_permission_flag(settings.permission_mode)
-    |> maybe_add_flag("--resume", session_id)
-    |> maybe_add_flag("--model", settings.model)
-    |> maybe_add_flag("--max-turns", int_to_string(settings.max_turns))
-    |> maybe_add_allowed_tools(settings.allowed_tools)
+    case settings.sandbox do
+      "sbx" -> ["sbx", "run", settings.command, workspace, "--"] ++ claude_args
+      _ -> [settings.command | claude_args]
+    end
   end
 
   defp maybe_add_permission_flag(args, "full"), do: args ++ ["--dangerously-skip-permissions"]
@@ -195,6 +206,10 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
 
   defp handle_decoded_message(on_message, metadata, _data, accumulated_result, %{"type" => "system", "subtype" => "init"} = payload) do
     session_id = Map.get(payload, "session_id")
+
+    Logger.info(
+      "Claude Code session started for issue_id=#{metadata[:issue_id] || "n/a"} issue_identifier=#{metadata[:issue_identifier] || "n/a"} session_id=#{session_id || "unknown"} workspace=#{metadata[:workspace] || "n/a"}"
+    )
 
     emit_message(
       on_message,

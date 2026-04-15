@@ -7,8 +7,8 @@ defmodule SymphonyElixir.Orchestrator do
   require Logger
   import Bitwise, only: [<<<: 2]
 
-  alias SymphonyElixir.{AgentRunner, Config, Notifications, StatusDashboard, Tracker, Workspace}
-  alias SymphonyElixir.Linear.Issue
+  alias SymphonyElixir.{AgentRunner, Config, Notifications, SessionStore, StatusDashboard, Tracker, Workspace}
+  alias SymphonyElixir.Linear.{Client, Issue}
 
   @continuation_retry_delay_ms 1_000
   @failure_retry_base_ms 10_000
@@ -40,7 +40,8 @@ defmodule SymphonyElixir.Orchestrator do
       claimed: MapSet.new(),
       retry_attempts: %{},
       codex_totals: nil,
-      codex_rate_limits: nil
+      codex_rate_limits: nil,
+      persisted_sessions: %{}
     ]
   end
 
@@ -66,10 +67,33 @@ defmodule SymphonyElixir.Orchestrator do
       codex_rate_limits: nil
     }
 
+    verify_linear_connection(config)
     run_terminal_workspace_cleanup()
+    persisted = load_persisted_sessions()
+    state = %{state | persisted_sessions: persisted}
     state = schedule_tick(state, 0)
 
     {:ok, state}
+  end
+
+  @impl true
+  def terminate(reason, %State{running: running} = _state) do
+    Logger.info("Orchestrator shutting down reason=#{inspect(reason)}; persisting #{map_size(running)} session(s)")
+
+    try do
+      SessionStore.save(running)
+    rescue
+      e -> Logger.warning("Could not persist sessions during shutdown: #{inspect(e)}")
+    end
+
+    Enum.each(running, fn {issue_id, %{pid: pid, ref: ref}} ->
+      Logger.info("Stopping agent for issue_id=#{issue_id}")
+
+      if is_pid(pid), do: terminate_task(pid)
+      if is_reference(ref), do: Process.demonitor(ref, [:flush])
+    end)
+
+    :ok
   end
 
   @impl true
@@ -678,8 +702,14 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp spawn_issue_on_worker_host(%State{} = state, issue, attempt, recipient, worker_host) do
+    {prior_session_id, state} = pop_persisted_session(state, issue.id)
+
     case Task.Supervisor.start_child(SymphonyElixir.TaskSupervisor, fn ->
-           AgentRunner.run(issue, recipient, attempt: attempt, worker_host: worker_host)
+           AgentRunner.run(issue, recipient,
+             attempt: attempt,
+             worker_host: worker_host,
+             resume_session_id: prior_session_id
+           )
          end) do
       {:ok, pid} ->
         ref = Process.monitor(pid)
@@ -862,6 +892,30 @@ defmodule SymphonyElixir.Orchestrator do
 
   defp cleanup_issue_workspace(_identifier, _worker_host), do: :ok
 
+  defp verify_linear_connection(%{tracker: %{kind: "linear"}} = _config) do
+    case Client.verify_connection() do
+      :ok ->
+        Logger.info("Linear connection verified")
+
+      {:error, :missing_linear_api_token} ->
+        Logger.error(
+          "Cannot connect to Linear: API token is missing. " <>
+            "Set LINEAR_API_KEY in your environment or .env file."
+        )
+
+      {:error, :linear_auth_failed} ->
+        Logger.error(
+          "Cannot connect to Linear: authentication failed. " <>
+            "Check that your LINEAR_API_KEY is valid."
+        )
+
+      {:error, reason} ->
+        Logger.error("Cannot connect to Linear: #{inspect(reason)}")
+    end
+  end
+
+  defp verify_linear_connection(_config), do: :ok
+
   defp run_terminal_workspace_cleanup do
     case Tracker.fetch_issues_by_states(Config.settings!().tracker.terminal_states) do
       {:ok, issues} ->
@@ -876,6 +930,22 @@ defmodule SymphonyElixir.Orchestrator do
 
       {:error, reason} ->
         Logger.warning("Skipping startup terminal workspace cleanup; failed to fetch terminal issues: #{inspect(reason)}")
+    end
+  end
+
+  defp load_persisted_sessions do
+    SessionStore.load()
+    |> Map.new(fn %{issue_id: issue_id} = entry -> {issue_id, entry} end)
+  end
+
+  defp pop_persisted_session(%State{persisted_sessions: persisted} = state, issue_id) do
+    case Map.pop(persisted, issue_id) do
+      {nil, _persisted} ->
+        {nil, state}
+
+      {%{session_id: session_id}, remaining} ->
+        SessionStore.clear_issue(issue_id)
+        {session_id, %{state | persisted_sessions: remaining}}
     end
   end
 
@@ -1319,13 +1389,18 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp refresh_runtime_config(%State{} = state) do
-    config = Config.settings!()
+    case Config.settings() do
+      {:ok, config} ->
+        %{
+          state
+          | poll_interval_ms: config.polling.interval_ms,
+            max_concurrent_agents: config.agent.max_concurrent_agents
+        }
 
-    %{
-      state
-      | poll_interval_ms: config.polling.interval_ms,
-        max_concurrent_agents: config.agent.max_concurrent_agents
-    }
+      {:error, reason} ->
+        Logger.warning("Failed to refresh runtime config, keeping current settings: #{inspect(reason)}")
+        state
+    end
   end
 
   defp retry_candidate_issue?(%Issue{} = issue, terminal_states) do

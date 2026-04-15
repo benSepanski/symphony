@@ -176,6 +176,7 @@ defmodule SymphonyElixir.Config.Schema do
       field(:turn_timeout_ms, :integer, default: 3_600_000)
       field(:read_timeout_ms, :integer, default: 5_000)
       field(:stall_timeout_ms, :integer, default: 300_000)
+      field(:sandbox, :string)
     end
 
     @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
@@ -190,7 +191,8 @@ defmodule SymphonyElixir.Config.Schema do
           :turn_sandbox_policy,
           :turn_timeout_ms,
           :read_timeout_ms,
-          :stall_timeout_ms
+          :stall_timeout_ms,
+          :sandbox
         ],
         empty_values: []
       )
@@ -198,6 +200,7 @@ defmodule SymphonyElixir.Config.Schema do
       |> validate_number(:turn_timeout_ms, greater_than: 0)
       |> validate_number(:read_timeout_ms, greater_than: 0)
       |> validate_number(:stall_timeout_ms, greater_than_or_equal_to: 0)
+      |> validate_inclusion(:sandbox, ["sbx"])
     end
   end
 
@@ -216,6 +219,7 @@ defmodule SymphonyElixir.Config.Schema do
       field(:max_turns, :integer, default: 10)
       field(:permission_mode, :string, default: "auto")
       field(:turn_timeout_ms, :integer, default: 3_600_000)
+      field(:sandbox, :string)
     end
 
     @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
@@ -223,13 +227,14 @@ defmodule SymphonyElixir.Config.Schema do
       schema
       |> cast(
         attrs,
-        [:command, :model, :allowed_tools, :max_turns, :permission_mode, :turn_timeout_ms],
+        [:command, :model, :allowed_tools, :max_turns, :permission_mode, :turn_timeout_ms, :sandbox],
         empty_values: []
       )
       |> validate_required([:command])
       |> validate_inclusion(:permission_mode, ["auto", "full", "plan"])
       |> validate_number(:max_turns, greater_than: 0)
       |> validate_number(:turn_timeout_ms, greater_than: 0)
+      |> validate_inclusion(:sandbox, ["sbx"])
     end
   end
 

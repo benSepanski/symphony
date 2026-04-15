@@ -1,64 +1,60 @@
 # Symphony Elixir
 
-This directory contains the Elixir agent orchestration service that polls Linear, creates per-issue workspaces, and runs Codex in app-server mode.
+Elixir orchestration service that polls Linear, creates per-issue workspaces,
+and runs coding agents (Codex / Claude Code) in isolation.
+
+## Quick Orientation
+
+| What you need | Where to look |
+|---------------|---------------|
+| System architecture & module layers | [`docs/architecture.md`](docs/architecture.md) |
+| Coding conventions & style rules | [`docs/conventions.md`](docs/conventions.md) |
+| Testing strategy & CI gate | [`docs/testing.md`](docs/testing.md) |
+| PR body format & docs-update policy | [`docs/pr-requirements.md`](docs/pr-requirements.md) |
+| Structured logging conventions | [`docs/logging.md`](docs/logging.md) |
+| Codex token usage semantics | [`docs/token_accounting.md`](docs/token_accounting.md) |
+| Language-agnostic spec | [`../SPEC.md`](../SPEC.md) |
+| Workflow / runtime config contract | [`WORKFLOW.md`](WORKFLOW.md) |
 
 ## Environment
 
-- Elixir: `1.19.x` (OTP 28) via `mise`.
-- Install deps: `mix setup`.
-- Main quality gate: `make all` (format check, lint, coverage, dialyzer).
+- Elixir `1.19.x` (OTP 28) via `mise` — see [`mise.toml`](mise.toml).
+- Install deps: `mix setup`
+- Full CI gate: `make all` (format check → lint → coverage → dialyzer).
 
+## Key Rules (enforced)
 
-## Codebase-Specific Conventions
+These are the most common sources of CI failure. See the linked docs for full details.
 
-- Runtime config is loaded from `WORKFLOW.md` front matter via `SymphonyElixir.Workflow` and `SymphonyElixir.Config`.
-- Keep the implementation aligned with [`../SPEC.md`](../SPEC.md) where practical.
-  - The implementation may be a superset of the spec.
-  - The implementation must not conflict with the spec.
-  - If implementation changes meaningfully alter the intended behavior, update the spec in the same
-    change where practical so the spec stays current.
-- Prefer adding config access through `SymphonyElixir.Config` instead of ad-hoc env reads.
-- Workspace safety is critical:
-  - Never run Codex turn cwd in source repo.
-  - Workspaces must stay under configured workspace root.
-- Orchestrator behavior is stateful and concurrency-sensitive; preserve retry, reconciliation, and cleanup semantics.
-- Follow `docs/logging.md` for logging conventions and required issue/session context fields.
+1. **Public `@spec` required** — every `def` in `lib/` needs an adjacent `@spec`.
+   `@impl` callbacks are exempt. Validate: `mix specs.check`
+   → [`docs/conventions.md`](docs/conventions.md)
 
-## Tests and Validation
+2. **Workspace safety** — never run an agent with `cwd` in the source repo.
+   Workspaces must stay under the configured root.
+   → [`docs/conventions.md`](docs/conventions.md)
 
-Run targeted tests while iterating, then run full gates before handoff.
+3. **PR body template** — must follow `.github/pull_request_template.md`.
+   Validate: `mix pr_body.check --file <path>`
+   → [`docs/pr-requirements.md`](docs/pr-requirements.md)
 
-```bash
-make all
-```
+4. **Spec alignment** — implementation must not conflict with `SPEC.md`.
+   Update the spec in the same PR when behavior changes.
+   → [`docs/conventions.md`](docs/conventions.md)
 
-## Required Rules
+## Codebase Entry Points
 
-- Public functions (`def`) in `lib/` must have an adjacent `@spec`.
-- `defp` specs are optional.
-- `@impl` callback implementations are exempt from local `@spec` requirement.
-- Keep changes narrowly scoped; avoid unrelated refactors.
-- Follow existing module/style patterns in `lib/symphony_elixir/*`.
+- **Application boot**: `lib/symphony_elixir.ex` → supervision tree.
+- **Poll loop**: `lib/symphony_elixir/orchestrator.ex`.
+- **Single-issue execution**: `lib/symphony_elixir/agent_runner.ex`.
+- **Config loading**: `lib/symphony_elixir/config.ex` (from `WORKFLOW.md`).
+- **Adapter boundaries**: `lib/symphony_elixir/agent.ex`, `tracker.ex`, `workspace.ex`.
 
-Validation command:
+## Validation
+
+Run targeted tests while iterating, then the full gate before commit:
 
 ```bash
-mix specs.check
+mix test test/path/to/specific_test.exs   # iterate fast
+make all                                    # before commit
 ```
-
-## PR Requirements
-
-- PR body must follow `../.github/pull_request_template.md` exactly.
-- Validate PR body locally when needed:
-
-```bash
-mix pr_body.check --file /path/to/pr_body.md
-```
-
-## Docs Update Policy
-
-If behavior/config changes, update docs in the same PR:
-
-- `../README.md` for project concept and goals.
-- `README.md` for Elixir implementation and run instructions.
-- `WORKFLOW.md` for workflow/config contract changes.

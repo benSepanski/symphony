@@ -103,6 +103,21 @@ defmodule SymphonyElixir.Linear.Client do
   }
   """
 
+  @spec verify_connection() :: :ok | {:error, term()}
+  def verify_connection do
+    tracker = Config.settings!().tracker
+
+    if is_nil(tracker.api_key) do
+      {:error, :missing_linear_api_token}
+    else
+      case graphql(@viewer_query, %{}, operation_name: "SymphonyLinearViewer") do
+        {:ok, %{"data" => %{"viewer" => %{"id" => _id}}}} -> :ok
+        {:ok, _unexpected} -> {:error, :linear_auth_failed}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
   @spec fetch_candidate_issues() :: {:ok, [Issue.t()]} | {:error, term()}
   def fetch_candidate_issues do
     tracker = Config.settings!().tracker

@@ -258,8 +258,6 @@ defmodule SymphonyElixirWeb.Presenter do
     |> DateTime.to_iso8601()
   end
 
-  defp due_at_iso8601(_due_in_ms), do: nil
-
   defp iso8601(%DateTime{} = datetime) do
     datetime
     |> DateTime.truncate(:second)
