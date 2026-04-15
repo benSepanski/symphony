@@ -709,7 +709,8 @@ defmodule SymphonyElixir.Orchestrator do
             codex_total_cost_usd: 0.0,
             turn_count: 0,
             retry_attempt: normalize_retry_attempt(attempt),
-            started_at: DateTime.utc_now()
+            started_at: DateTime.utc_now(),
+            recent_events: []
           })
 
         %{
@@ -1110,6 +1111,7 @@ defmodule SymphonyElixir.Orchestrator do
           last_codex_timestamp: metadata.last_codex_timestamp,
           last_codex_message: metadata.last_codex_message,
           last_codex_event: metadata.last_codex_event,
+          recent_events: Map.get(metadata, :recent_events, []),
           runtime_seconds: running_seconds(metadata.started_at, now)
         }
       end)
@@ -1157,6 +1159,8 @@ defmodule SymphonyElixir.Orchestrator do
      }, state}
   end
 
+  @recent_events_max 50
+
   defp integrate_codex_update(running_entry, %{event: event, timestamp: timestamp} = update) do
     token_delta = extract_token_delta(running_entry, update)
     cost_delta = extract_cost_delta(token_delta, update)
@@ -1171,6 +1175,17 @@ defmodule SymphonyElixir.Orchestrator do
     last_reported_output = Map.get(running_entry, :codex_last_reported_output_tokens, 0)
     last_reported_total = Map.get(running_entry, :codex_last_reported_total_tokens, 0)
     turn_count = Map.get(running_entry, :turn_count, 0)
+    existing_events = Map.get(running_entry, :recent_events, [])
+
+    new_event = %{
+      at: timestamp,
+      event: event,
+      message: summarize_codex_update_message(update)
+    }
+
+    recent_events =
+      (existing_events ++ [new_event])
+      |> Enum.take(-@recent_events_max)
 
     {
       Map.merge(running_entry, %{
@@ -1188,7 +1203,8 @@ defmodule SymphonyElixir.Orchestrator do
         codex_input_cost_usd: codex_input_cost + cost_delta.input_cost_usd,
         codex_output_cost_usd: codex_output_cost + cost_delta.output_cost_usd,
         codex_total_cost_usd: codex_total_cost + cost_delta.total_cost_usd,
-        turn_count: turn_count_for_update(turn_count, running_entry.session_id, update)
+        turn_count: turn_count_for_update(turn_count, running_entry.session_id, update),
+        recent_events: recent_events
       }),
       Map.merge(token_delta, cost_delta)
     }
@@ -1236,6 +1252,10 @@ defmodule SymphonyElixir.Orchestrator do
       message: update[:payload] || update[:raw],
       timestamp: update[:timestamp]
     }
+  end
+
+  defp summarize_codex_update_message(update) do
+    StatusDashboard.humanize_codex_message(update)
   end
 
   defp schedule_tick(%State{} = state, delay_ms) when is_integer(delay_ms) and delay_ms >= 0 do
