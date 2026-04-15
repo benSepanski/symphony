@@ -24,7 +24,12 @@ hooks:
     WORKSPACE="$(pwd)"
     cd "$(dirname "$WORKSPACE")"
     rmdir "$WORKSPACE"
-    git -C "$REPO" worktree add "$WORKSPACE" -b "$BRANCH" origin/main
+    git -C "$REPO" worktree prune
+    if git -C "$REPO" show-ref --verify --quiet "refs/heads/$BRANCH"; then
+      git -C "$REPO" worktree add "$WORKSPACE" "$BRANCH"
+    else
+      git -C "$REPO" worktree add "$WORKSPACE" -b "$BRANCH" origin/main
+    fi
     cd "$WORKSPACE"
     if command -v mise >/dev/null 2>&1; then
       cd elixir && mise trust && mise exec -- mix deps.get
