@@ -21,7 +21,47 @@ defmodule SymphonyElixirWeb.Layouts do
         <script defer src="/vendor/phoenix/phoenix.js"></script>
         <script defer src="/vendor/phoenix_live_view/phoenix_live_view.js"></script>
         <script>
+          // Terminal log: filter lines by search query
+          function filterTermLines(input) {
+            var q = (input.value || "").toLowerCase();
+            var termId = input.dataset.term;
+            var container = termId ? document.getElementById(termId) : null;
+            if (!container) return;
+            container.querySelectorAll(".term-line").forEach(function (line) {
+              line.style.display = (!q || line.textContent.toLowerCase().includes(q)) ? "" : "none";
+            });
+          }
+
+          // Terminal log: auto-scroll to bottom unless user has scrolled up.
+          // Uses data-pinned="false" to remember user intent across LiveView re-renders.
+          function termScrollSetup(el) {
+            if (el._termScrollBound) return;
+            el._termScrollBound = true;
+            el.addEventListener("scroll", function () {
+              var atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 16;
+              el.dataset.pinned = atBottom ? "true" : "false";
+            }, {passive: true});
+          }
+
+          function termScrollUpdate(el) {
+            termScrollSetup(el);
+            if (el.dataset.pinned !== "false") {
+              el.scrollTop = el.scrollHeight;
+            }
+          }
+
+          window.addEventListener("phx:update", function () {
+            document.querySelectorAll(".term-viewport").forEach(function (el) {
+              termScrollUpdate(el);
+              // Re-apply active search filter after re-render
+              var searchInput = document.querySelector('[data-term="' + el.id + '"]');
+              if (searchInput && searchInput.value) filterTermLines(searchInput);
+            });
+          });
+
           window.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll(".term-viewport").forEach(termScrollUpdate);
+
             var csrfToken = document
               .querySelector("meta[name='csrf-token']")
               ?.getAttribute("content");

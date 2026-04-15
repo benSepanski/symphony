@@ -1353,7 +1353,7 @@ defmodule SymphonyElixir.Orchestrator do
      }, state}
   end
 
-  @recent_events_max 50
+  @recent_events_max 200
 
   defp integrate_codex_update(running_entry, %{event: event, timestamp: timestamp} = update) do
     token_delta = extract_token_delta(running_entry, update)
