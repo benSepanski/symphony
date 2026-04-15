@@ -3,6 +3,14 @@
 An orchestrator service that polls Linear issues and runs coding agents in isolated workspaces.
 The reference implementation is in `elixir/`.
 
+## Quick Orientation
+
+| What you need | Where to look |
+|---------------|---------------|
+| Elixir conventions, architecture, testing | [`elixir/AGENTS.md`](elixir/AGENTS.md) (table of contents) |
+| Detailed architecture & module map | [`elixir/docs/architecture.md`](elixir/docs/architecture.md) |
+| Language-agnostic specification | [`SPEC.md`](SPEC.md) |
+
 ## Cloud Environment
 
 Toolchain: Erlang/OTP 28, Elixir 1.19.5 (installed via `mise`, see `elixir/mise.toml`).
@@ -37,8 +45,3 @@ automatically. Set it before running:
 export LINEAR_API_KEY=<your-token>
 cd elixir && make run
 ```
-
-## Codebase Guide
-
-See `elixir/AGENTS.md` for detailed conventions, test instructions, and coding rules.
-See `SPEC.md` for the language-agnostic specification.
