@@ -42,7 +42,11 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
 
     case start_port(command, workspace, worker_host) do
       {:ok, port} ->
-        metadata = port_metadata(port, worker_host)
+        metadata =
+          port_metadata(port, worker_host)
+          |> Map.put(:issue_id, Map.get(issue, :id) || Map.get(issue, "id"))
+          |> Map.put(:issue_identifier, Map.get(issue, :identifier) || Map.get(issue, "identifier"))
+          |> Map.put(:workspace, workspace)
 
         case receive_loop(port, on_message, metadata, timeout_ms, "", nil) do
           {:ok, result} ->
@@ -195,6 +199,10 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
 
   defp handle_decoded_message(on_message, metadata, _data, accumulated_result, %{"type" => "system", "subtype" => "init"} = payload) do
     session_id = Map.get(payload, "session_id")
+
+    Logger.info(
+      "Claude Code session started for issue_id=#{metadata[:issue_id] || "n/a"} issue_identifier=#{metadata[:issue_identifier] || "n/a"} session_id=#{session_id || "unknown"} workspace=#{metadata[:workspace] || "n/a"}"
+    )
 
     emit_message(
       on_message,

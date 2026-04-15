@@ -31,6 +31,8 @@ When logging Codex execution lifecycle events, include:
 - `AgentRunner`: log start/completion/failure with issue context, plus `session_id` when known.
 - `Orchestrator`: log dispatch, retry, terminal/non-active transitions, and worker exits with issue context. Include `session_id` whenever running-entry data has it.
 - `Codex.AppServer`: log session start/completion/error with issue context and `session_id`.
+- `ClaudeCode.StreamClient`: log session start (when `session_id` becomes known from the stream) and completion/error with issue context, `session_id`, and `workspace`.
+- `Workspace`: log workspace ready (created or reused) with issue context, `workspace` path, `created` flag, and `worker_host`.
 
 ## Checklist For New Logs
 
