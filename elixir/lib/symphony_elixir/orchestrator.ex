@@ -37,7 +37,6 @@ defmodule SymphonyElixir.Orchestrator do
       :tick_timer_ref,
       :tick_token,
       running: %{},
-      completed: MapSet.new(),
       claimed: MapSet.new(),
       retry_attempts: %{},
       codex_totals: nil,
@@ -93,22 +92,6 @@ defmodule SymphonyElixir.Orchestrator do
 
   def handle_info({:tick, _tick_token}, state), do: {:noreply, state}
 
-  def handle_info(:tick, state) do
-    state = refresh_runtime_config(state)
-
-    state = %{
-      state
-      | poll_check_in_progress: true,
-        next_poll_due_at_ms: nil,
-        tick_timer_ref: nil,
-        tick_token: nil
-    }
-
-    notify_dashboard()
-    :ok = schedule_poll_cycle_start()
-    {:noreply, state}
-  end
-
   def handle_info(:run_poll_cycle, state) do
     state = refresh_runtime_config(state)
     state = maybe_dispatch(state)
@@ -138,7 +121,7 @@ defmodule SymphonyElixir.Orchestrator do
               Logger.info("Agent task completed for issue_id=#{issue_id} session_id=#{session_id}; scheduling active-state continuation check")
 
               state
-              |> complete_issue(issue_id)
+              |> clear_retry_attempts(issue_id)
               |> schedule_issue_retry(issue_id, 1, %{
                 identifier: running_entry.identifier,
                 delay_type: :continuation,
@@ -449,7 +432,7 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp reconcile_stalled_running_issues(%State{} = state) do
-    timeout_ms = Config.settings!().codex.stall_timeout_ms
+    timeout_ms = agent_stall_timeout_ms()
 
     cond do
       timeout_ms <= 0 ->
@@ -726,7 +709,8 @@ defmodule SymphonyElixir.Orchestrator do
             codex_total_cost_usd: 0.0,
             turn_count: 0,
             retry_attempt: normalize_retry_attempt(attempt),
-            started_at: DateTime.utc_now()
+            started_at: DateTime.utc_now(),
+            recent_events: []
           })
 
         %{
@@ -767,14 +751,6 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp revalidate_issue_for_dispatch(issue, _issue_fetcher, _terminal_states), do: {:ok, issue}
-
-  defp complete_issue(%State{} = state, issue_id) do
-    %{
-      state
-      | completed: MapSet.put(state.completed, issue_id),
-        retry_attempts: Map.delete(state.retry_attempts, issue_id)
-    }
-  end
 
   defp schedule_issue_retry(%State{} = state, issue_id, attempt, metadata)
        when is_binary(issue_id) and is_map(metadata) do
@@ -925,6 +901,10 @@ defmodule SymphonyElixir.Orchestrator do
          })
        )}
     end
+  end
+
+  defp clear_retry_attempts(%State{} = state, issue_id) do
+    %{state | retry_attempts: Map.delete(state.retry_attempts, issue_id)}
   end
 
   defp release_issue_claim(%State{} = state, issue_id) do
@@ -1131,6 +1111,7 @@ defmodule SymphonyElixir.Orchestrator do
           last_codex_timestamp: metadata.last_codex_timestamp,
           last_codex_message: metadata.last_codex_message,
           last_codex_event: metadata.last_codex_event,
+          recent_events: Map.get(metadata, :recent_events, []),
           runtime_seconds: running_seconds(metadata.started_at, now)
         }
       end)
@@ -1178,6 +1159,8 @@ defmodule SymphonyElixir.Orchestrator do
      }, state}
   end
 
+  @recent_events_max 50
+
   defp integrate_codex_update(running_entry, %{event: event, timestamp: timestamp} = update) do
     token_delta = extract_token_delta(running_entry, update)
     cost_delta = extract_cost_delta(token_delta, update)
@@ -1192,6 +1175,17 @@ defmodule SymphonyElixir.Orchestrator do
     last_reported_output = Map.get(running_entry, :codex_last_reported_output_tokens, 0)
     last_reported_total = Map.get(running_entry, :codex_last_reported_total_tokens, 0)
     turn_count = Map.get(running_entry, :turn_count, 0)
+    existing_events = Map.get(running_entry, :recent_events, [])
+
+    new_event = %{
+      at: timestamp,
+      event: event,
+      message: summarize_codex_update_message(update)
+    }
+
+    recent_events =
+      (existing_events ++ [new_event])
+      |> Enum.take(-@recent_events_max)
 
     {
       Map.merge(running_entry, %{
@@ -1209,7 +1203,8 @@ defmodule SymphonyElixir.Orchestrator do
         codex_input_cost_usd: codex_input_cost + cost_delta.input_cost_usd,
         codex_output_cost_usd: codex_output_cost + cost_delta.output_cost_usd,
         codex_total_cost_usd: codex_total_cost + cost_delta.total_cost_usd,
-        turn_count: turn_count_for_update(turn_count, running_entry.session_id, update)
+        turn_count: turn_count_for_update(turn_count, running_entry.session_id, update),
+        recent_events: recent_events
       }),
       Map.merge(token_delta, cost_delta)
     }
@@ -1257,6 +1252,10 @@ defmodule SymphonyElixir.Orchestrator do
       message: update[:payload] || update[:raw],
       timestamp: update[:timestamp]
     }
+  end
+
+  defp summarize_codex_update_message(update) do
+    StatusDashboard.humanize_codex_message(update)
   end
 
   defp schedule_tick(%State{} = state, delay_ms) when is_integer(delay_ms) and delay_ms >= 0 do
@@ -1308,6 +1307,15 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp record_session_completion_totals(state, _running_entry), do: state
+
+  defp agent_stall_timeout_ms do
+    settings = Config.settings!()
+
+    case settings.agent.kind do
+      "claude_code" -> settings.claude_code.turn_timeout_ms
+      _ -> settings.codex.stall_timeout_ms
+    end
+  end
 
   defp refresh_runtime_config(%State{} = state) do
     config = Config.settings!()
@@ -1380,40 +1388,71 @@ defmodule SymphonyElixir.Orchestrator do
 
   defp extract_token_delta(running_entry, %{event: _, timestamp: _} = update) do
     running_entry = running_entry || %{}
-    usage = extract_token_usage(update)
 
-    {
-      compute_token_delta(
-        running_entry,
-        :input,
-        usage,
-        :codex_last_reported_input_tokens
-      ),
-      compute_token_delta(
-        running_entry,
-        :output,
-        usage,
-        :codex_last_reported_output_tokens
-      ),
-      compute_token_delta(
-        running_entry,
-        :total,
-        usage,
-        :codex_last_reported_total_tokens
-      )
-    }
-    |> Tuple.to_list()
-    |> then(fn [input, output, total] ->
+    if claude_code_turn_completed?(update) do
+      # Claude Code stream-json reports per-invocation totals in result/success, not
+      # cumulative thread totals. Treat as an additive delta and reset the high-watermark
+      # so each subsequent turn is also fully counted.
+      usage = Map.get(update, :usage) || %{}
+      input = get_token_usage(usage, :input) || 0
+      output = get_token_usage(usage, :output) || 0
+      total = get_token_usage(usage, :total) || 0
+
       %{
-        input_tokens: input.delta,
-        output_tokens: output.delta,
-        total_tokens: total.delta,
-        input_reported: input.reported,
-        output_reported: output.reported,
-        total_reported: total.reported
+        input_tokens: input,
+        output_tokens: output,
+        total_tokens: total,
+        input_reported: 0,
+        output_reported: 0,
+        total_reported: 0
       }
-    end)
+    else
+      usage = extract_token_usage(update)
+
+      {
+        compute_token_delta(
+          running_entry,
+          :input,
+          usage,
+          :codex_last_reported_input_tokens
+        ),
+        compute_token_delta(
+          running_entry,
+          :output,
+          usage,
+          :codex_last_reported_output_tokens
+        ),
+        compute_token_delta(
+          running_entry,
+          :total,
+          usage,
+          :codex_last_reported_total_tokens
+        )
+      }
+      |> Tuple.to_list()
+      |> then(fn [input, output, total] ->
+        %{
+          input_tokens: input.delta,
+          output_tokens: output.delta,
+          total_tokens: total.delta,
+          input_reported: input.reported,
+          output_reported: output.reported,
+          total_reported: total.reported
+        }
+      end)
+    end
   end
+
+  # Detects a Claude Code stream-json turn_completed event.
+  # These carry per-invocation totals (not cumulative thread totals), so they must
+  # be accumulated additively rather than treated as high-watermark snapshots.
+  # Distinguished from Codex app-server :turn_completed (no top-level :usage map).
+  defp claude_code_turn_completed?(%{event: :turn_completed} = update) do
+    usage = Map.get(update, :usage)
+    is_map(usage) and integer_token_map?(usage)
+  end
+
+  defp claude_code_turn_completed?(_update), do: false
 
   defp extract_cost_delta(token_delta, update) do
     # If the update contains a direct cost_usd (Claude Code provides this), use it

@@ -87,11 +87,15 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     base = [settings.command, "-p", prompt, "--output-format", "stream-json", "--verbose"]
 
     base
+    |> maybe_add_permission_flag(settings.permission_mode)
     |> maybe_add_flag("--resume", session_id)
     |> maybe_add_flag("--model", settings.model)
     |> maybe_add_flag("--max-turns", int_to_string(settings.max_turns))
     |> maybe_add_allowed_tools(settings.allowed_tools)
   end
+
+  defp maybe_add_permission_flag(args, "full"), do: args ++ ["--dangerously-skip-permissions"]
+  defp maybe_add_permission_flag(args, _mode), do: args
 
   defp maybe_add_flag(args, _flag, nil), do: args
   defp maybe_add_flag(args, _flag, ""), do: args
@@ -115,7 +119,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     if is_nil(executable) do
       {:error, :bash_not_found}
     else
-      shell_command = Enum.map_join(command_parts, " ", &shell_escape/1)
+      shell_command = Enum.map_join(command_parts, " ", &shell_escape/1) <> " < /dev/null"
 
       port =
         Port.open(
@@ -135,7 +139,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
   end
 
   defp start_port(command_parts, workspace, worker_host) when is_binary(worker_host) do
-    shell_command = Enum.map_join(command_parts, " ", &shell_escape/1)
+    shell_command = Enum.map_join(command_parts, " ", &shell_escape/1) <> " < /dev/null"
     remote_command = "cd #{shell_escape(workspace)} && #{shell_command}"
     SSH.start_port(worker_host, remote_command, line: @port_line_bytes)
   end
@@ -171,7 +175,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
         )
 
       {^port, {:exit_status, 0}} ->
-        {:ok, accumulated_result || %{}}
+        {:error, :turn_incomplete}
 
       {^port, {:exit_status, status}} ->
         {:error, {:port_exit, status}}
@@ -227,6 +231,35 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     }
 
     cost_usd = Map.get(payload, "cost_usd")
+    result_session_id = Map.get(payload, "session_id") || get_in(accumulated_result, [:session_id])
+
+    result = %{
+      session_id: result_session_id,
+      cost_usd: cost_usd,
+      usage: usage,
+      num_turns: Map.get(payload, "num_turns"),
+      duration_ms: Map.get(payload, "duration_ms")
+    }
+
+    emit_message(
+      on_message,
+      :turn_completed,
+      %{payload: payload, raw: data, details: payload, cost_usd: cost_usd},
+      Map.put(metadata, :usage, usage)
+    )
+
+    {:done, result}
+  end
+
+  defp handle_decoded_message(on_message, metadata, data, accumulated_result, %{"type" => "result", "subtype" => "error_max_turns"} = payload) do
+    cost_usd = Map.get(payload, "cost_usd")
+
+    usage = %{
+      "input_tokens" => Map.get(payload, "input_tokens"),
+      "output_tokens" => Map.get(payload, "output_tokens"),
+      "total_tokens" => Map.get(payload, "total_tokens")
+    }
+
     result_session_id = Map.get(payload, "session_id") || get_in(accumulated_result, [:session_id])
 
     result = %{
