@@ -39,7 +39,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     settings = Config.claude_code_settings()
     timeout_ms = settings.turn_timeout_ms
 
-    command = build_command(prompt, session_id, settings)
+    command = build_command(prompt, session_id, workspace, settings)
 
     case start_port(command, workspace, worker_host) do
       {:ok, port} ->
@@ -84,15 +84,21 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
 
   # -- Command building --
 
-  defp build_command(prompt, session_id, settings) do
-    base = [settings.command, "-p", prompt, "--output-format", "stream-json", "--verbose"]
+  @doc false
+  @spec build_command(String.t(), String.t() | nil, String.t(), map()) :: [String.t()]
+  def build_command(prompt, session_id, workspace, settings) do
+    claude_args =
+      ["-p", prompt, "--output-format", "stream-json", "--verbose"]
+      |> maybe_add_permission_flag(settings.permission_mode)
+      |> maybe_add_flag("--resume", session_id)
+      |> maybe_add_flag("--model", settings.model)
+      |> maybe_add_flag("--max-turns", int_to_string(settings.max_turns))
+      |> maybe_add_allowed_tools(settings.allowed_tools)
 
-    base
-    |> maybe_add_permission_flag(settings.permission_mode)
-    |> maybe_add_flag("--resume", session_id)
-    |> maybe_add_flag("--model", settings.model)
-    |> maybe_add_flag("--max-turns", int_to_string(settings.max_turns))
-    |> maybe_add_allowed_tools(settings.allowed_tools)
+    case settings.sandbox do
+      "sbx" -> ["sbx", "run", settings.command, workspace, "--"] ++ claude_args
+      _ -> [settings.command | claude_args]
+    end
   end
 
   defp maybe_add_permission_flag(args, "full"), do: args ++ ["--dangerously-skip-permissions"]

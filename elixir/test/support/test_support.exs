@@ -115,12 +115,14 @@ defmodule SymphonyElixir.TestSupport do
           codex_turn_timeout_ms: 3_600_000,
           codex_read_timeout_ms: 5_000,
           codex_stall_timeout_ms: 300_000,
+          codex_sandbox: nil,
           claude_code_command: "claude",
           claude_code_model: nil,
           claude_code_allowed_tools: [],
           claude_code_max_turns: 10,
           claude_code_permission_mode: "auto",
           claude_code_turn_timeout_ms: 3_600_000,
+          claude_code_sandbox: nil,
           pricing_input_cost_per_million: nil,
           pricing_output_cost_per_million: nil,
           pricing_enabled: true,
@@ -162,12 +164,14 @@ defmodule SymphonyElixir.TestSupport do
     codex_turn_timeout_ms = Keyword.get(config, :codex_turn_timeout_ms)
     codex_read_timeout_ms = Keyword.get(config, :codex_read_timeout_ms)
     codex_stall_timeout_ms = Keyword.get(config, :codex_stall_timeout_ms)
+    codex_sandbox = Keyword.get(config, :codex_sandbox)
     claude_code_command = Keyword.get(config, :claude_code_command)
     claude_code_model = Keyword.get(config, :claude_code_model)
     claude_code_allowed_tools = Keyword.get(config, :claude_code_allowed_tools)
     claude_code_max_turns = Keyword.get(config, :claude_code_max_turns)
     claude_code_permission_mode = Keyword.get(config, :claude_code_permission_mode)
     claude_code_turn_timeout_ms = Keyword.get(config, :claude_code_turn_timeout_ms)
+    claude_code_sandbox = Keyword.get(config, :claude_code_sandbox)
     pricing_input_cost_per_million = Keyword.get(config, :pricing_input_cost_per_million)
     pricing_output_cost_per_million = Keyword.get(config, :pricing_output_cost_per_million)
     pricing_enabled = Keyword.get(config, :pricing_enabled)
@@ -213,6 +217,7 @@ defmodule SymphonyElixir.TestSupport do
         "  turn_timeout_ms: #{yaml_value(codex_turn_timeout_ms)}",
         "  read_timeout_ms: #{yaml_value(codex_read_timeout_ms)}",
         "  stall_timeout_ms: #{yaml_value(codex_stall_timeout_ms)}",
+        "  sandbox: #{yaml_value(codex_sandbox)}",
         "claude_code:",
         "  command: #{yaml_value(claude_code_command)}",
         "  model: #{yaml_value(claude_code_model)}",
@@ -220,6 +225,7 @@ defmodule SymphonyElixir.TestSupport do
         "  max_turns: #{yaml_value(claude_code_max_turns)}",
         "  permission_mode: #{yaml_value(claude_code_permission_mode)}",
         "  turn_timeout_ms: #{yaml_value(claude_code_turn_timeout_ms)}",
+        "  sandbox: #{yaml_value(claude_code_sandbox)}",
         "pricing:",
         "  input_cost_per_million: #{yaml_value(pricing_input_cost_per_million)}",
         "  output_cost_per_million: #{yaml_value(pricing_output_cost_per_million)}",
