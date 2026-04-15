@@ -127,6 +127,18 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert {:ok, _pid} = Supervisor.restart_child(SymphonyElixir.Supervisor, WorkflowStore)
   end
 
+  test "workflow store poll accepts valid schema changes" do
+    ensure_workflow_store_running()
+    assert {:ok, %{prompt: "You are an agent for this repository."}} = Workflow.current()
+
+    state = :sys.get_state(WorkflowStore)
+
+    write_workflow_file!(Workflow.workflow_file_path(), prompt: "Poll updated prompt")
+
+    assert {:noreply, new_state} = WorkflowStore.handle_info(:poll, state)
+    assert new_state.workflow.prompt == "Poll updated prompt"
+  end
+
   test "workflow store keeps last good config when poll detects valid YAML but invalid schema" do
     ensure_workflow_store_running()
     assert {:ok, %{prompt: "You are an agent for this repository."}} = Workflow.current()
