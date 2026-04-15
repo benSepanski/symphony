@@ -76,9 +76,10 @@ defmodule SymphonyElixirWeb.Presenter do
       running: running && running_issue_payload(running),
       retry: retry && retry_issue_payload(retry),
       logs: %{
-        codex_session_logs: []
+        codex_session_logs: (running && session_logs_payload(running)) || []
       },
       recent_events: (running && recent_events_payload(running)) || [],
+      resume: running && resume_payload(running),
       last_error: retry && retry.error,
       tracked: %{}
     }
@@ -117,7 +118,9 @@ defmodule SymphonyElixirWeb.Presenter do
         input_cost_usd: Map.get(entry, :codex_input_cost_usd, 0.0),
         output_cost_usd: Map.get(entry, :codex_output_cost_usd, 0.0),
         total_cost_usd: Map.get(entry, :codex_total_cost_usd, 0.0)
-      }
+      },
+      recent_events: session_logs_payload(entry),
+      resume: resume_payload(entry)
     }
   end
 
@@ -178,15 +181,72 @@ defmodule SymphonyElixirWeb.Presenter do
   end
 
   defp recent_events_payload(running) do
-    [
-      %{
-        at: iso8601(running.last_codex_timestamp),
-        event: running.last_codex_event,
-        message: summarize_message(running.last_codex_message)
-      }
-    ]
-    |> Enum.reject(&is_nil(&1.at))
+    events = Map.get(running, :recent_events, [])
+
+    if events == [] do
+      [
+        %{
+          at: iso8601(running.last_codex_timestamp),
+          event: running.last_codex_event,
+          message: summarize_message(running.last_codex_message)
+        }
+      ]
+      |> Enum.reject(&is_nil(&1.at))
+    else
+      Enum.map(events, fn ev ->
+        %{
+          at: iso8601(ev.at),
+          event: ev.event,
+          message: ev.message
+        }
+      end)
+    end
   end
+
+  defp session_logs_payload(running) do
+    running
+    |> Map.get(:recent_events, [])
+    |> Enum.map(fn ev ->
+      %{
+        at: iso8601(ev.at),
+        event: ev.event,
+        message: ev.message
+      }
+    end)
+  end
+
+  defp resume_payload(running) do
+    session_id = running.session_id
+    worker_host = Map.get(running, :worker_host)
+    workspace_path = Map.get(running, :workspace_path)
+
+    %{
+      session_id: session_id,
+      worker_host: worker_host,
+      workspace_path: workspace_path,
+      command: resume_command(session_id, worker_host, workspace_path)
+    }
+  end
+
+  defp resume_command(session_id, worker_host, workspace_path) when is_binary(session_id) do
+    claude_cmd = "claude --resume #{session_id}"
+
+    cond do
+      is_binary(worker_host) and is_binary(workspace_path) ->
+        "ssh #{worker_host} 'cd #{workspace_path} && #{claude_cmd}'"
+
+      is_binary(worker_host) ->
+        "ssh #{worker_host} '#{claude_cmd}'"
+
+      is_binary(workspace_path) ->
+        "cd #{workspace_path} && #{claude_cmd}"
+
+      true ->
+        claude_cmd
+    end
+  end
+
+  defp resume_command(_session_id, _worker_host, _workspace_path), do: nil
 
   defp summarize_message(nil), do: nil
   defp summarize_message(message), do: StatusDashboard.humanize_codex_message(message)

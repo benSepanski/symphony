@@ -357,7 +357,14 @@ defmodule SymphonyElixir.ExtensionsTest do
                  "started_at" => state_payload["running"] |> List.first() |> Map.fetch!("started_at"),
                  "last_event_at" => nil,
                  "tokens" => %{"input_tokens" => 4, "output_tokens" => 8, "total_tokens" => 12},
-                 "cost" => %{"input_cost_usd" => 0.0, "output_cost_usd" => 0.0, "total_cost_usd" => 0.0}
+                 "cost" => %{"input_cost_usd" => 0.0, "output_cost_usd" => 0.0, "total_cost_usd" => 0.0},
+                 "recent_events" => [],
+                 "resume" => %{
+                   "session_id" => "thread-http",
+                   "worker_host" => nil,
+                   "workspace_path" => nil,
+                   "command" => "claude --resume thread-http"
+                 }
                }
              ],
              "retrying" => [
@@ -411,6 +418,12 @@ defmodule SymphonyElixir.ExtensionsTest do
              "retry" => nil,
              "logs" => %{"codex_session_logs" => []},
              "recent_events" => [],
+             "resume" => %{
+               "session_id" => "thread-http",
+               "worker_host" => nil,
+               "workspace_path" => nil,
+               "command" => "claude --resume thread-http"
+             },
              "last_error" => nil,
              "tracked" => %{}
            }

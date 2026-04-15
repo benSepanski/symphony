@@ -183,6 +183,17 @@ defmodule SymphonyElixirWeb.DashboardLive do
                           >
                             Copy ID
                           </button>
+                          <%= if entry.resume && entry.resume.command do %>
+                            <button
+                              type="button"
+                              class="subtle-button"
+                              data-label="Copy resume cmd"
+                              data-copy={entry.resume.command}
+                              onclick="navigator.clipboard.writeText(this.dataset.copy); this.textContent = 'Copied'; clearTimeout(this._copyTimer); this._copyTimer = setTimeout(() => { this.textContent = this.dataset.label }, 1200);"
+                            >
+                              Copy resume cmd
+                            </button>
+                          <% end %>
                         <% else %>
                           <span class="muted">n/a</span>
                         <% end %>
@@ -218,6 +229,44 @@ defmodule SymphonyElixirWeb.DashboardLive do
             </div>
           <% end %>
         </section>
+
+        <%= if Enum.any?(@payload.running, fn e -> e.recent_events != [] end) do %>
+          <section class="section-card">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">Agent traces</h2>
+                <p class="section-copy">Recent events per active session. Use the resume command to attach to a running session.</p>
+              </div>
+            </div>
+
+            <div :for={entry <- @payload.running} :if={entry.recent_events != []}>
+              <div class="trace-issue-header">
+                <span class="issue-id"><%= entry.issue_identifier %></span>
+                <%= if entry.resume && entry.resume.command do %>
+                  <code class="resume-cmd"><%= entry.resume.command %></code>
+                <% end %>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table trace-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 14rem;">Time</th>
+                      <th style="width: 10rem;">Event</th>
+                      <th>Message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr :for={ev <- Enum.take(entry.recent_events, -20)}>
+                      <td class="mono muted"><%= ev.at || "n/a" %></td>
+                      <td><span class="event-badge"><%= ev.event %></span></td>
+                      <td class="trace-message"><%= ev.message || "" %></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        <% end %>
 
         <section class="section-card">
           <div class="section-header">
