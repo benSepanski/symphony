@@ -1588,16 +1588,28 @@ API design notes:
 
 ### 14.3 Partial State Recovery (Restart)
 
-Current design is intentionally in-memory for scheduler state.
+Scheduler state (retry timers, claim sets, token counters) is intentionally in-memory and not
+restored across restarts.
 
-After restart:
+Session metadata **is** persisted on graceful shutdown so that agent backends which support resume
+(for example Claude Code `--resume`) can continue where they left off:
+
+- On shutdown the orchestrator writes a lightweight JSON file (`symphony_sessions.json` inside the
+  workspace root) containing `issue_id`, `identifier`, `session_id`, `worker_host`, and
+  `workspace_path` for every running agent that has a known session ID.
+- On startup the orchestrator reads this file and passes the prior `session_id` to the agent backend
+  when re-dispatching each issue, enabling session resume where the backend supports it.
+- The file is removed entry-by-entry as issues are re-dispatched, and fully cleared once all entries
+  have been consumed or are no longer eligible.
+- A missing or corrupt session file is treated the same as having no prior sessions; the
+  orchestrator falls back to fresh dispatch.
+
+After restart the service still recovers tracker-driven state the same way:
 
 - No retry timers are restored from prior process memory.
-- No running sessions are assumed recoverable.
-- Service recovers by:
-  - startup terminal workspace cleanup
-  - fresh polling of active issues
-  - re-dispatching eligible work
+- Startup terminal workspace cleanup runs.
+- Fresh polling of active issues and re-dispatching eligible work.
+- Persisted session IDs augment fresh dispatch with resume capability where available.
 
 ### 14.4 Operator Intervention Points
 
@@ -2105,7 +2117,8 @@ Use the same validation profiles as Section 17:
   exposes the baseline endpoints/error semantics in Section 13.7 if shipped.
 - Optional `linear_graphql` client-side tool extension exposes raw Linear GraphQL access through the
   app-server session using configured Symphony auth.
-- TODO: Persist retry queue and session metadata across process restarts.
+- Session metadata is persisted across graceful restarts (see Section 14.3). Retry queue persistence
+  remains a future extension.
 - TODO: Make observability settings configurable in workflow front matter without prescribing UI
   implementation details.
 - TODO: Add first-class tracker write APIs (comments/state transitions) in the orchestrator instead
