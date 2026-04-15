@@ -28,6 +28,7 @@ defmodule SymphonyElixir.AgentRunner do
 
   defp run_on_worker_host(issue, codex_update_recipient, opts, worker_host) do
     Logger.info("Starting worker attempt for #{issue_context(issue)} worker_host=#{worker_host_for_log(worker_host)}")
+    warn_if_sandbox_not_configured()
 
     case Workspace.create_for_issue(issue, worker_host) do
       {:ok, workspace} ->
@@ -203,6 +204,25 @@ defmodule SymphonyElixir.AgentRunner do
     state_name
     |> String.trim()
     |> String.downcase()
+  end
+
+  defp warn_if_sandbox_not_configured do
+    settings = Config.settings!()
+
+    sandbox =
+      case settings.agent.kind do
+        "claude_code" -> settings.claude_code.sandbox
+        "codex" -> settings.codex.sandbox
+        _ -> nil
+      end
+
+    if is_nil(sandbox) do
+      Logger.warning(
+        "Sandbox is not configured for #{settings.agent.kind} agent — " <>
+          "agents will run without isolation. " <>
+          "Set #{settings.agent.kind}.sandbox: sbx in WORKFLOW.md to enable Docker sandboxing."
+      )
+    end
   end
 
   defp issue_context(%Issue{id: issue_id, identifier: identifier}) do

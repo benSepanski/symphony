@@ -137,9 +137,23 @@ defmodule SymphonyElixir.Config do
       settings.tracker.kind == "linear" and not is_binary(settings.tracker.project_slug) ->
         {:error, :missing_linear_project_slug}
 
+      sandbox_requested_but_sbx_missing?(settings) ->
+        {:error, :sbx_not_found}
+
       true ->
         :ok
     end
+  end
+
+  defp sandbox_requested_but_sbx_missing?(settings) do
+    uses_sbx =
+      case settings.agent.kind do
+        "claude_code" -> settings.claude_code.sandbox == "sbx"
+        "codex" -> settings.codex.sandbox == "sbx"
+        _ -> false
+      end
+
+    uses_sbx and is_nil(System.find_executable("sbx"))
   end
 
   defp format_config_error(reason) do

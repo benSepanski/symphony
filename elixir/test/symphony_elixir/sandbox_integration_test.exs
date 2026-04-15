@@ -21,11 +21,11 @@ defmodule SymphonyElixir.SandboxIntegrationTest do
         File.mkdir_p!(workspace)
         File.mkdir_p!(bin_dir)
 
-        # Fake sbx: records all positional args to trace file, then emits
-        # the minimal stream-json sequence that StreamClient.run_turn expects.
+        # Fake sbx: records all args to trace file, then emits the minimal
+        # stream-json sequence that StreamClient.run_turn expects.
         File.write!(fake_sbx, """
         #!/bin/sh
-        printf '%s\\n' "$*" > "#{trace_file}"
+        printf '%s\\n' "$*" >> "#{trace_file}"
         printf '%s\\n' '{"type":"system","subtype":"init","session_id":"sbx-sess"}'
         printf '%s\\n' '{"type":"result","subtype":"success","cost_usd":0.001,"session_id":"sbx-sess","input_tokens":10,"output_tokens":5,"total_tokens":15,"num_turns":1,"duration_ms":100}'
         """)
@@ -60,7 +60,9 @@ defmodule SymphonyElixir.SandboxIntegrationTest do
 
         # Verify sbx was actually invoked with correct arguments
         trace = File.read!(trace_file)
-        assert trace =~ "run claude"
+        assert trace =~ "run"
+        assert trace =~ "--name"
+        assert trace =~ "claude"
         assert trace =~ workspace
         assert trace =~ "--"
         assert trace =~ "-p"
@@ -90,12 +92,14 @@ defmodule SymphonyElixir.SandboxIntegrationTest do
         File.mkdir_p!(workspace)
         File.mkdir_p!(bin_dir)
 
-        # Fake sbx: records all positional args to trace file, then handles
-        # the JSON-RPC protocol that AppServer expects (initialize, initialized,
-        # thread/start, turn/start, turn/completed).
+        # Fake sbx: records all args to trace file (appending so sbx rm does not
+        # overwrite the run trace), then handles the JSON-RPC protocol that
+        # AppServer expects (initialize, initialized, thread/start, turn/start,
+        # turn/completed).
         File.write!(fake_sbx, """
         #!/bin/sh
-        printf '%s\\n' "$*" > "#{trace_file}"
+        printf '%s\\n' "$*" >> "#{trace_file}"
+        [ "$1" = "rm" ] && exit 0
         count=0
         while IFS= read -r line; do
           count=$((count + 1))
@@ -144,9 +148,10 @@ defmodule SymphonyElixir.SandboxIntegrationTest do
 
         assert {:ok, _result} = AppServer.run(workspace, "test codex prompt", issue)
 
-        # Verify sbx was actually invoked with correct arguments
+        # Verify sbx was actually invoked with correct arguments for the run
         trace = File.read!(trace_file)
         assert trace =~ "run"
+        assert trace =~ "--name"
         assert trace =~ "codex"
         assert trace =~ workspace
       after

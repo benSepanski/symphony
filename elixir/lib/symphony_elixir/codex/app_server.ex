@@ -24,7 +24,8 @@ defmodule SymphonyElixir.Codex.AppServer do
           turn_sandbox_policy: map(),
           thread_id: String.t(),
           workspace: Path.t(),
-          worker_host: String.t() | nil
+          worker_host: String.t() | nil,
+          sandbox_name: String.t() | nil
         }
 
   @spec run(Path.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
@@ -45,27 +46,39 @@ defmodule SymphonyElixir.Codex.AppServer do
 
     with {:ok, expanded_workspace} <- validate_workspace_cwd(workspace, worker_host),
          {:ok, port} <- start_port(expanded_workspace, worker_host) do
-      metadata = port_metadata(port, worker_host)
+      init_session(port, expanded_workspace, worker_host)
+    end
+  end
 
-      with {:ok, session_policies} <- session_policies(expanded_workspace, worker_host),
-           {:ok, thread_id} <- do_start_session(port, expanded_workspace, session_policies) do
-        {:ok,
-         %{
-           port: port,
-           metadata: metadata,
-           approval_policy: session_policies.approval_policy,
-           auto_approve_requests: session_policies.approval_policy == "never",
-           thread_sandbox: session_policies.thread_sandbox,
-           turn_sandbox_policy: session_policies.turn_sandbox_policy,
-           thread_id: thread_id,
-           workspace: expanded_workspace,
-           worker_host: worker_host
-         }}
-      else
-        {:error, reason} ->
-          stop_port(port)
-          {:error, reason}
-      end
+  defp init_session(port, workspace, worker_host) do
+    metadata = port_metadata(port, worker_host)
+
+    with {:ok, session_policies} <- session_policies(workspace, worker_host),
+         {:ok, thread_id} <- do_start_session(port, workspace, session_policies) do
+      settings = Config.settings!()
+
+      sandbox_name =
+        if settings.codex.sandbox == "sbx" and is_nil(worker_host),
+          do: derive_sandbox_name(settings.codex.command, workspace),
+          else: nil
+
+      {:ok,
+       %{
+         port: port,
+         metadata: metadata,
+         approval_policy: session_policies.approval_policy,
+         auto_approve_requests: session_policies.approval_policy == "never",
+         thread_sandbox: session_policies.thread_sandbox,
+         turn_sandbox_policy: session_policies.turn_sandbox_policy,
+         thread_id: thread_id,
+         workspace: workspace,
+         worker_host: worker_host,
+         sandbox_name: sandbox_name
+       }}
+    else
+      {:error, reason} ->
+        stop_port(port)
+        {:error, reason}
     end
   end
 
@@ -145,6 +158,11 @@ defmodule SymphonyElixir.Codex.AppServer do
 
   @impl true
   @spec stop_session(session()) :: :ok
+  def stop_session(%{port: port, sandbox_name: name}) when is_port(port) and is_binary(name) do
+    stop_port(port)
+    remove_sandbox(name)
+  end
+
   def stop_session(%{port: port}) when is_port(port) do
     stop_port(port)
   end
@@ -225,9 +243,14 @@ defmodule SymphonyElixir.Codex.AppServer do
   @doc false
   @spec local_launch_command(String.t(), String.t() | nil, String.t()) :: String.t()
   def local_launch_command(workspace, "sbx", command) do
+    name = derive_sandbox_name(command, workspace)
+
     case String.split(command, ~r/\s+/, parts: 2) do
-      [binary, rest_args] -> "sbx run #{shell_escape(binary)} #{shell_escape(workspace)} -- #{rest_args}"
-      [binary] -> "sbx run #{shell_escape(binary)} #{shell_escape(workspace)}"
+      [binary, rest_args] ->
+        "sbx run --name #{shell_escape(name)} #{shell_escape(binary)} #{shell_escape(workspace)} -- #{rest_args}"
+
+      [binary] ->
+        "sbx run --name #{shell_escape(name)} #{shell_escape(binary)} #{shell_escape(workspace)}"
     end
   end
 
@@ -1112,4 +1135,26 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp needs_input_field?(_payload), do: false
+
+  # -- Sandbox lifecycle --
+
+  @doc false
+  @spec derive_sandbox_name(String.t(), Path.t()) :: String.t()
+  def derive_sandbox_name(command, workspace) do
+    agent = command |> String.split(~r/\s+/) |> List.first() |> Path.basename()
+    workdir = Path.basename(workspace)
+    "#{agent}-#{workdir}"
+  end
+
+  defp remove_sandbox(name) do
+    case System.cmd("sbx", ["rm", name], stderr_to_stdout: true) do
+      {_output, 0} ->
+        Logger.info("Removed sbx sandbox: #{name}")
+
+      {output, code} ->
+        Logger.warning("Failed to remove sbx sandbox #{name} (exit #{code}): #{String.trim(output)}")
+    end
+
+    :ok
+  end
 end
