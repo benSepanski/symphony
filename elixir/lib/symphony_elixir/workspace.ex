@@ -22,6 +22,8 @@ defmodule SymphonyElixir.Workspace do
            :ok <- validate_workspace_path(workspace, worker_host),
            {:ok, workspace, created?} <- ensure_workspace(workspace, worker_host),
            :ok <- maybe_run_after_create_hook(workspace, issue_context, created?, worker_host) do
+        Logger.info("Workspace ready #{issue_log_context(issue_context)} workspace=#{workspace} created=#{created?} worker_host=#{worker_host_for_log(worker_host)}")
+
         {:ok, workspace}
       end
     rescue

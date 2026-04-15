@@ -1300,4 +1300,60 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
       File.rm_rf(test_root)
     end
   end
+
+  test "workspace creation emits a ready log with issue context, path, and created=true" do
+    workspace_root =
+      Path.join(
+        System.tmp_dir!(),
+        "symphony-elixir-workspace-log-create-#{System.unique_integer([:positive])}"
+      )
+
+    try do
+      write_workflow_file!(Workflow.workflow_file_path(), workspace_root: workspace_root)
+
+      issue = %SymphonyElixir.Linear.Issue{id: "abc-123", identifier: "LOG-1"}
+
+      log =
+        capture_log(fn ->
+          assert {:ok, _workspace} = Workspace.create_for_issue(issue)
+        end)
+
+      assert log =~ "Workspace ready"
+      assert log =~ "issue_id=abc-123"
+      assert log =~ "issue_identifier=LOG-1"
+      assert log =~ "created=true"
+      assert log =~ "worker_host=local"
+    after
+      File.rm_rf(workspace_root)
+    end
+  end
+
+  test "workspace reuse emits a ready log with created=false" do
+    workspace_root =
+      Path.join(
+        System.tmp_dir!(),
+        "symphony-elixir-workspace-log-reuse-#{System.unique_integer([:positive])}"
+      )
+
+    try do
+      write_workflow_file!(Workflow.workflow_file_path(), workspace_root: workspace_root)
+
+      issue = %SymphonyElixir.Linear.Issue{id: "abc-456", identifier: "LOG-2"}
+
+      assert {:ok, _workspace} = Workspace.create_for_issue(issue)
+
+      log =
+        capture_log(fn ->
+          assert {:ok, _workspace} = Workspace.create_for_issue(issue)
+        end)
+
+      assert log =~ "Workspace ready"
+      assert log =~ "issue_id=abc-456"
+      assert log =~ "issue_identifier=LOG-2"
+      assert log =~ "created=false"
+      assert log =~ "worker_host=local"
+    after
+      File.rm_rf(workspace_root)
+    end
+  end
 end
