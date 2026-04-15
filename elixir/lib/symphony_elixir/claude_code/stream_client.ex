@@ -171,7 +171,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
         )
 
       {^port, {:exit_status, 0}} ->
-        {:ok, accumulated_result || %{}}
+        {:error, :turn_incomplete}
 
       {^port, {:exit_status, status}} ->
         {:error, {:port_exit, status}}
