@@ -579,6 +579,13 @@ This section is intentionally redundant so a coding agent can implement the conf
 - `codex.turn_timeout_ms`: integer, default `3600000`
 - `codex.read_timeout_ms`: integer, default `5000`
 - `codex.stall_timeout_ms`: integer, default `300000`
+- `claude_code.command`: shell command string, default `claude`
+- `claude_code.model`: model identifier string, optional; when set, passed as `--model` to the CLI
+- `claude_code.allowed_tools`: list of tool name strings, default `[]`
+- `claude_code.max_turns`: integer, default `10`
+- `claude_code.permission_mode`: one of `"auto"`, `"full"`, `"plan"`, default `"auto"`
+- `claude_code.turn_timeout_ms`: integer, default `3600000`
+- `claude_code.sandbox`: sandbox mode string, optional
 - `server.port` (extension): integer, optional; enables the optional HTTP server, `0` may be used
   for ephemeral local bind, and CLI `--port` overrides it
 

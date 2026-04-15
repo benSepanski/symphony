@@ -45,6 +45,7 @@ agent:
   max_turns: 20
 claude_code:
   command: claude
+  model: claude-sonnet-4-6
   permission_mode: full
 ---
 
