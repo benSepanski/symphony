@@ -8,13 +8,14 @@ tracker:
     - Merging
     - Rework
   terminal_states:
+    - Blocked
     - Closed
     - Cancelled
     - Canceled
     - Duplicate
     - Done
 polling:
-  interval_ms: 5000
+  interval_ms: 1800000
 workspace:
   root: ~/myGithubProjects/symphony/worktrees
 hooks:
@@ -42,7 +43,8 @@ hooks:
 agent:
   kind: claude_code
   max_concurrent_agents: 1
-  max_turns: 20
+  max_turns: 5
+  max_turns_state: Blocked
 claude_code:
   command: claude
   model: claude-sonnet-4-6

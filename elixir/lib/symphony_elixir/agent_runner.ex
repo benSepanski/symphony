@@ -126,8 +126,8 @@ defmodule SymphonyElixir.AgentRunner do
           )
 
         {:continue, refreshed_issue} ->
-          Logger.info("Reached agent.max_turns for #{issue_context(refreshed_issue)} with issue still active; returning control to orchestrator")
-
+          Logger.info("Reached agent.max_turns for #{issue_context(refreshed_issue)} with issue still active; moving to max_turns_state")
+          move_to_max_turns_state(refreshed_issue)
           :ok
 
         {:done, _refreshed_issue} ->
@@ -136,6 +136,22 @@ defmodule SymphonyElixir.AgentRunner do
         {:error, reason} ->
           {:error, reason}
       end
+    end
+  end
+
+  defp move_to_max_turns_state(issue) do
+    case Config.settings!().agent.max_turns_state do
+      state_name when is_binary(state_name) and state_name != "" ->
+        case Tracker.update_issue_state(issue.id, state_name) do
+          :ok ->
+            Logger.info("Moved #{issue_context(issue)} to #{state_name} after reaching max_turns")
+
+          {:error, reason} ->
+            Logger.warning("Failed to move #{issue_context(issue)} to #{state_name} after reaching max_turns: #{inspect(reason)}")
+        end
+
+      _ ->
+        :ok
     end
   end
 

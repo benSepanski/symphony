@@ -131,6 +131,7 @@ defmodule SymphonyElixir.Config.Schema do
       field(:kind, :string, default: "codex")
       field(:max_concurrent_agents, :integer, default: 10)
       field(:max_turns, :integer, default: 20)
+      field(:max_turns_state, :string)
       field(:max_retry_backoff_ms, :integer, default: 300_000)
       field(:max_concurrent_agents_by_state, :map, default: %{})
     end
@@ -138,11 +139,8 @@ defmodule SymphonyElixir.Config.Schema do
     @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
     def changeset(schema, attrs) do
       schema
-      |> cast(
-        attrs,
-        [:kind, :max_concurrent_agents, :max_turns, :max_retry_backoff_ms, :max_concurrent_agents_by_state],
-        empty_values: []
-      )
+      # credo:disable-for-next-line Credo.Check.Readability.MaxLineLength
+      |> cast(attrs, [:kind, :max_concurrent_agents, :max_turns, :max_turns_state, :max_retry_backoff_ms, :max_concurrent_agents_by_state], empty_values: [])
       |> validate_inclusion(:kind, ["codex", "claude_code"])
       |> validate_number(:max_concurrent_agents, greater_than: 0)
       |> validate_number(:max_turns, greater_than: 0)

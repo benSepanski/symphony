@@ -145,9 +145,11 @@ defmodule SymphonyElixir.Orchestrator do
             :normal ->
               Logger.info("Agent task completed for issue_id=#{issue_id} session_id=#{session_id}; scheduling active-state continuation check")
 
+              previous_attempt = get_in(state.retry_attempts, [issue_id, :attempt]) || 0
+
               state
               |> clear_retry_attempts(issue_id)
-              |> schedule_issue_retry(issue_id, 1, %{
+              |> schedule_issue_retry(issue_id, previous_attempt + 1, %{
                 identifier: running_entry.identifier,
                 delay_type: :continuation,
                 worker_host: Map.get(running_entry, :worker_host),
