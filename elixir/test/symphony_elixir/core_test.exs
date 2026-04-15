@@ -1815,4 +1815,150 @@ defmodule SymphonyElixir.CoreTest do
       File.rm_rf(test_root)
     end
   end
+
+  describe "rate_limit_status/1" do
+    test "returns :ok for nil rate limits" do
+      assert Orchestrator.rate_limit_status(nil) == :ok
+    end
+
+    test "returns :ok for non-map rate limits" do
+      assert Orchestrator.rate_limit_status("something") == :ok
+    end
+
+    test "returns :ok for empty map" do
+      assert Orchestrator.rate_limit_status(%{}) == :ok
+    end
+
+    test "returns :ok when buckets have plenty of remaining capacity" do
+      rate_limits = %{
+        "primary" => %{"remaining" => 900, "limit" => 1000}
+      }
+
+      assert Orchestrator.rate_limit_status(rate_limits) == :ok
+    end
+
+    test "returns :approaching when bucket remaining is below 20% of limit" do
+      rate_limits = %{
+        "primary" => %{"remaining" => 150, "limit" => 1000}
+      }
+
+      assert Orchestrator.rate_limit_status(rate_limits) == :approaching
+    end
+
+    test "returns :exceeded when bucket remaining is zero" do
+      rate_limits = %{
+        "primary" => %{"remaining" => 0, "limit" => 1000}
+      }
+
+      assert Orchestrator.rate_limit_status(rate_limits) == :exceeded
+    end
+
+    test "returns :exceeded when remaining is negative" do
+      rate_limits = %{
+        "primary" => %{"remaining" => -5, "limit" => 1000}
+      }
+
+      assert Orchestrator.rate_limit_status(rate_limits) == :exceeded
+    end
+
+    test "returns worst status across multiple buckets" do
+      rate_limits = %{
+        "primary" => %{"remaining" => 900, "limit" => 1000},
+        "secondary" => %{"remaining" => 0, "limit" => 500}
+      }
+
+      assert Orchestrator.rate_limit_status(rate_limits) == :exceeded
+    end
+
+    test "handles atom keys" do
+      rate_limits = %{
+        primary: %{remaining: 100, limit: 1000}
+      }
+
+      assert Orchestrator.rate_limit_status(rate_limits) == :approaching
+    end
+
+    test "handles string numeric values" do
+      rate_limits = %{
+        "primary" => %{"remaining" => "0", "limit" => "1000"}
+      }
+
+      assert Orchestrator.rate_limit_status(rate_limits) == :exceeded
+    end
+
+    test "returns :ok when bucket has no remaining or limit fields" do
+      rate_limits = %{
+        "primary" => %{"something_else" => 42}
+      }
+
+      assert Orchestrator.rate_limit_status(rate_limits) == :ok
+    end
+  end
+
+  describe "rate_limit_effective_slots/2" do
+    test "returns full available slots when status is :ok" do
+      state = %Orchestrator.State{
+        max_concurrent_agents: 10,
+        running: %{}
+      }
+
+      assert Orchestrator.rate_limit_effective_slots(state, :ok) == 10
+    end
+
+    test "returns 0 when status is :exceeded" do
+      state = %Orchestrator.State{
+        max_concurrent_agents: 10,
+        running: %{}
+      }
+
+      assert Orchestrator.rate_limit_effective_slots(state, :exceeded) == 0
+    end
+
+    test "reduces capacity to half of max when status is :approaching" do
+      state = %Orchestrator.State{
+        max_concurrent_agents: 10,
+        running: %{}
+      }
+
+      assert Orchestrator.rate_limit_effective_slots(state, :approaching) == 5
+    end
+
+    test "approaching status accounts for running agents" do
+      state = %Orchestrator.State{
+        max_concurrent_agents: 10,
+        running: %{
+          "issue-1" => %{},
+          "issue-2" => %{},
+          "issue-3" => %{},
+          "issue-4" => %{}
+        }
+      }
+
+      assert Orchestrator.rate_limit_effective_slots(state, :approaching) == 1
+    end
+
+    test "approaching status returns 0 when running meets or exceeds reduced cap" do
+      state = %Orchestrator.State{
+        max_concurrent_agents: 10,
+        running: %{
+          "i1" => %{},
+          "i2" => %{},
+          "i3" => %{},
+          "i4" => %{},
+          "i5" => %{}
+        }
+      }
+
+      assert Orchestrator.rate_limit_effective_slots(state, :approaching) == 0
+    end
+
+    test "approaching with max_concurrent_agents=1 keeps minimum of 1 slot" do
+      state = %Orchestrator.State{
+        max_concurrent_agents: 1,
+        running: %{}
+      }
+
+      assert Orchestrator.rate_limit_effective_slots(state, :approaching) == 1
+    end
+  end
 end
