@@ -8,7 +8,7 @@ defmodule SymphonyElixir.Orchestrator do
   import Bitwise, only: [<<<: 2]
 
   alias SymphonyElixir.{AgentRunner, Config, StatusDashboard, Tracker, Workspace}
-  alias SymphonyElixir.Linear.Issue
+  alias SymphonyElixir.Linear.{Client, Issue}
 
   @continuation_retry_delay_ms 1_000
   @failure_retry_base_ms 10_000
@@ -66,6 +66,7 @@ defmodule SymphonyElixir.Orchestrator do
       codex_rate_limits: nil
     }
 
+    verify_linear_connection(config)
     run_terminal_workspace_cleanup()
     state = schedule_tick(state, 0)
 
@@ -860,6 +861,30 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp cleanup_issue_workspace(_identifier, _worker_host), do: :ok
+
+  defp verify_linear_connection(%{tracker: %{kind: "linear"}} = _config) do
+    case Client.verify_connection() do
+      :ok ->
+        Logger.info("Linear connection verified")
+
+      {:error, :missing_linear_api_token} ->
+        Logger.error(
+          "Cannot connect to Linear: API token is missing. " <>
+            "Set LINEAR_API_KEY in your environment or .env file."
+        )
+
+      {:error, :linear_auth_failed} ->
+        Logger.error(
+          "Cannot connect to Linear: authentication failed. " <>
+            "Check that your LINEAR_API_KEY is valid."
+        )
+
+      {:error, reason} ->
+        Logger.error("Cannot connect to Linear: #{inspect(reason)}")
+    end
+  end
+
+  defp verify_linear_connection(_config), do: :ok
 
   defp run_terminal_workspace_cleanup do
     case Tracker.fetch_issues_by_states(Config.settings!().tracker.terminal_states) do

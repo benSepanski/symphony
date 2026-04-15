@@ -136,4 +136,37 @@ defmodule SymphonyElixir.CLITest do
 
     assert :ok = CLI.evaluate([@ack_flag, "WORKFLOW.md"], deps)
   end
+
+  test "loads .env file from workflow directory before starting" do
+    dir = Path.join(System.tmp_dir!(), "cli-env-test-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    workflow_path = Path.join(dir, "WORKFLOW.md")
+    env_path = Path.join(dir, ".env")
+    key = "SYMPHONY_CLI_DOT_ENV_TEST_#{System.unique_integer([:positive])}"
+
+    File.write!(workflow_path, "---\n---\n")
+
+    File.write!(env_path, "#{key}=loaded_from_dot_env\n")
+
+    on_exit(fn ->
+      System.delete_env(key)
+      File.rm_rf!(dir)
+    end)
+
+    parent = self()
+
+    deps = %{
+      file_regular?: fn _path -> true end,
+      set_workflow_file_path: fn _path -> :ok end,
+      set_logs_root: fn _path -> :ok end,
+      set_server_port_override: fn _port -> :ok end,
+      ensure_all_started: fn ->
+        send(parent, {:env_at_start, System.get_env(key)})
+        {:ok, [:symphony_elixir]}
+      end
+    }
+
+    assert :ok = CLI.evaluate([@ack_flag, workflow_path], deps)
+    assert_received {:env_at_start, "loaded_from_dot_env"}
+  end
 end
