@@ -91,8 +91,8 @@ defmodule SymphonyElixir.SandboxIntegrationTest do
         File.mkdir_p!(bin_dir)
 
         # Fake sbx: records all positional args to trace file, then handles
-        # the JSON-RPC protocol that AppServer expects (initialize, thread/start,
-        # turn/start, turn/completed).
+        # the JSON-RPC protocol that AppServer expects (initialize, initialized,
+        # thread/start, turn/start, turn/completed).
         File.write!(fake_sbx, """
         #!/bin/sh
         printf '%s\\n' "$*" > "#{trace_file}"
@@ -108,6 +108,8 @@ defmodule SymphonyElixir.SandboxIntegrationTest do
               ;;
             3)
               printf '%s\\n' '{"id":3,"result":{"turn":{"id":"turn-sbx"}}}'
+              ;;
+            4)
               printf '%s\\n' '{"method":"turn/completed"}'
               exit 0
               ;;
