@@ -222,14 +222,16 @@ defmodule SymphonyElixir.Codex.AppServer do
     SSH.start_port(worker_host, remote_command, line: @port_line_bytes)
   end
 
-  defp local_launch_command(workspace, "sbx", command) do
+  @doc false
+  @spec local_launch_command(String.t(), String.t() | nil, String.t()) :: String.t()
+  def local_launch_command(workspace, "sbx", command) do
     case String.split(command, ~r/\s+/, parts: 2) do
       [binary, rest_args] -> "sbx run #{shell_escape(binary)} #{shell_escape(workspace)} -- #{rest_args}"
       [binary] -> "sbx run #{shell_escape(binary)} #{shell_escape(workspace)}"
     end
   end
 
-  defp local_launch_command(_workspace, _sandbox, command), do: command
+  def local_launch_command(_workspace, _sandbox, command), do: command
 
   defp remote_launch_command(workspace) when is_binary(workspace) do
     [

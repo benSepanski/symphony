@@ -79,9 +79,12 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
 
   # -- Command building --
 
-  defp build_command(prompt, session_id, workspace, settings) do
+  @doc false
+  @spec build_command(String.t(), String.t() | nil, String.t(), map()) :: [String.t()]
+  def build_command(prompt, session_id, workspace, settings) do
     claude_args =
       ["-p", prompt, "--output-format", "stream-json", "--verbose"]
+      |> maybe_add_permission_flag(settings.permission_mode)
       |> maybe_add_flag("--resume", session_id)
       |> maybe_add_flag("--model", settings.model)
       |> maybe_add_flag("--max-turns", int_to_string(settings.max_turns))
