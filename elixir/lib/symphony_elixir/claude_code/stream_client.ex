@@ -115,7 +115,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     if is_nil(executable) do
       {:error, :bash_not_found}
     else
-      shell_command = Enum.map_join(command_parts, " ", &shell_escape/1)
+      shell_command = Enum.map_join(command_parts, " ", &shell_escape/1) <> " < /dev/null"
 
       port =
         Port.open(
@@ -135,7 +135,7 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
   end
 
   defp start_port(command_parts, workspace, worker_host) when is_binary(worker_host) do
-    shell_command = Enum.map_join(command_parts, " ", &shell_escape/1)
+    shell_command = Enum.map_join(command_parts, " ", &shell_escape/1) <> " < /dev/null"
     remote_command = "cd #{shell_escape(workspace)} && #{shell_command}"
     SSH.start_port(worker_host, remote_command, line: @port_line_bytes)
   end
