@@ -41,7 +41,8 @@ defmodule SymphonyElixir.Orchestrator do
       retry_attempts: %{},
       codex_totals: nil,
       codex_rate_limits: nil,
-      persisted_sessions: %{}
+      persisted_sessions: %{},
+      rate_limit_status: :ok
     ]
   end
 
@@ -234,10 +235,22 @@ defmodule SymphonyElixir.Orchestrator do
   defp maybe_dispatch(%State{} = state) do
     state = reconcile_running_issues(state)
 
+    rate_status = rate_limit_status(state.codex_rate_limits)
+    state = log_rate_limit_transition(state, rate_status)
+
+    if rate_status == :exceeded do
+      Logger.warning("Rate limits exceeded; blocking all new dispatches")
+      state
+    else
+      do_dispatch(state, rate_status)
+    end
+  end
+
+  defp do_dispatch(%State{} = state, rate_status) do
     with :ok <- Config.validate!(),
          {:ok, issues} <- Tracker.fetch_candidate_issues(),
-         true <- available_slots(state) > 0 do
-      choose_issues(issues, state)
+         true <- rate_limit_effective_slots(state, rate_status) > 0 do
+      choose_issues(issues, state, rate_status)
     else
       {:error, :missing_linear_api_token} ->
         Logger.error("Linear API token missing in WORKFLOW.md")
@@ -526,14 +539,14 @@ defmodule SymphonyElixir.Orchestrator do
 
   defp terminate_task(_pid), do: :ok
 
-  defp choose_issues(issues, state) do
+  defp choose_issues(issues, state, rate_status) do
     active_states = active_state_set()
     terminal_states = terminal_state_set()
 
     issues
     |> sort_issues_for_dispatch()
     |> Enum.reduce(state, fn issue, state_acc ->
-      if should_dispatch_issue?(issue, state_acc, active_states, terminal_states) do
+      if should_dispatch_issue?(issue, state_acc, active_states, terminal_states, rate_status) do
         dispatch_issue(state_acc, issue)
       else
         state_acc
@@ -561,22 +574,26 @@ defmodule SymphonyElixir.Orchestrator do
   defp issue_created_at_sort_key(%Issue{}), do: 9_223_372_036_854_775_807
   defp issue_created_at_sort_key(_issue), do: 9_223_372_036_854_775_807
 
+  defp should_dispatch_issue?(issue, state, active_states, terminal_states, rate_status \\ :ok)
+
   defp should_dispatch_issue?(
          %Issue{} = issue,
          %State{running: running, claimed: claimed} = state,
          active_states,
-         terminal_states
+         terminal_states,
+         rate_status
        ) do
     candidate_issue?(issue, active_states, terminal_states) and
       !todo_issue_blocked_by_non_terminal?(issue, terminal_states) and
       !MapSet.member?(claimed, issue.id) and
       !Map.has_key?(running, issue.id) and
-      available_slots(state) > 0 and
+      rate_limit_effective_slots(state, rate_status) > 0 and
       state_slots_available?(issue, running) and
       worker_slots_available?(state)
   end
 
-  defp should_dispatch_issue?(_issue, _state, _active_states, _terminal_states), do: false
+  defp should_dispatch_issue?(_issue, _state, _active_states, _terminal_states, _rate_status),
+    do: false
 
   defp state_slots_available?(%Issue{state: issue_state}, running) when is_map(running) do
     limit = Config.max_concurrent_agents_for_state(issue_state)
@@ -1122,6 +1139,109 @@ defmodule SymphonyElixir.Orchestrator do
     )
   end
 
+  @doc false
+  @spec rate_limit_effective_slots(term(), atom()) :: non_neg_integer()
+  def rate_limit_effective_slots(%State{} = state, rate_status) do
+    base = available_slots(state)
+
+    case rate_status do
+      :exceeded ->
+        0
+
+      :approaching ->
+        max_agents = state.max_concurrent_agents || Config.settings!().agent.max_concurrent_agents
+        reduced_cap = max(div(max_agents, 2), 1)
+        running = map_size(state.running)
+        max(reduced_cap - running, 0)
+
+      _ ->
+        base
+    end
+  end
+
+  @doc false
+  @spec rate_limit_status(term()) :: :ok | :approaching | :exceeded
+  def rate_limit_status(nil), do: :ok
+  def rate_limit_status(rate_limits) when not is_map(rate_limits), do: :ok
+
+  def rate_limit_status(rate_limits) when is_map(rate_limits) do
+    buckets =
+      [:primary, :secondary, :credits, "primary", "secondary", "credits"]
+      |> Enum.flat_map(fn key ->
+        case Map.get(rate_limits, key) do
+          bucket when is_map(bucket) -> [bucket]
+          _ -> []
+        end
+      end)
+
+    if buckets == [] do
+      :ok
+    else
+      buckets
+      |> Enum.map(&bucket_status/1)
+      |> Enum.min_by(fn
+        :exceeded -> 0
+        :approaching -> 1
+        :ok -> 2
+      end)
+    end
+  end
+
+  defp bucket_status(bucket) when is_map(bucket) do
+    remaining = bucket_remaining(bucket)
+    limit = bucket_limit(bucket)
+    utilization_to_status(bucket_utilization(remaining, limit))
+  end
+
+  defp bucket_status(_bucket), do: :ok
+
+  defp bucket_utilization(remaining, _limit) when is_number(remaining) and remaining <= 0, do: 1.0
+
+  defp bucket_utilization(remaining, limit)
+       when is_number(remaining) and is_number(limit) and limit > 0 do
+    1.0 - remaining / limit
+  end
+
+  defp bucket_utilization(_remaining, _limit), do: nil
+
+  defp utilization_to_status(nil), do: :ok
+  defp utilization_to_status(u) when u >= 1.0, do: :exceeded
+  defp utilization_to_status(u) when u >= 0.8, do: :approaching
+  defp utilization_to_status(_u), do: :ok
+
+  defp bucket_remaining(bucket) do
+    value = Map.get(bucket, "remaining") || Map.get(bucket, :remaining)
+    to_number(value)
+  end
+
+  defp bucket_limit(bucket) do
+    value = Map.get(bucket, "limit") || Map.get(bucket, :limit)
+    to_number(value)
+  end
+
+  defp to_number(value) when is_integer(value), do: value
+  defp to_number(value) when is_float(value), do: value
+
+  defp to_number(value) when is_binary(value) do
+    case Float.parse(value) do
+      {num, _} -> num
+      :error -> nil
+    end
+  end
+
+  defp to_number(_value), do: nil
+
+  defp log_rate_limit_transition(%State{} = state, new_status) do
+    previous = Map.get(state, :rate_limit_status, :ok)
+
+    if previous != new_status do
+      Logger.info("Rate limit status changed: #{previous} -> #{new_status}")
+      Map.put(state, :rate_limit_status, new_status)
+    else
+      state
+    end
+  end
+
   @spec request_refresh() :: map() | :unavailable
   def request_refresh do
     request_refresh(__MODULE__)
@@ -1206,6 +1326,7 @@ defmodule SymphonyElixir.Orchestrator do
        retrying: retrying,
        codex_totals: state.codex_totals,
        rate_limits: Map.get(state, :codex_rate_limits),
+       rate_limit_status: state.rate_limit_status || :ok,
        polling: %{
          checking?: state.poll_check_in_progress == true,
          next_poll_in_ms: next_poll_in_ms(state.next_poll_due_at_ms, now_ms),
