@@ -15,12 +15,13 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
   @spec start_session(Path.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def start_session(workspace, opts \\ []) do
     worker_host = Keyword.get(opts, :worker_host)
+    resume_session_id = Keyword.get(opts, :resume_session_id)
 
     with {:ok, expanded_workspace} <- validate_workspace(workspace, worker_host) do
       {:ok,
        %{
          workspace: expanded_workspace,
-         session_id: nil,
+         session_id: resume_session_id,
          worker_host: worker_host
        }}
     end

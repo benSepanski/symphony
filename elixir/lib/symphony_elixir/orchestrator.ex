@@ -7,7 +7,7 @@ defmodule SymphonyElixir.Orchestrator do
   require Logger
   import Bitwise, only: [<<<: 2]
 
-  alias SymphonyElixir.{AgentRunner, Config, StatusDashboard, Tracker, Workspace}
+  alias SymphonyElixir.{AgentRunner, Config, SessionStore, StatusDashboard, Tracker, Workspace}
   alias SymphonyElixir.Linear.{Client, Issue}
 
   @continuation_retry_delay_ms 1_000
@@ -40,7 +40,8 @@ defmodule SymphonyElixir.Orchestrator do
       claimed: MapSet.new(),
       retry_attempts: %{},
       codex_totals: nil,
-      codex_rate_limits: nil
+      codex_rate_limits: nil,
+      persisted_sessions: %{}
     ]
   end
 
@@ -68,9 +69,31 @@ defmodule SymphonyElixir.Orchestrator do
 
     verify_linear_connection(config)
     run_terminal_workspace_cleanup()
+    persisted = load_persisted_sessions()
+    state = %{state | persisted_sessions: persisted}
     state = schedule_tick(state, 0)
 
     {:ok, state}
+  end
+
+  @impl true
+  def terminate(reason, %State{running: running} = _state) do
+    Logger.info("Orchestrator shutting down reason=#{inspect(reason)}; persisting #{map_size(running)} session(s)")
+
+    try do
+      SessionStore.save(running)
+    rescue
+      e -> Logger.warning("Could not persist sessions during shutdown: #{inspect(e)}")
+    end
+
+    Enum.each(running, fn {issue_id, %{pid: pid, ref: ref}} ->
+      Logger.info("Stopping agent for issue_id=#{issue_id}")
+
+      if is_pid(pid), do: terminate_task(pid)
+      if is_reference(ref), do: Process.demonitor(ref, [:flush])
+    end)
+
+    :ok
   end
 
   @impl true
@@ -678,8 +701,14 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp spawn_issue_on_worker_host(%State{} = state, issue, attempt, recipient, worker_host) do
+    {prior_session_id, state} = pop_persisted_session(state, issue.id)
+
     case Task.Supervisor.start_child(SymphonyElixir.TaskSupervisor, fn ->
-           AgentRunner.run(issue, recipient, attempt: attempt, worker_host: worker_host)
+           AgentRunner.run(issue, recipient,
+             attempt: attempt,
+             worker_host: worker_host,
+             resume_session_id: prior_session_id
+           )
          end) do
       {:ok, pid} ->
         ref = Process.monitor(pid)
@@ -900,6 +929,22 @@ defmodule SymphonyElixir.Orchestrator do
 
       {:error, reason} ->
         Logger.warning("Skipping startup terminal workspace cleanup; failed to fetch terminal issues: #{inspect(reason)}")
+    end
+  end
+
+  defp load_persisted_sessions do
+    SessionStore.load()
+    |> Map.new(fn %{issue_id: issue_id} = entry -> {issue_id, entry} end)
+  end
+
+  defp pop_persisted_session(%State{persisted_sessions: persisted} = state, issue_id) do
+    case Map.pop(persisted, issue_id) do
+      {nil, _persisted} ->
+        {nil, state}
+
+      {%{session_id: session_id}, remaining} ->
+        SessionStore.clear_issue(issue_id)
+        {session_id, %{state | persisted_sessions: remaining}}
     end
   end
 
