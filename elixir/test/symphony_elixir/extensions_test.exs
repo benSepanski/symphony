@@ -127,6 +127,68 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert {:ok, _pid} = Supervisor.restart_child(SymphonyElixir.Supervisor, WorkflowStore)
   end
 
+  test "workflow store poll accepts valid schema changes" do
+    ensure_workflow_store_running()
+    assert {:ok, %{prompt: "You are an agent for this repository."}} = Workflow.current()
+
+    state = :sys.get_state(WorkflowStore)
+
+    write_workflow_file!(Workflow.workflow_file_path(), prompt: "Poll updated prompt")
+
+    assert {:noreply, new_state} = WorkflowStore.handle_info(:poll, state)
+    assert new_state.workflow.prompt == "Poll updated prompt"
+  end
+
+  test "workflow store keeps last good config when poll detects valid YAML but invalid schema" do
+    ensure_workflow_store_running()
+    assert {:ok, %{prompt: "You are an agent for this repository."}} = Workflow.current()
+
+    state = :sys.get_state(WorkflowStore)
+
+    # Write valid YAML with an invalid schema value (agent.kind must be "codex" or "claude_code")
+    invalid_schema_content = """
+    ---
+    tracker:
+      kind: "linear"
+      api_key: "token"
+      project_slug: "project"
+    agent:
+      kind: "bogus_invalid_kind"
+    ---
+    Invalid schema prompt
+    """
+
+    File.write!(Workflow.workflow_file_path(), invalid_schema_content)
+
+    log =
+      capture_log(fn ->
+        assert {:noreply, new_state} = WorkflowStore.handle_info(:poll, state)
+        # Should still have the last known good workflow
+        assert new_state.workflow.prompt == "You are an agent for this repository."
+      end)
+
+    assert log =~ "Failed to reload workflow"
+  end
+
+  test "workflow store poll rejects valid YAML with invalid schema and keeps last good config" do
+    ensure_workflow_store_running()
+    assert {:ok, %{prompt: "You are an agent for this repository."}} = Workflow.current()
+
+    state = :sys.get_state(WorkflowStore)
+
+    # Valid YAML, but agent.kind "bogus" fails schema validation
+    invalid_schema_content = "---\nagent:\n  kind: \"bogus\"\n---\nBad schema prompt\n"
+    File.write!(Workflow.workflow_file_path(), invalid_schema_content)
+
+    log =
+      capture_log(fn ->
+        assert {:noreply, new_state} = WorkflowStore.handle_info(:poll, state)
+        assert new_state.workflow.prompt == "You are an agent for this repository."
+      end)
+
+    assert log =~ "Failed to reload workflow"
+  end
+
   test "workflow store init stops on missing workflow file" do
     missing_path = Path.join(Path.dirname(Workflow.workflow_file_path()), "MISSING_WORKFLOW.md")
     Workflow.set_workflow_file_path(missing_path)
