@@ -235,7 +235,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
             <div class="section-header">
               <div>
                 <h2 class="section-title">Agent traces</h2>
-                <p class="section-copy">Recent events per active session. Use the resume command to attach to a running session.</p>
+                <p class="section-copy">Live log per active session. Use the filter box to search.</p>
               </div>
             </div>
 
@@ -246,23 +246,24 @@ defmodule SymphonyElixirWeb.DashboardLive do
                   <code class="resume-cmd"><%= entry.resume.command %></code>
                 <% end %>
               </div>
-              <div class="table-wrap">
-                <table class="data-table trace-table">
-                  <thead>
-                    <tr>
-                      <th style="width: 14rem;">Time</th>
-                      <th style="width: 10rem;">Event</th>
-                      <th>Message</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr :for={ev <- Enum.take(entry.recent_events, -20)}>
-                      <td class="mono muted"><%= ev.at || "n/a" %></td>
-                      <td><span class="event-badge"><%= ev.event %></span></td>
-                      <td class="trace-message"><%= ev.message || "" %></td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div class="term-search-row">
+                <input
+                  type="search"
+                  class="term-search"
+                  placeholder="Filter log…"
+                  autocomplete="off"
+                  data-term={"term-#{entry.issue_identifier}"}
+                  oninput="filterTermLines(this)"
+                />
+              </div>
+              <div id={"term-#{entry.issue_identifier}"} class="term-viewport">
+                <div class="term-log">
+                  <div :for={ev <- entry.recent_events} class={"term-line #{event_term_class(ev.event)}"}>
+                    <span class="term-ts"><%= format_term_ts(ev.at) %></span>
+                    <span class="term-ev"><%= ev.event %></span>
+                    <span class="term-msg"><%= ev.message || "" %></span>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -399,4 +400,30 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
   defp pretty_value(nil), do: "n/a"
   defp pretty_value(value), do: inspect(value, pretty: true, limit: :infinity)
+
+  defp event_term_class(event) do
+    cond do
+      event in [:session_started, :turn_started] -> "term-ev-info"
+      event in [:turn_completed] -> "term-ev-ok"
+      event in [:tool_call_completed] -> "term-ev-tool-ok"
+      event in [:tool_call_failed, :turn_ended_with_error, :startup_failed, :malformed] -> "term-ev-error"
+      event in [:approval_auto_approved, :turn_input_required, :tool_input_auto_answered] -> "term-ev-warn"
+      true -> ""
+    end
+  end
+
+  defp format_term_ts(nil), do: "--:--:--"
+
+  defp format_term_ts(%DateTime{} = ts) do
+    ts |> DateTime.to_time() |> Time.to_string() |> String.slice(0, 8)
+  end
+
+  defp format_term_ts(ts) when is_binary(ts) do
+    case String.split(ts, "T") do
+      [_date, time] -> String.slice(time, 0, 8)
+      _ -> String.slice(ts, 0, 8)
+    end
+  end
+
+  defp format_term_ts(ts), do: to_string(ts)
 end
