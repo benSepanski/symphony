@@ -1,9 +1,13 @@
 defmodule SymphonyElixir.LogFile do
   @moduledoc """
-  Configures OTP's built-in rotating disk log handler for application logs.
+  Configures OTP's built-in rotating disk log handler for application logs
+  and installs the terminal log handler that routes log lines into the
+  StatusDashboard TUI ring buffer.
   """
 
   require Logger
+
+  alias SymphonyElixir.TerminalLogHandler
 
   @handler_id :symphony_disk_log
   @default_log_relative_path "log/symphony.log"
@@ -41,6 +45,7 @@ defmodule SymphonyElixir.LogFile do
          ) do
       :ok ->
         remove_default_console_handler()
+        TerminalLogHandler.install()
         :ok
 
       {:error, reason} ->
