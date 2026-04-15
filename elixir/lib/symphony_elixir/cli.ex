@@ -3,7 +3,7 @@ defmodule SymphonyElixir.CLI do
   Escript entrypoint for running Symphony with an explicit WORKFLOW.md path.
   """
 
-  alias SymphonyElixir.LogFile
+  alias SymphonyElixir.{DotEnv, LogFile}
 
   @acknowledgement_switch :i_understand_that_this_will_be_running_without_the_usual_guardrails
   @switches [{@acknowledgement_switch, :boolean}, logs_root: :string, port: :integer]
@@ -56,6 +56,7 @@ defmodule SymphonyElixir.CLI do
     expanded_path = Path.expand(workflow_path)
 
     if deps.file_regular?.(expanded_path) do
+      load_dot_env(expanded_path)
       :ok = deps.set_workflow_file_path.(expanded_path)
 
       case deps.ensure_all_started.() do
@@ -167,6 +168,11 @@ defmodule SymphonyElixir.CLI do
   defp set_server_port_override(port) when is_integer(port) and port >= 0 do
     Application.put_env(:symphony_elixir, :server_port_override, port)
     :ok
+  end
+
+  defp load_dot_env(workflow_path) do
+    env_path = workflow_path |> Path.dirname() |> Path.join(".env")
+    DotEnv.load(env_path)
   end
 
   @spec wait_for_shutdown() :: no_return()

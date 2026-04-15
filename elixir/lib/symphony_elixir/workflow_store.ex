@@ -6,6 +6,7 @@ defmodule SymphonyElixir.WorkflowStore do
   use GenServer
   require Logger
 
+  alias SymphonyElixir.Config.Schema
   alias SymphonyElixir.Workflow
 
   @poll_interval_ms 1_000
@@ -60,7 +61,7 @@ defmodule SymphonyElixir.WorkflowStore do
 
   @impl true
   def handle_call(:current, _from, %State{} = state) do
-    case reload_state(state) do
+    case reload_state(state, validate_schema: false) do
       {:ok, new_state} ->
         {:reply, {:ok, new_state.workflow}, new_state}
 
@@ -70,7 +71,7 @@ defmodule SymphonyElixir.WorkflowStore do
   end
 
   def handle_call(:force_reload, _from, %State{} = state) do
-    case reload_state(state) do
+    case reload_state(state, validate_schema: false) do
       {:ok, new_state} ->
         {:reply, :ok, new_state}
 
@@ -83,7 +84,7 @@ defmodule SymphonyElixir.WorkflowStore do
   def handle_info(:poll, %State{} = state) do
     schedule_poll()
 
-    case reload_state(state) do
+    case reload_state(state, validate_schema: true) do
       {:ok, new_state} -> {:noreply, new_state}
       {:error, _reason, new_state} -> {:noreply, new_state}
     end
@@ -93,18 +94,20 @@ defmodule SymphonyElixir.WorkflowStore do
     Process.send_after(self(), :poll, @poll_interval_ms)
   end
 
-  defp reload_state(%State{} = state) do
+  defp reload_state(%State{} = state, opts) do
     path = Workflow.workflow_file_path()
 
     if path != state.path do
-      reload_path(path, state)
+      reload_path(path, state, opts)
     else
-      reload_current_path(path, state)
+      reload_current_path(path, state, opts)
     end
   end
 
-  defp reload_path(path, state) do
-    case load_state(path) do
+  defp reload_path(path, state, opts) do
+    loader = if Keyword.get(opts, :validate_schema, false), do: &load_and_validate_state/1, else: &load_state/1
+
+    case loader.(path) do
       {:ok, new_state} ->
         {:ok, new_state}
 
@@ -114,13 +117,13 @@ defmodule SymphonyElixir.WorkflowStore do
     end
   end
 
-  defp reload_current_path(path, state) do
+  defp reload_current_path(path, state, opts) do
     case current_stamp(path) do
       {:ok, stamp} when stamp == state.stamp ->
         {:ok, state}
 
       {:ok, _stamp} ->
-        reload_path(path, state)
+        reload_path(path, state, opts)
 
       {:error, reason} ->
         log_reload_error(path, reason)
@@ -135,6 +138,24 @@ defmodule SymphonyElixir.WorkflowStore do
     else
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp load_and_validate_state(path) do
+    with {:ok, workflow} <- Workflow.load(path),
+         :ok <- validate_schema(workflow),
+         {:ok, stamp} <- current_stamp(path) do
+      {:ok, %State{path: path, stamp: stamp, workflow: workflow}}
+    else
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp validate_schema(%{config: config}) when is_map(config) do
+    case Schema.parse(config) do
+      {:ok, _settings} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
