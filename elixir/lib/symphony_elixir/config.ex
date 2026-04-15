@@ -100,6 +100,9 @@ defmodule SymphonyElixir.Config do
   @spec pricing_settings() :: Schema.Pricing.t()
   def pricing_settings, do: settings!().pricing
 
+  @spec notifications_settings() :: Schema.Notifications.t()
+  def notifications_settings, do: settings!().notifications
+
   @spec validate!() :: :ok | {:error, term()}
   def validate! do
     with {:ok, settings} <- settings() do
