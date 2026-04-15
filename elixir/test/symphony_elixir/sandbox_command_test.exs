@@ -17,7 +17,7 @@ defmodule SymphonyElixir.SandboxCommandTest do
 
       cmd = StreamClient.build_command("do stuff", nil, "/work/repo", settings)
 
-      assert ["sbx", "run", "claude", "/work/repo", "--" | claude_args] = cmd
+      assert ["sbx", "run", "--name", _name, "claude", "/work/repo", "--" | claude_args] = cmd
       assert "-p" in claude_args
       assert "do stuff" in claude_args
       assert "--output-format" in claude_args
@@ -53,7 +53,7 @@ defmodule SymphonyElixir.SandboxCommandTest do
 
       cmd = StreamClient.build_command("prompt", "sess-123", "/work/repo", settings)
 
-      assert ["sbx", "run", "claude", "/work/repo", "--" | claude_args] = cmd
+      assert ["sbx", "run", "--name", _name, "claude", "/work/repo", "--" | claude_args] = cmd
       assert "--resume" in claude_args
       assert "sess-123" in claude_args
     end
@@ -70,7 +70,7 @@ defmodule SymphonyElixir.SandboxCommandTest do
 
       cmd = StreamClient.build_command("prompt", nil, "/work/repo", settings)
 
-      assert ["sbx", "run", "claude", "/work/repo", "--" | claude_args] = cmd
+      assert ["sbx", "run", "--name", _name, "claude", "/work/repo", "--" | claude_args] = cmd
       assert "--model" in claude_args
       assert "opus" in claude_args
     end
@@ -110,13 +110,13 @@ defmodule SymphonyElixir.SandboxCommandTest do
     test "wraps command with sbx when sandbox is sbx" do
       result = AppServer.local_launch_command("/work/repo", "sbx", "codex --full-auto")
 
-      assert result == "sbx run 'codex' '/work/repo' -- --full-auto"
+      assert result == "sbx run --name 'codex-repo' 'codex' '/work/repo' -- --full-auto"
     end
 
     test "wraps single-word command with sbx" do
       result = AppServer.local_launch_command("/work/repo", "sbx", "codex")
 
-      assert result == "sbx run 'codex' '/work/repo'"
+      assert result == "sbx run --name 'codex-repo' 'codex' '/work/repo'"
     end
 
     test "returns command unchanged when sandbox is nil" do

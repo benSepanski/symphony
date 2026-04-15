@@ -18,11 +18,19 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
     resume_session_id = Keyword.get(opts, :resume_session_id)
 
     with {:ok, expanded_workspace} <- validate_workspace(workspace, worker_host) do
+      settings = Config.claude_code_settings()
+
+      sandbox_name =
+        if settings.sandbox == "sbx" and is_nil(worker_host),
+          do: derive_sandbox_name(settings.command, expanded_workspace),
+          else: nil
+
       {:ok,
        %{
          workspace: expanded_workspace,
          session_id: resume_session_id,
-         worker_host: worker_host
+         worker_host: worker_host,
+         sandbox_name: sandbox_name
        }}
     end
   end
@@ -80,6 +88,10 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
 
   @impl true
   @spec stop_session(map()) :: :ok
+  def stop_session(%{sandbox_name: name}) when is_binary(name) do
+    remove_sandbox(name)
+  end
+
   def stop_session(_session), do: :ok
 
   # -- Command building --
@@ -96,8 +108,12 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
       |> maybe_add_allowed_tools(settings.allowed_tools)
 
     case settings.sandbox do
-      "sbx" -> ["sbx", "run", settings.command, workspace, "--"] ++ claude_args
-      _ -> [settings.command | claude_args]
+      "sbx" ->
+        name = derive_sandbox_name(settings.command, workspace)
+        ["sbx", "run", "--name", name, settings.command, workspace, "--"] ++ claude_args
+
+      _ ->
+        [settings.command | claude_args]
     end
   end
 
@@ -427,4 +443,26 @@ defmodule SymphonyElixir.ClaudeCode.StreamClient do
   end
 
   defp default_on_message(_message), do: :ok
+
+  # -- Sandbox lifecycle --
+
+  @doc false
+  @spec derive_sandbox_name(String.t(), Path.t()) :: String.t()
+  def derive_sandbox_name(command, workspace) do
+    agent = command |> String.split(~r/\s+/) |> List.first() |> Path.basename()
+    workdir = Path.basename(workspace)
+    "#{agent}-#{workdir}"
+  end
+
+  defp remove_sandbox(name) do
+    case System.cmd("sbx", ["rm", name], stderr_to_stdout: true) do
+      {_output, 0} ->
+        Logger.info("Removed sbx sandbox: #{name}")
+
+      {output, code} ->
+        Logger.warning("Failed to remove sbx sandbox #{name} (exit #{code}): #{String.trim(output)}")
+    end
+
+    :ok
+  end
 end
