@@ -7,7 +7,7 @@ defmodule SymphonyElixir.Orchestrator do
   require Logger
   import Bitwise, only: [<<<: 2]
 
-  alias SymphonyElixir.{AgentRunner, Config, StatusDashboard, Tracker, Workspace}
+  alias SymphonyElixir.{AgentRunner, Config, Notifications, StatusDashboard, Tracker, Workspace}
   alias SymphonyElixir.Linear.Issue
 
   @continuation_retry_delay_ms 1_000
@@ -348,6 +348,7 @@ defmodule SymphonyElixir.Orchestrator do
       true ->
         Logger.info("Issue moved to non-active state: #{issue_context(issue)} state=#{issue.state}; stopping active agent")
 
+        Notifications.notify_human_review(issue)
         terminate_running_issue(state, issue.id, false)
     end
   end
@@ -1349,6 +1350,10 @@ defmodule SymphonyElixir.Orchestrator do
   defp apply_codex_rate_limits(%State{} = state, update) when is_map(update) do
     case extract_rate_limits(update) do
       %{} = rate_limits ->
+        if is_nil(state.codex_rate_limits) do
+          Notifications.notify_rate_limit(rate_limits)
+        end
+
         %{state | codex_rate_limits: rate_limits}
 
       _ ->

@@ -134,6 +134,8 @@ defmodule SymphonyElixir.TestSupport do
           observability_render_interval_ms: 16,
           server_port: nil,
           server_host: nil,
+          notifications_webhook_url: nil,
+          notifications_events: ["rate_limit", "human_review"],
           prompt: @workflow_prompt
         ],
         overrides
@@ -181,6 +183,8 @@ defmodule SymphonyElixir.TestSupport do
     observability_render_interval_ms = Keyword.get(config, :observability_render_interval_ms)
     server_port = Keyword.get(config, :server_port)
     server_host = Keyword.get(config, :server_host)
+    notifications_webhook_url = Keyword.get(config, :notifications_webhook_url)
+    notifications_events = Keyword.get(config, :notifications_events)
     prompt = Keyword.get(config, :prompt)
 
     sections =
@@ -227,6 +231,7 @@ defmodule SymphonyElixir.TestSupport do
         hooks_yaml(hook_after_create, hook_before_run, hook_after_run, hook_before_remove, hook_timeout_ms),
         observability_yaml(observability_enabled, observability_refresh_ms, observability_render_interval_ms),
         server_yaml(server_port, server_host),
+        notifications_yaml(notifications_webhook_url, notifications_events),
         "---",
         prompt
       ]
@@ -306,6 +311,17 @@ defmodule SymphonyElixir.TestSupport do
       host && "  host: #{yaml_value(host)}"
     ]
     |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n")
+  end
+
+  defp notifications_yaml(nil, _events), do: nil
+
+  defp notifications_yaml(webhook_url, events) do
+    [
+      "notifications:",
+      "  webhook_url: #{yaml_value(webhook_url)}",
+      "  events: #{yaml_value(events)}"
+    ]
     |> Enum.join("\n")
   end
 
