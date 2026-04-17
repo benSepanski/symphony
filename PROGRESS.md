@@ -4,37 +4,48 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 0 — scaffolding.** Near complete.
+**Phase 1 — TS core port.** Phase 0 complete. Workflow parser landed.
 
-## Last checkpoint (uncommitted)
+## Last checkpoint
 
-Phase 0 mechanically ready:
+Workflow parser (commit pending at HEAD after the next `git commit`) — to
+ground the next module in a concrete file format:
 
-- `SPEC.md` and `elixir/` deleted (staged in the working tree, not yet committed).
-- `CLAUDE.md` rewritten for TS stack.
-- `cloud-setup.sh` rewritten for Node 22 via mise + corepack for pnpm.
-- TS scaffold in place at repo root: `package.json`, `tsconfig.json`, `eslint.config.js`,
-  `vitest.config.ts`, `drizzle.config.ts`, `.prettierrc`, `.prettierignore`.
-- Skeleton types under `src/`: `config/workflow.ts`, `tracker/types.ts`, `agent/types.ts`,
-  `persistence/schema.ts`, `cli.ts`, `index.ts`.
-- `pnpm install && pnpm all` green (typecheck + fmt:check + lint + test-with-no-tests).
+- `src/config/workflow.ts` — `parseWorkflow(path)` + `parseWorkflowString`
+  split out a `---`-delimited YAML front matter, validates it against the
+  existing Zod schema, and returns the remaining Liquid-template body.
+- `src/config/workflow.test.ts` — 5 Vitest cases: happy path, default
+  application, no front matter, bad YAML, schema violation.
+- `WORKFLOW.md` at the repo root — trimmed-down version of the old Elixir
+  workflow, suitable for `pnpm dev WORKFLOW.md --mock` once mock mode lands.
+- `src/index.ts` now re-exports `parseWorkflow`, `parseWorkflowString`,
+  `WorkflowParseError`.
 
-No commits yet — the entire working tree is still uncommitted changes on `main`. The next
-context should commit Phase 0 as a single coherent commit before starting Phase 1 modules.
+Prior checkpoint: commit `321edf4` — Phase 0 scaffold.
 
 ## Next action
 
-1. Commit the Phase 0 work. Suggested message:
-   `Scaffold TypeScript rewrite; delete Elixir implementation`.
-   Stage the `elixir/` deletions, `SPEC.md` deletion, the TS scaffold, and the
-   updated `CLAUDE.md` / `cloud-setup.sh` / `.gitignore`. Confirm `pnpm all` is
-   still green post-commit.
-2. Start Phase 1 — begin with `config/workflow.ts` parsing YAML front matter +
-   Liquid prompt template, backed by Vitest tests. After that, the in-memory
-   tracker + mock agent are the right next modules because they unlock the
-   mock-mode smoke test. See the plan sequence in the original message.
-3. Before wiring up the orchestrator, scaffold one mock scenario YAML
-   (`fixtures/scenarios/happy-path.yaml`) so end-to-end mock tests have data.
+Phase 1, step 2 — **in-memory tracker**:
+
+1. Flesh out `src/tracker/memory.ts` implementing the `Tracker` interface.
+   Needs a constructor that seeds a fixed list of issues, plus
+   `fetchCandidateIssues` (returns issues currently in an `active_states`
+   value passed from config), `updateIssueState`, and `addComment`. Support
+   deterministic ordering so mock-mode dashboards look stable.
+2. Add `src/tracker/memory.test.ts` — seed a few issues, assert state
+   transitions, assert `fetchCandidateIssues` filters by active states.
+3. `pnpm all` green; commit.
+
+Subsequent checkpoints (each its own commit):
+
+- `agent/mock.ts` + `fixtures/scenarios/happy-path.yaml` (scripted agent).
+- `persistence/logger.ts` (SQLite + JSONL).
+- `workspace/manager.ts`.
+- `orchestrator.ts`.
+- `api/server.ts` (Hono, SSE).
+- `web/` (Vite + React + Tailwind). Add `vite`, `@vitejs/plugin-react`,
+  `react`, `react-dom`, `tailwindcss` then.
+- Finally `tracker/linear.ts` + `agent/claude-code.ts`.
 
 ## Open issues / deferred
 
