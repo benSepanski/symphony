@@ -1,0 +1,197 @@
+import { EventEmitter } from "node:events";
+import { Liquid } from "liquidjs";
+import type { ParsedWorkflow } from "./config/workflow.js";
+import type { Agent, AgentTurn } from "./agent/types.js";
+import type { Issue, Tracker } from "./tracker/types.js";
+import type { WorkspaceManager } from "./workspace/manager.js";
+import type { SymphonyLogger } from "./persistence/logger.js";
+
+export interface OrchestratorOptions {
+  workflow: ParsedWorkflow;
+  tracker: Tracker;
+  agent: Agent;
+  workspace: WorkspaceManager;
+  logger: SymphonyLogger;
+  scenarioFor?: (issue: Issue) => string | undefined;
+}
+
+export interface RunStartedEvent {
+  runId: string;
+  issue: Issue;
+}
+
+export interface TurnEvent {
+  runId: string;
+  issue: Issue;
+  turn: AgentTurn;
+}
+
+export interface RunFinishedEvent {
+  runId: string;
+  issue: Issue;
+  status: "completed" | "max_turns" | "failed";
+  error?: Error;
+}
+
+export class Orchestrator extends EventEmitter {
+  private readonly workflow: ParsedWorkflow;
+  private readonly tracker: Tracker;
+  private readonly agent: Agent;
+  private readonly workspace: WorkspaceManager;
+  private readonly logger: SymphonyLogger;
+  private readonly liquid: Liquid;
+  private readonly scenarioFor?: (issue: Issue) => string | undefined;
+  private readonly claimed = new Set<string>();
+  private pollTimer: NodeJS.Timeout | null = null;
+  private shuttingDown = false;
+  private inflightTicks = new Set<Promise<void>>();
+
+  constructor(options: OrchestratorOptions) {
+    super();
+    this.workflow = options.workflow;
+    this.tracker = options.tracker;
+    this.agent = options.agent;
+    this.workspace = options.workspace;
+    this.logger = options.logger;
+    this.liquid = new Liquid();
+    this.scenarioFor = options.scenarioFor;
+  }
+
+  start(): void {
+    if (this.pollTimer || this.shuttingDown) return;
+    const interval = this.workflow.config.polling.interval_ms;
+    const tick = () => {
+      const p = this.tick().catch((err) => {
+        this.emit("error", err);
+      });
+      this.inflightTicks.add(p);
+      p.finally(() => this.inflightTicks.delete(p));
+    };
+    tick();
+    this.pollTimer = setInterval(tick, interval);
+    this.pollTimer.unref?.();
+  }
+
+  async stop(): Promise<void> {
+    this.shuttingDown = true;
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    await Promise.allSettled([...this.inflightTicks]);
+  }
+
+  async tick(): Promise<void> {
+    if (this.shuttingDown) return;
+    const issues = await this.tracker.fetchCandidateIssues();
+    const capacity = this.workflow.config.agent.max_concurrent_agents - this.claimed.size;
+    if (capacity <= 0) return;
+    const toStart = issues.filter((i) => !this.claimed.has(i.id)).slice(0, capacity);
+    await Promise.all(toStart.map((issue) => this.runIssue(issue)));
+  }
+
+  async runIssue(issue: Issue): Promise<void> {
+    if (this.claimed.has(issue.id)) return;
+    this.claimed.add(issue.id);
+    let runId: string | null = null;
+    try {
+      const prompt = await this.renderPrompt(issue);
+      const scenario = this.scenarioFor?.(issue);
+      runId = this.logger.startRun({
+        issueId: issue.id,
+        issueIdentifier: issue.identifier,
+        scenario: scenario ?? null,
+      });
+      this.emit("runStarted", { runId, issue } satisfies RunStartedEvent);
+
+      const ws = await this.workspace.create(issue);
+      this.logger.logEvent({
+        runId,
+        eventType: "workspace_created",
+        issueId: issue.id,
+        payload: { path: ws.path },
+      });
+
+      const session = await this.agent.startSession({
+        workdir: ws.path,
+        prompt,
+        issueIdentifier: issue.identifier,
+        labels: issue.labels,
+      });
+
+      let status: RunFinishedEvent["status"] = "completed";
+      let turnsTaken = 0;
+      const maxTurns = this.workflow.config.agent.max_turns;
+      let finalState: string | undefined;
+
+      while (!session.isDone()) {
+        if (turnsTaken >= maxTurns) {
+          status = "max_turns";
+          finalState = this.workflow.config.agent.max_turns_state;
+          break;
+        }
+        const turn = await session.runTurn();
+        turnsTaken += 1;
+        this.logger.recordTurn({
+          runId,
+          role: turn.role,
+          content: turn.content,
+          toolCalls: turn.toolCalls,
+          finalState: turn.finalState ?? null,
+        });
+        this.emit("turn", { runId, issue, turn } satisfies TurnEvent);
+        if (turn.finalState) finalState = turn.finalState;
+      }
+
+      await session.stop();
+
+      if (finalState) {
+        await this.tracker.updateIssueState(issue.id, finalState);
+        this.logger.logEvent({
+          runId,
+          eventType: "state_transition",
+          issueId: issue.id,
+          payload: { to: finalState },
+        });
+      }
+
+      await this.workspace.destroy(issue);
+      this.logger.logEvent({
+        runId,
+        eventType: "workspace_destroyed",
+        issueId: issue.id,
+      });
+
+      this.logger.finishRun(runId, status);
+      this.emit("runFinished", { runId, issue, status } satisfies RunFinishedEvent);
+    } catch (err) {
+      const error = err as Error;
+      if (runId) {
+        this.logger.logEvent({
+          runId,
+          eventType: "error",
+          issueId: issue.id,
+          payload: { message: error.message, name: error.name },
+        });
+        this.logger.finishRun(runId, "failed");
+        this.emit("runFinished", {
+          runId,
+          issue,
+          status: "failed",
+          error,
+        } satisfies RunFinishedEvent);
+      } else {
+        this.emit("error", error);
+      }
+    } finally {
+      this.claimed.delete(issue.id);
+    }
+  }
+
+  private async renderPrompt(issue: Issue, attempt = 1): Promise<string> {
+    return this.liquid.parseAndRender(this.workflow.promptTemplate, {
+      issue,
+      attempt,
+    });
+  }
+}
