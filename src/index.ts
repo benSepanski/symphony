@@ -19,3 +19,13 @@ export {
   parseScenario,
 } from "./agent/mock.js";
 export type { Scenario, ScenarioStep, Sleeper } from "./agent/mock.js";
+export { SymphonyLogger } from "./persistence/logger.js";
+export type {
+  LoggerOptions,
+  RunLog,
+  TurnLog,
+  EventLog,
+  StartRunInput,
+  RecordTurnInput,
+  LogEventInput,
+} from "./persistence/logger.js";

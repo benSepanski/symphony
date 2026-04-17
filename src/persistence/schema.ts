@@ -19,6 +19,7 @@ export const turns = sqliteTable("turns", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   toolCalls: text("tool_calls"),
+  finalState: text("final_state"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -33,3 +34,39 @@ export const logEvents = sqliteTable("log_events", {
   payload: text("payload"),
   ts: text("ts").notNull(),
 });
+
+export const CREATE_TABLES_SQL = `
+CREATE TABLE IF NOT EXISTS runs (
+  id TEXT PRIMARY KEY NOT NULL,
+  issue_id TEXT NOT NULL,
+  issue_identifier TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'running',
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  scenario TEXT
+);
+
+CREATE TABLE IF NOT EXISTS turns (
+  id TEXT PRIMARY KEY NOT NULL,
+  run_id TEXT NOT NULL REFERENCES runs(id),
+  turn_number INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  tool_calls TEXT,
+  final_state TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL REFERENCES runs(id),
+  turn_id TEXT,
+  event_type TEXT NOT NULL,
+  issue_id TEXT,
+  payload TEXT,
+  ts TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_turns_run_id ON turns(run_id);
+CREATE INDEX IF NOT EXISTS idx_log_events_run_id ON log_events(run_id);
+`;

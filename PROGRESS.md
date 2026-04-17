@@ -4,63 +4,64 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 1 — TS core port.** Workflow parser, memory tracker, and mock agent all
-done. Next piece is persistence.
+**Phase 1 — TS core port.** Workflow parser, memory tracker, mock agent, and
+SymphonyLogger done. Next: workspace manager + orchestrator.
 
 ## Last checkpoint
 
-Mock agent + happy-path scenario (commit pending at HEAD after the next
-`git commit`):
+SymphonyLogger — SQLite + JSONL persistence (commit pending at HEAD after
+the next `git commit`):
 
-- `src/agent/types.ts` — `Agent.startSession(context)` now takes an
-  `AgentStartContext` ({ workdir, prompt, issueIdentifier?, labels? });
-  `AgentSession` adds `isDone()` and an optional `finalState` on turns.
-- `src/agent/mock.ts` — `MockAgent` + `MockAgentSession`. Walks Zod-validated
-  scenarios, sleeps via an injectable `Sleeper` (tests pass a no-op fake),
-  and picks scenarios by label first, falling back to round-robin.
-- `src/agent/mock.test.ts` — 11 cases: schema happy path, two schema
-  failures, step walk, delay contract, over-run guard, label match,
-  round-robin, empty-scenarios guard, fixture loading (both file and
-  directory).
-- `fixtures/scenarios/happy-path.yaml` — 5-step scenario ending in
-  `final_state: Human Review`.
-- `src/index.ts` re-exports `MockAgent` and scenario types.
+- `src/persistence/schema.ts` — added `final_state` to the `turns` table
+  and exported `CREATE_TABLES_SQL` for inline schema application.
+- `src/persistence/logger.ts` — `SymphonyLogger` class over
+  `better-sqlite3`. Methods `startRun` / `recordTurn` / `logEvent` /
+  `finishRun`, plus read helpers `listRuns` / `listTurns` / `listEvents`.
+  Every call writes one SQLite row and appends one JSONL line under
+  `<logsDir>/<runId>.jsonl` with the spec'd keys. Clock and ID generator
+  are injectable for deterministic tests. WAL journaling is enabled.
+- `src/persistence/logger.test.ts` — 4 cases: full lifecycle (run →
+  turn → event → finish) asserts SQLite and JSONL match; turn numbering;
+  JSON serialization of toolCalls + payload; JSONL path shape.
+- `src/index.ts` re-exports `SymphonyLogger` + its input/output types.
 
 Prior checkpoints:
 
+- `373e25e` — Add MockAgent that replays scripted YAML scenarios.
 - `d026612` — Add in-memory Tracker for tests and mock-mode runs.
 - `5bbafc0` — Parse WORKFLOW.md front matter + ship a reference workflow.
 - `321edf4` — Delete Elixir implementation and scaffold TypeScript rewrite.
 
 ## Next action
 
-Phase 1, step 4 — **persistence**:
+Phase 1, step 5 — **workspace manager**:
 
-1. Implement `src/persistence/logger.ts`. Construct with a DB path (default
-   `.symphony/symphony.db`) and a JSONL directory (default
-   `.symphony/logs/`). Creates both on first write. Expose:
-   - `startRun({ issueId, issueIdentifier, scenario? }) -> runId`
-   - `recordTurn({ runId, role, content, toolCalls?, finalState? }) -> turnId`
-   - `logEvent({ runId, turnId?, eventType, issueId?, payload? })`
-   - `finishRun({ runId, status })`
-2. Open SQLite via `better-sqlite3`, apply schema inline (no drizzle
-   migrations yet — just `CREATE TABLE IF NOT EXISTS` from the Drizzle
-   schema). Drizzle's query builder is still usable for inserts.
-3. Every recorded event writes (a) one SQLite row and (b) one JSONL line
-   under `.symphony/logs/<runId>.jsonl` with stable keys
-   `{ ts, run_id, turn_id, event_type, issue_id, payload }`.
-4. Tests use `:memory:` DB + a temporary directory via `node:os.tmpdir()`.
-   Assert SQLite rows and JSONL lines agree.
-5. `pnpm all` green; commit.
+1. Implement `src/workspace/manager.ts`. Expose `WorkspaceManager` with:
+   - `create(issue)` — resolves workspace root (expanding `~`), makes a
+     `<root>/<issue.identifier>` directory, runs the `after_create` hook
+     (if any) with cwd set to the directory. Hooks are shell snippets,
+     executed via `child_process.exec` with the workspace dir and a set
+     of env vars (`ISSUE_ID`, `ISSUE_IDENTIFIER`, etc.).
+   - `destroy(issue)` — runs `before_remove`, then `rm -rf`s the dir.
+   - `list()` — returns the current on-disk workspaces.
+2. Keep hook execution synchronous-ish (awaitable) but bounded by a
+   configurable timeout (default 300000ms). Reject on non-zero exits.
+3. Tests: use `mkdtemp` as the root; assert a workspace directory is
+   created, that hooks see the right env vars (echo into a file), and
+   that destroy cleans up.
+4. `pnpm all` green; commit.
 
 Subsequent checkpoints:
 
-- `workspace/manager.ts` (git worktree + hook execution).
-- `orchestrator.ts` (poll loop, concurrency limit, retry queue).
-- `api/server.ts` (Hono, SSE, REST) + web bundle.
-- `web/` — add `vite`, `@vitejs/plugin-react`, `react`, `react-dom`,
-  `tailwindcss` devDeps when that module lands.
-- Finally `tracker/linear.ts` + `agent/claude-code.ts`.
+- `orchestrator.ts` — wires memory tracker + mock agent + workspace manager
+  - logger together. Poll loop, concurrency cap, retry queue.
+- `api/server.ts` (Hono) — SSE `/api/events`, REST `/api/runs`,
+  `/api/runs/:id`, `/api/runs/:id/events`. Serve the built web bundle.
+- `web/` — Vite + React + Tailwind. Add `vite`, `@vitejs/plugin-react`,
+  `react`, `react-dom`, `tailwindcss` devDeps at that point.
+- Wire `cli.ts` to boot everything in mock mode on
+  `pnpm dev WORKFLOW.md --mock`. **This is the Phase 1 gate.**
+- Finally `tracker/linear.ts` + `agent/claude-code.ts` for real mode.
 
 ## Open issues / deferred
 
