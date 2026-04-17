@@ -34,9 +34,8 @@ API + CLI wiring (commit pending at HEAD after the next `git commit`):
   populated as expected.
 
 **Phase 1 gate: passed.** `symphony --mock ./WORKFLOW.md` boots,
-simulates a full agent run end-to-end, HTTP endpoints show it, SQLite
-
-- JSONL contain the trace.
+simulates a full agent run end-to-end, HTTP endpoints show it, and
+both SQLite and JSONL contain the full trace.
 
 Prior checkpoints:
 
