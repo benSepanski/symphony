@@ -19,6 +19,8 @@ export {
   parseScenario,
 } from "./agent/mock.js";
 export type { Scenario, ScenarioStep, Sleeper } from "./agent/mock.js";
+export { WorkspaceManager, HookError } from "./workspace/manager.js";
+export type { Workspace, WorkspaceManagerOptions } from "./workspace/manager.js";
 export { SymphonyLogger } from "./persistence/logger.js";
 export type {
   LoggerOptions,

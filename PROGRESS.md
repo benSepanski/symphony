@@ -4,29 +4,27 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 1 — TS core port.** Workflow parser, memory tracker, mock agent, and
-SymphonyLogger done. Next: workspace manager + orchestrator.
+**Phase 1 — TS core port.** Parser, memory tracker, mock agent, logger, and
+workspace manager all done. Orchestrator is next.
 
 ## Last checkpoint
 
-SymphonyLogger — SQLite + JSONL persistence (commit pending at HEAD after
-the next `git commit`):
+Workspace manager (commit pending at HEAD after the next `git commit`):
 
-- `src/persistence/schema.ts` — added `final_state` to the `turns` table
-  and exported `CREATE_TABLES_SQL` for inline schema application.
-- `src/persistence/logger.ts` — `SymphonyLogger` class over
-  `better-sqlite3`. Methods `startRun` / `recordTurn` / `logEvent` /
-  `finishRun`, plus read helpers `listRuns` / `listTurns` / `listEvents`.
-  Every call writes one SQLite row and appends one JSONL line under
-  `<logsDir>/<runId>.jsonl` with the spec'd keys. Clock and ID generator
-  are injectable for deterministic tests. WAL journaling is enabled.
-- `src/persistence/logger.test.ts` — 4 cases: full lifecycle (run →
-  turn → event → finish) asserts SQLite and JSONL match; turn numbering;
-  JSON serialization of toolCalls + payload; JSONL path shape.
-- `src/index.ts` re-exports `SymphonyLogger` + its input/output types.
+- `src/workspace/manager.ts` — `WorkspaceManager` creates
+  `<root>/<issue.identifier>` directories, runs the `after_create` /
+  `before_remove` hooks with `ISSUE_*` env vars set, and `rm -rf`s the
+  directory on `destroy`. Hooks shell out to `bash -eu -c` with a
+  bounded timeout (default 300s, overridable). Hook failures raise a
+  `HookError` carrying stderr + exit code.
+- `src/workspace/manager.test.ts` — 5 cases: directory creation,
+  after_create sees env vars, before_remove runs before deletion,
+  HookError on non-zero exit, `list()` is sorted.
+- `src/index.ts` re-exports `WorkspaceManager` + `HookError`.
 
 Prior checkpoints:
 
+- `9a08eb3` — Add SymphonyLogger writing both SQLite and JSONL.
 - `373e25e` — Add MockAgent that replays scripted YAML scenarios.
 - `d026612` — Add in-memory Tracker for tests and mock-mode runs.
 - `5bbafc0` — Parse WORKFLOW.md front matter + ship a reference workflow.
@@ -34,27 +32,29 @@ Prior checkpoints:
 
 ## Next action
 
-Phase 1, step 5 — **workspace manager**:
+Phase 1, step 6 — **orchestrator**:
 
-1. Implement `src/workspace/manager.ts`. Expose `WorkspaceManager` with:
-   - `create(issue)` — resolves workspace root (expanding `~`), makes a
-     `<root>/<issue.identifier>` directory, runs the `after_create` hook
-     (if any) with cwd set to the directory. Hooks are shell snippets,
-     executed via `child_process.exec` with the workspace dir and a set
-     of env vars (`ISSUE_ID`, `ISSUE_IDENTIFIER`, etc.).
-   - `destroy(issue)` — runs `before_remove`, then `rm -rf`s the dir.
-   - `list()` — returns the current on-disk workspaces.
-2. Keep hook execution synchronous-ish (awaitable) but bounded by a
-   configurable timeout (default 300000ms). Reject on non-zero exits.
-3. Tests: use `mkdtemp` as the root; assert a workspace directory is
-   created, that hooks see the right env vars (echo into a file), and
-   that destroy cleans up.
+1. Implement `src/orchestrator.ts`. Takes a `Tracker`, an `Agent`, a
+   `WorkspaceManager`, a `SymphonyLogger`, and a `ParsedWorkflow`. Core
+   loop on an interval (`polling.interval_ms`):
+   - call `tracker.fetchCandidateIssues()`
+   - for each returned issue not already claimed, spin up a run up to
+     `agent.max_concurrent_agents`
+   - per run: create workspace, render prompt template via Liquid, start
+     an `AgentSession`, loop `runTurn` until `isDone()` or turn cap is
+     reached, writing every turn/event through the logger, transitioning
+     tracker state on `finalState`, and tearing down the workspace at
+     the end.
+2. Expose an `EventEmitter`-style interface so the HTTP layer can fan
+   events out over SSE. At minimum: `runStarted`, `turn`, `runFinished`.
+3. Tests: use `MemoryTracker` + `MockAgent` + a `WorkspaceManager` under
+   a `mkdtemp` root + an in-memory logger. Drive a full simulated run
+   and assert (a) tracker ends in the expected state, (b) logger
+   records the full event sequence, (c) workspace is torn down.
 4. `pnpm all` green; commit.
 
 Subsequent checkpoints:
 
-- `orchestrator.ts` — wires memory tracker + mock agent + workspace manager
-  - logger together. Poll loop, concurrency cap, retry queue.
 - `api/server.ts` (Hono) — SSE `/api/events`, REST `/api/runs`,
   `/api/runs/:id`, `/api/runs/:id/events`. Serve the built web bundle.
 - `web/` — Vite + React + Tailwind. Add `vite`, `@vitejs/plugin-react`,
