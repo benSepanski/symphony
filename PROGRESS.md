@@ -4,47 +4,52 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 1 — TS core port.** Phase 0 complete. Workflow parser landed.
+**Phase 1 — TS core port.** Phase 0 + workflow parser + memory tracker done.
 
 ## Last checkpoint
 
-Workflow parser (commit pending at HEAD after the next `git commit`) — to
-ground the next module in a concrete file format:
+In-memory tracker (commit pending at HEAD after the next `git commit`):
 
-- `src/config/workflow.ts` — `parseWorkflow(path)` + `parseWorkflowString`
-  split out a `---`-delimited YAML front matter, validates it against the
-  existing Zod schema, and returns the remaining Liquid-template body.
-- `src/config/workflow.test.ts` — 5 Vitest cases: happy path, default
-  application, no front matter, bad YAML, schema violation.
-- `WORKFLOW.md` at the repo root — trimmed-down version of the old Elixir
-  workflow, suitable for `pnpm dev WORKFLOW.md --mock` once mock mode lands.
-- `src/index.ts` now re-exports `parseWorkflow`, `parseWorkflowString`,
-  `WorkflowParseError`.
+- `src/tracker/memory.ts` — `MemoryTracker` class implementing
+  `Tracker.fetchCandidateIssues` / `updateIssueState` / `addComment`. Seeded
+  from a fixed issue list + `activeStates` set. Returns defensive copies so
+  callers cannot mutate internal state through issue references.
+- `src/tracker/memory.test.ts` — 5 Vitest cases covering active-state
+  filtering, sort order, state transitions, comments, unknown-id errors,
+  and copy-safety.
+- `src/index.ts` re-exports `MemoryTracker`.
 
-Prior checkpoint: commit `321edf4` — Phase 0 scaffold.
+Prior checkpoints:
+
+- `5bbafc0` — Parse WORKFLOW.md front matter + ship a reference workflow.
+- `321edf4` — Delete Elixir implementation and scaffold TypeScript rewrite.
 
 ## Next action
 
-Phase 1, step 2 — **in-memory tracker**:
+Phase 1, step 3 — **mock agent + one scenario**:
 
-1. Flesh out `src/tracker/memory.ts` implementing the `Tracker` interface.
-   Needs a constructor that seeds a fixed list of issues, plus
-   `fetchCandidateIssues` (returns issues currently in an `active_states`
-   value passed from config), `updateIssueState`, and `addComment`. Support
-   deterministic ordering so mock-mode dashboards look stable.
-2. Add `src/tracker/memory.test.ts` — seed a few issues, assert state
-   transitions, assert `fetchCandidateIssues` filters by active states.
-3. `pnpm all` green; commit.
+1. Add `src/agent/mock.ts`. Expose a `MockAgent` implementing `Agent`:
+   `startSession(workdir, prompt)` loads a YAML scenario (path passed in
+   via the constructor), returns an `AgentSession` whose `runTurn` walks
+   the scenario step-by-step, respecting each entry's `delay_ms`.
+2. Define the scenario shape with Zod. Fields per step: `role` (required),
+   `content` (required), `delay_ms` (default 0), `tool_calls` (optional),
+   `final_state` (optional — when present, signals the orchestrator what
+   Linear state to transition to after the turn completes).
+3. Drop `fixtures/scenarios/happy-path.yaml` — a trivial 3-turn scenario
+   (plan, implement, complete) ending with `final_state: Done`.
+4. Tests: load the scenario, step through it, assert message shape and
+   terminal state. Use a fake clock to avoid real waits.
+5. `pnpm all` green; commit.
 
-Subsequent checkpoints (each its own commit):
+Subsequent checkpoints:
 
-- `agent/mock.ts` + `fixtures/scenarios/happy-path.yaml` (scripted agent).
-- `persistence/logger.ts` (SQLite + JSONL).
-- `workspace/manager.ts`.
-- `orchestrator.ts`.
-- `api/server.ts` (Hono, SSE).
-- `web/` (Vite + React + Tailwind). Add `vite`, `@vitejs/plugin-react`,
-  `react`, `react-dom`, `tailwindcss` then.
+- `persistence/logger.ts` (SQLite via Drizzle + JSONL under `.symphony/logs/`).
+- `workspace/manager.ts` (git worktree + hook execution).
+- `orchestrator.ts` (poll loop, concurrency limit, retry queue).
+- `api/server.ts` (Hono, SSE, REST) + web bundle.
+- `web/` — add `vite`, `@vitejs/plugin-react`, `react`, `react-dom`,
+  `tailwindcss` devDeps when that module lands.
 - Finally `tracker/linear.ts` + `agent/claude-code.ts`.
 
 ## Open issues / deferred
