@@ -4,32 +4,43 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 1 — TS core port.** All non-HTTP/UI primitives done. Next: API +
-CLI wiring so mock mode runs end-to-end, then web UI.
+**Phase 1 — TS core port.** Core complete. `pnpm dev WORKFLOW.md --mock`
+runs a full simulated agent end-to-end over HTTP. Next: the web UI.
 
 ## Last checkpoint
 
-Orchestrator (commit pending at HEAD after the next `git commit`):
+API + CLI wiring (commit pending at HEAD after the next `git commit`):
 
-- `src/orchestrator.ts` — `Orchestrator` ties Tracker + Agent +
-  WorkspaceManager + SymphonyLogger together. `start()` kicks a poll
-  loop on `polling.interval_ms`; `tick()` fetches candidate issues,
-  respects `agent.max_concurrent_agents`, renders the Liquid prompt
-  per issue, creates the workspace, walks the session through every
-  turn, writes every event via the logger, applies the requested
-  `final_state` tracker transition, tears down the workspace, and
-  emits `runStarted` / `turn` / `runFinished` events for downstream
-  consumers. Honors `max_turns` + `max_turns_state`. Catches per-run
-  errors and reports them as `failed` runs (rather than crashing the
-  whole orchestrator). `stop()` waits for in-flight ticks.
-- `src/orchestrator.test.ts` — 5 cases: full happy-path run
-  (tracker state, logger rows, event order, workspace cleanup);
-  no-transition scenario leaves state alone; max_turns cap; concurrent
-  agent cap; Liquid prompt renders with issue context.
-- `src/index.ts` re-exports `Orchestrator` + its event types.
+- `src/api/server.ts` — Hono app exposing `GET /api/runs`,
+  `GET /api/runs/:id` (run + turns + events), `GET /api/events` (SSE
+  stream piped from orchestrator events), and a placeholder `/` HTML
+  page until the Vite bundle lands.
+- `src/api/server.test.ts` — 4 cases over the Hono `app.request` test
+  helper: list runs, fetch one by id, 404 on unknown id, `/` serves
+  HTML.
+- `src/cli.ts` — wired up. Parses WORKFLOW.md, seeds a MemoryTracker
+  with two demo issues in mock mode, loads scenarios from
+  `fixtures/scenarios/` (path overridable via `mock.scenarios_dir`),
+  constructs WorkspaceManager / SymphonyLogger / Orchestrator, serves
+  over Hono (`@hono/node-server`), SIGINT/SIGTERM trigger a clean
+  shutdown. Real-agent mode still throws — deliberate until
+  `tracker/linear.ts` + `agent/claude-code.ts` land.
+- In mock mode, workspace hooks are stripped (they assume real git
+  worktree plumbing that doesn't exist in scripted-scenario runs).
+- Smoke test (ran locally, not committed):
+  `rm -rf .symphony && pnpm dev WORKFLOW.md --mock --port 4321`
+  then `curl /api/runs` → returns one completed DEMO-1 run with 5
+  turns, ending in `Human Review`. `.symphony/symphony.db` + JSONL
+  populated as expected.
+
+**Phase 1 gate: passed.** `symphony --mock ./WORKFLOW.md` boots,
+simulates a full agent run end-to-end, HTTP endpoints show it, SQLite
+
+- JSONL contain the trace.
 
 Prior checkpoints:
 
+- `e8e802b` — Add Orchestrator that drives a mock-mode run end to end.
 - `64ff62b` — Add WorkspaceManager that owns per-issue worktree directories.
 - `9a08eb3` — Add SymphonyLogger writing both SQLite and JSONL.
 - `373e25e` — Add MockAgent that replays scripted YAML scenarios.
@@ -39,38 +50,35 @@ Prior checkpoints:
 
 ## Next action
 
-Phase 1, step 7 — **API + CLI wiring so mock mode runs end-to-end**:
+Phase 1, step 8 — **web UI** (final Phase 1 piece):
 
-1. Implement `src/api/server.ts`. Expose `createServer({ orchestrator,
-logger })` returning a Hono app with:
-   - `GET /api/runs` — `logger.listRuns()`
-   - `GET /api/runs/:id` — run + turns + events
-   - `GET /api/events` — SSE stream fed by orchestrator events
-     (`runStarted`, `turn`, `runFinished`); format each as `data: <json>\n\n`.
-   - Serve a tiny placeholder `/` HTML while the real web bundle isn't
-     built yet. Once `web/` lands, swap to serving the Vite build.
-2. Wire `src/cli.ts` so `pnpm dev WORKFLOW.md --mock`:
-   - parses WORKFLOW.md,
-   - when `--mock` (or `config.agent.kind === "mock"`) is set, seeds a
-     MemoryTracker with a couple of demo issues and a MockAgent loaded
-     from `fixtures/scenarios/`,
-   - constructs `WorkspaceManager`, `SymphonyLogger`, `Orchestrator`,
-   - boots the Hono server on `--port` (default 4000),
-   - handles SIGINT by calling `orchestrator.stop()` + closing logger.
-3. Manual smoke: run `pnpm dev WORKFLOW.md --mock`, `curl
-localhost:4000/api/runs` after a few seconds, confirm JSONL under
-   `.symphony/logs/` + SQLite under `.symphony/symphony.db` have
-   entries. This is the Phase 1 gate for "full flow without spawning
-   anything real."
-4. API gets a vitest — hit `/api/runs` with `hono/testing` against an
-   in-memory logger + a pre-seeded run.
-5. `pnpm all` green; commit.
+1. Add `src/web/` — Vite + React + TS + Tailwind, separate `tsconfig`
+   (JSX) so server and web share the repo root but not compiler flags.
+2. Package additions (`pnpm add -D`): `vite`, `@vitejs/plugin-react`,
+   `react`, `react-dom`, `@types/react`, `@types/react-dom`,
+   `tailwindcss`, `postcss`, `autoprefixer`.
+3. Three routes (React Router or simple hash routing):
+   - Dashboard — list of runs (polls `/api/runs` or listens on SSE);
+     each row: identifier, title, state, last turn content, status.
+   - Run detail — single run with a timeline of turns + events, and
+     a live tail if the run is still active.
+   - Log search — text-filtered view over all events (SQLite
+     `content LIKE '%q%'` behind an endpoint).
+4. Add Vite build to `pnpm build`. Hono app serves the built assets
+   via `serveStatic` at `/` (replacing the placeholder).
+5. Smoke: `pnpm dev WORKFLOW.md --mock`, open `localhost:4000`, watch
+   a run stream in.
+6. `pnpm all` green; commit. **This is the Phase 1 gate for the
+   "watchable" smoke test** per the plan.
 
-Subsequent checkpoints:
+Subsequent phases:
 
-- `web/` — Vite + React + Tailwind. Add `vite`, `@vitejs/plugin-react`,
-  `react`, `react-dom`, `tailwindcss` devDeps then. Build output served
-  by the Hono app.
+- Phase 2 — AI harnessing: eval harness under `pnpm eval`, scenario
+  suite (rate-limit, turn-limit, crash, long-running), prompt
+  versioning, `symphony replay <run_id>`.
+- Phase 3 — Bug + test review (fast-check for the scheduler, error
+  paths).
+- Phase 4 — UI polish loop with the Claude-in-Chrome MCP.
 - Finally `tracker/linear.ts` + `agent/claude-code.ts` for real mode.
 
 ## Open issues / deferred
@@ -79,7 +87,9 @@ Subsequent checkpoints:
 - Eval harness under `pnpm eval` (Phase 2) is a placeholder — `package.json`
   wires `eval` to `vitest run --project eval` but Vitest is not configured
   with projects yet. Revisit when reaching Phase 2.
-- `prompts/` and `fixtures/scenarios/` directories exist but are empty.
+- `prompts/` is empty. `fixtures/scenarios/` has `happy-path.yaml`; the
+  plan calls for `rate-limit.yaml`, `turn-limit.yaml`, `crash.yaml`,
+  `long-running.yaml` — add as we hit Phase 2.
 - No `.env.example` yet. CLAUDE.md references one — create when wiring up
   the real Linear tracker.
 - `Makefile` mentioned in the plan not yet created; low priority since the
