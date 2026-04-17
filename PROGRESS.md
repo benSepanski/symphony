@@ -4,47 +4,57 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 1 — TS core port.** Phase 0 + workflow parser + memory tracker done.
+**Phase 1 — TS core port.** Workflow parser, memory tracker, and mock agent all
+done. Next piece is persistence.
 
 ## Last checkpoint
 
-In-memory tracker (commit pending at HEAD after the next `git commit`):
+Mock agent + happy-path scenario (commit pending at HEAD after the next
+`git commit`):
 
-- `src/tracker/memory.ts` — `MemoryTracker` class implementing
-  `Tracker.fetchCandidateIssues` / `updateIssueState` / `addComment`. Seeded
-  from a fixed issue list + `activeStates` set. Returns defensive copies so
-  callers cannot mutate internal state through issue references.
-- `src/tracker/memory.test.ts` — 5 Vitest cases covering active-state
-  filtering, sort order, state transitions, comments, unknown-id errors,
-  and copy-safety.
-- `src/index.ts` re-exports `MemoryTracker`.
+- `src/agent/types.ts` — `Agent.startSession(context)` now takes an
+  `AgentStartContext` ({ workdir, prompt, issueIdentifier?, labels? });
+  `AgentSession` adds `isDone()` and an optional `finalState` on turns.
+- `src/agent/mock.ts` — `MockAgent` + `MockAgentSession`. Walks Zod-validated
+  scenarios, sleeps via an injectable `Sleeper` (tests pass a no-op fake),
+  and picks scenarios by label first, falling back to round-robin.
+- `src/agent/mock.test.ts` — 11 cases: schema happy path, two schema
+  failures, step walk, delay contract, over-run guard, label match,
+  round-robin, empty-scenarios guard, fixture loading (both file and
+  directory).
+- `fixtures/scenarios/happy-path.yaml` — 5-step scenario ending in
+  `final_state: Human Review`.
+- `src/index.ts` re-exports `MockAgent` and scenario types.
 
 Prior checkpoints:
 
+- `d026612` — Add in-memory Tracker for tests and mock-mode runs.
 - `5bbafc0` — Parse WORKFLOW.md front matter + ship a reference workflow.
 - `321edf4` — Delete Elixir implementation and scaffold TypeScript rewrite.
 
 ## Next action
 
-Phase 1, step 3 — **mock agent + one scenario**:
+Phase 1, step 4 — **persistence**:
 
-1. Add `src/agent/mock.ts`. Expose a `MockAgent` implementing `Agent`:
-   `startSession(workdir, prompt)` loads a YAML scenario (path passed in
-   via the constructor), returns an `AgentSession` whose `runTurn` walks
-   the scenario step-by-step, respecting each entry's `delay_ms`.
-2. Define the scenario shape with Zod. Fields per step: `role` (required),
-   `content` (required), `delay_ms` (default 0), `tool_calls` (optional),
-   `final_state` (optional — when present, signals the orchestrator what
-   Linear state to transition to after the turn completes).
-3. Drop `fixtures/scenarios/happy-path.yaml` — a trivial 3-turn scenario
-   (plan, implement, complete) ending with `final_state: Done`.
-4. Tests: load the scenario, step through it, assert message shape and
-   terminal state. Use a fake clock to avoid real waits.
+1. Implement `src/persistence/logger.ts`. Construct with a DB path (default
+   `.symphony/symphony.db`) and a JSONL directory (default
+   `.symphony/logs/`). Creates both on first write. Expose:
+   - `startRun({ issueId, issueIdentifier, scenario? }) -> runId`
+   - `recordTurn({ runId, role, content, toolCalls?, finalState? }) -> turnId`
+   - `logEvent({ runId, turnId?, eventType, issueId?, payload? })`
+   - `finishRun({ runId, status })`
+2. Open SQLite via `better-sqlite3`, apply schema inline (no drizzle
+   migrations yet — just `CREATE TABLE IF NOT EXISTS` from the Drizzle
+   schema). Drizzle's query builder is still usable for inserts.
+3. Every recorded event writes (a) one SQLite row and (b) one JSONL line
+   under `.symphony/logs/<runId>.jsonl` with stable keys
+   `{ ts, run_id, turn_id, event_type, issue_id, payload }`.
+4. Tests use `:memory:` DB + a temporary directory via `node:os.tmpdir()`.
+   Assert SQLite rows and JSONL lines agree.
 5. `pnpm all` green; commit.
 
 Subsequent checkpoints:
 
-- `persistence/logger.ts` (SQLite via Drizzle + JSONL under `.symphony/logs/`).
 - `workspace/manager.ts` (git worktree + hook execution).
 - `orchestrator.ts` (poll loop, concurrency limit, retry queue).
 - `api/server.ts` (Hono, SSE, REST) + web bundle.
