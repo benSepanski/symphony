@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Issue } from "../tracker/types.js";
-import { HookError, WorkspaceManager } from "./manager.js";
+import { HookError, UnsafeIdentifierError, WorkspaceManager } from "./manager.js";
 
 function issue(overrides: Partial<Issue> = {}): Issue {
   return {
@@ -72,6 +72,32 @@ pwd >> hook.log`,
       hooks: { afterCreate: "echo oops >&2; exit 3" },
     });
     await expect(m.create(issue())).rejects.toBeInstanceOf(HookError);
+  });
+
+  it("rejects identifiers that would escape the workspace root", async () => {
+    const m = new WorkspaceManager({ root });
+    await expect(m.create(issue({ identifier: "../evil" }))).rejects.toBeInstanceOf(
+      UnsafeIdentifierError,
+    );
+    await expect(m.create(issue({ identifier: "ok/../nope" }))).rejects.toBeInstanceOf(
+      UnsafeIdentifierError,
+    );
+    await expect(m.create(issue({ identifier: "space bad" }))).rejects.toBeInstanceOf(
+      UnsafeIdentifierError,
+    );
+  });
+
+  it("exposes ISSUE_* env vars without letting them inject shell code", async () => {
+    const captured = join(root, "captured.txt");
+    const m = new WorkspaceManager({
+      root,
+      hooks: {
+        afterCreate: `printf '%s' "$ISSUE_TITLE" > ${captured}`,
+      },
+    });
+    const evilTitle = "'; echo pwned > ${captured}; echo '";
+    await m.create(issue({ title: evilTitle }));
+    expect(readFileSync(captured, "utf8")).toBe(evilTitle);
   });
 
   it("lists existing workspace directories in sorted order", async () => {

@@ -33,6 +33,24 @@ export class HookError extends Error {
   }
 }
 
+export class UnsafeIdentifierError extends Error {
+  constructor(identifier: string) {
+    super(
+      `issue identifier ${JSON.stringify(identifier)} is not a safe workspace directory name — ` +
+        `expected characters matching /^[A-Za-z0-9_-]+$/`,
+    );
+    this.name = "UnsafeIdentifierError";
+  }
+}
+
+const SAFE_IDENTIFIER_RE = /^[A-Za-z0-9_-]+$/;
+
+export function assertSafeIdentifier(identifier: string): void {
+  if (!SAFE_IDENTIFIER_RE.test(identifier)) {
+    throw new UnsafeIdentifierError(identifier);
+  }
+}
+
 export class WorkspaceManager {
   private readonly root: string;
   private readonly afterCreate?: string;
@@ -52,6 +70,7 @@ export class WorkspaceManager {
   }
 
   workspacePath(issue: Pick<Issue, "identifier">): string {
+    assertSafeIdentifier(issue.identifier);
     return join(this.root, issue.identifier);
   }
 
