@@ -208,6 +208,21 @@ describe("Orchestrator", () => {
     expect(run.promptSource).toBe("prompts/default-v7.md");
   });
 
+  it("captures the rendered prompt on each turn with a growing attempt number", async () => {
+    const wf = workflow();
+    wf.promptTemplate = "Ticket {{ issue.identifier }} attempt {{ attempt }}";
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const orch = new Orchestrator({ workflow: wf, tracker, agent, workspace, logger });
+    await orch.tick();
+    const run = logger.listRuns()[0];
+    const turns = logger.listTurns(run.id);
+    expect(turns.map((t) => t.renderedPrompt)).toEqual([
+      "Ticket BEN-1 attempt 1",
+      "Ticket BEN-1 attempt 2",
+      "Ticket BEN-1 attempt 3",
+    ]);
+  });
+
   it("renders the Liquid prompt with the issue context", async () => {
     const rendered: string[] = [];
     class CapturingAgent extends MockAgent {

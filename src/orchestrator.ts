@@ -95,7 +95,7 @@ export class Orchestrator extends EventEmitter {
     this.claimed.add(issue.id);
     let runId: string | null = null;
     try {
-      const prompt = await this.renderPrompt(issue);
+      const initialPrompt = await this.renderPrompt(issue, 1);
       const scenario = this.scenarioFor?.(issue);
       runId = this.logger.startRun({
         issueId: issue.id,
@@ -116,7 +116,7 @@ export class Orchestrator extends EventEmitter {
 
       const session = await this.agent.startSession({
         workdir: ws.path,
-        prompt,
+        prompt: initialPrompt,
         issueIdentifier: issue.identifier,
         labels: issue.labels,
       });
@@ -132,6 +132,9 @@ export class Orchestrator extends EventEmitter {
           finalState = this.workflow.config.agent.max_turns_state;
           break;
         }
+        const attempt = turnsTaken + 1;
+        const renderedPrompt =
+          attempt === 1 ? initialPrompt : await this.renderPrompt(issue, attempt);
         const turn = await session.runTurn();
         turnsTaken += 1;
         this.logger.recordTurn({
@@ -140,6 +143,7 @@ export class Orchestrator extends EventEmitter {
           content: turn.content,
           toolCalls: turn.toolCalls,
           finalState: turn.finalState ?? null,
+          renderedPrompt,
         });
         this.emit("turn", { runId, issue, turn } satisfies TurnEvent);
         if (turn.finalState) finalState = turn.finalState;

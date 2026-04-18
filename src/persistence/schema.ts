@@ -22,6 +22,7 @@ export const turns = sqliteTable("turns", {
   content: text("content").notNull(),
   toolCalls: text("tool_calls"),
   finalState: text("final_state"),
+  renderedPrompt: text("rendered_prompt"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS turns (
   content TEXT NOT NULL,
   tool_calls TEXT,
   final_state TEXT,
+  rendered_prompt TEXT,
   created_at TEXT NOT NULL
 );
 

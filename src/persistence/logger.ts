@@ -25,6 +25,7 @@ export interface RecordTurnInput {
   content: string;
   toolCalls?: unknown;
   finalState?: string | null;
+  renderedPrompt?: string | null;
 }
 
 export interface LogEventInput {
@@ -55,6 +56,7 @@ export interface TurnLog {
   content: string;
   toolCalls: string | null;
   finalState: string | null;
+  renderedPrompt: string | null;
   createdAt: string;
 }
 
@@ -130,8 +132,9 @@ export class SymphonyLogger {
     const toolCallsJson = input.toolCalls === undefined ? null : JSON.stringify(input.toolCalls);
     this.db
       .prepare(
-        `INSERT INTO turns (id, run_id, turn_number, role, content, tool_calls, final_state, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO turns
+           (id, run_id, turn_number, role, content, tool_calls, final_state, rendered_prompt, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         turnId,
@@ -141,6 +144,7 @@ export class SymphonyLogger {
         input.content,
         toolCallsJson,
         input.finalState ?? null,
+        input.renderedPrompt ?? null,
         createdAt,
       );
     this.appendJsonl(input.runId, {
@@ -155,6 +159,7 @@ export class SymphonyLogger {
         content: input.content,
         tool_calls: input.toolCalls ?? null,
         final_state: input.finalState ?? null,
+        rendered_prompt: input.renderedPrompt ?? null,
       },
     });
     return turnId;
@@ -217,7 +222,8 @@ export class SymphonyLogger {
     return this.db
       .prepare(
         `SELECT id, run_id AS runId, turn_number AS turnNumber, role, content,
-                tool_calls AS toolCalls, final_state AS finalState, created_at AS createdAt
+                tool_calls AS toolCalls, final_state AS finalState,
+                rendered_prompt AS renderedPrompt, created_at AS createdAt
          FROM turns WHERE run_id = ? ORDER BY turn_number ASC`,
       )
       .all(runId) as TurnLog[];

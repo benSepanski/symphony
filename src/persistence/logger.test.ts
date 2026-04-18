@@ -47,6 +47,7 @@ describe("SymphonyLogger", () => {
       role: "assistant",
       content: "hi",
       finalState: "Human Review",
+      renderedPrompt: "Hello BEN-1",
     });
     logger.logEvent({
       runId,
@@ -68,6 +69,7 @@ describe("SymphonyLogger", () => {
     expect(turns).toHaveLength(1);
     expect(turns[0].turnNumber).toBe(1);
     expect(turns[0].finalState).toBe("Human Review");
+    expect(turns[0].renderedPrompt).toBe("Hello BEN-1");
 
     const events = logger.listEvents(runId);
     expect(events).toHaveLength(1);

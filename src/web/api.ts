@@ -16,6 +16,7 @@ export interface ApiTurn {
   content: string;
   toolCalls: string | null;
   finalState: string | null;
+  renderedPrompt: string | null;
   createdAt: string;
 }
 

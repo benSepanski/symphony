@@ -65,6 +65,16 @@ export function RunDetail({ runId }: { runId: string }) {
               {t.toolCalls && (
                 <pre className="mt-2 text-xs text-slate-500 overflow-x-auto">{t.toolCalls}</pre>
               )}
+              {t.renderedPrompt && (
+                <details className="mt-2 text-xs text-slate-400">
+                  <summary className="cursor-pointer hover:text-slate-200">
+                    prompt the model saw
+                  </summary>
+                  <pre className="mt-1 whitespace-pre-wrap text-slate-500 border-l border-slate-800 pl-3">
+                    {t.renderedPrompt}
+                  </pre>
+                </details>
+              )}
             </li>
           ))}
         </ul>
