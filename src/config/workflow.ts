@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
@@ -42,6 +43,7 @@ export const WorkflowConfigSchema = z.object({
       default_scenario: z.string().optional(),
     })
     .optional(),
+  prompt: z.string().optional(),
 });
 
 export type WorkflowConfig = z.infer<typeof WorkflowConfigSchema>;
@@ -49,6 +51,8 @@ export type WorkflowConfig = z.infer<typeof WorkflowConfigSchema>;
 export interface ParsedWorkflow {
   config: WorkflowConfig;
   promptTemplate: string;
+  promptVersion: string;
+  promptSource: string;
 }
 
 export class WorkflowParseError extends Error {
@@ -60,7 +64,19 @@ export class WorkflowParseError extends Error {
 
 const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
-export function parseWorkflowString(source: string): ParsedWorkflow {
+interface ParsedPromptFile {
+  template: string;
+  version: string;
+}
+
+export interface ParseWorkflowOptions {
+  baseDir?: string;
+}
+
+export function parseWorkflowString(
+  source: string,
+  options: ParseWorkflowOptions = {},
+): ParsedWorkflow {
   const match = FRONT_MATTER_RE.exec(source);
   if (!match) {
     throw new WorkflowParseError(
@@ -85,13 +101,53 @@ export function parseWorkflowString(source: string): ParsedWorkflow {
     );
   }
 
+  if (parsed.data.prompt) {
+    const promptPath = resolvePromptPath(parsed.data.prompt, options.baseDir);
+    const loaded = loadPromptFile(promptPath);
+    return {
+      config: parsed.data,
+      promptTemplate: loaded.template,
+      promptVersion: loaded.version,
+      promptSource: parsed.data.prompt,
+    };
+  }
+
   return {
     config: parsed.data,
     promptTemplate: template.trimStart(),
+    promptVersion: "inline",
+    promptSource: "inline",
   };
 }
 
 export function parseWorkflow(path: string): ParsedWorkflow {
   const source = readFileSync(path, "utf8");
-  return parseWorkflowString(source);
+  return parseWorkflowString(source, { baseDir: dirname(resolve(path)) });
+}
+
+function resolvePromptPath(promptRef: string, baseDir?: string): string {
+  if (isAbsolute(promptRef)) return promptRef;
+  return resolve(baseDir ?? process.cwd(), promptRef);
+}
+
+function loadPromptFile(path: string): ParsedPromptFile {
+  let source: string;
+  try {
+    source = readFileSync(path, "utf8");
+  } catch (err) {
+    throw new WorkflowParseError(`Cannot read prompt file ${path}: ${(err as Error).message}`);
+  }
+  const match = FRONT_MATTER_RE.exec(source);
+  if (!match) {
+    return { template: source.trimStart(), version: "unversioned" };
+  }
+  const [, yamlBlock, body] = match;
+  let version = "unversioned";
+  try {
+    const meta = parseYaml(yamlBlock) as { version?: unknown } | null;
+    if (meta && typeof meta.version === "string") version = meta.version;
+  } catch {
+    /* ignore malformed prompt front matter; treat as unversioned */
+  }
+  return { template: body.trimStart(), version };
 }

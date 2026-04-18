@@ -43,6 +43,8 @@ function workflow(overrides: Partial<ParsedWorkflow["config"]> = {}): ParsedWork
       ...overrides,
     },
     promptTemplate: "Ticket {{ issue.identifier }}: {{ issue.title }}",
+    promptVersion: "inline",
+    promptSource: "inline",
   };
 }
 
@@ -192,6 +194,18 @@ describe("Orchestrator", () => {
     });
     await orch.tick();
     expect(logger.listRuns()).toHaveLength(2);
+  });
+
+  it("persists the workflow's prompt version + source on the run row", async () => {
+    const wf = workflow();
+    wf.promptVersion = "v7";
+    wf.promptSource = "prompts/default-v7.md";
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const orch = new Orchestrator({ workflow: wf, tracker, agent, workspace, logger });
+    await orch.tick();
+    const run = logger.listRuns()[0];
+    expect(run.promptVersion).toBe("v7");
+    expect(run.promptSource).toBe("prompts/default-v7.md");
   });
 
   it("renders the Liquid prompt with the issue context", async () => {

@@ -35,6 +35,8 @@ function workflow(): ParsedWorkflow {
       },
     },
     promptTemplate: "go",
+    promptVersion: "inline",
+    promptSource: "inline",
   };
 }
 

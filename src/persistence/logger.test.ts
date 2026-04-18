@@ -39,6 +39,8 @@ describe("SymphonyLogger", () => {
       issueId: "i-1",
       issueIdentifier: "BEN-1",
       scenario: "happy-path",
+      promptVersion: "v1",
+      promptSource: "prompts/default-v1.md",
     });
     const turnId = logger.recordTurn({
       runId,
@@ -59,6 +61,8 @@ describe("SymphonyLogger", () => {
     expect(runs).toHaveLength(1);
     expect(runs[0].status).toBe("completed");
     expect(runs[0].scenario).toBe("happy-path");
+    expect(runs[0].promptVersion).toBe("v1");
+    expect(runs[0].promptSource).toBe("prompts/default-v1.md");
 
     const turns = logger.listTurns(runId);
     expect(turns).toHaveLength(1);

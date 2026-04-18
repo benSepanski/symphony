@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowParseError, parseWorkflowString } from "./workflow.js";
 
 const VALID_FRONT_MATTER = `---
@@ -66,6 +69,12 @@ body
     expect(() => parseWorkflowString(bad)).toThrowError(/Invalid YAML/);
   });
 
+  it("marks an inline template as promptVersion=inline", () => {
+    const result = parseWorkflowString(VALID_FRONT_MATTER);
+    expect(result.promptVersion).toBe("inline");
+    expect(result.promptSource).toBe("inline");
+  });
+
   it("rejects schema violations with a readable message", () => {
     const missingAgent = `---
 tracker:
@@ -82,5 +91,82 @@ workspace:
 body
 `;
     expect(() => parseWorkflowString(missingAgent)).toThrowError(/failed validation/);
+  });
+});
+
+describe("parseWorkflowString with prompt: reference", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "symphony-prompt-"));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("loads an external prompt file with its own version header", () => {
+    const promptPath = join(dir, "my-prompt.md");
+    writeFileSync(promptPath, `---\nversion: v7\n---\n\nHello {{ issue.identifier }}\n`);
+    const source = `---
+tracker:
+  kind: memory
+  project_slug: "t"
+  active_states: [Todo]
+  terminal_states: [Done]
+polling:
+  interval_ms: 1000
+workspace:
+  root: /tmp
+agent:
+  kind: mock
+prompt: my-prompt.md
+---
+`;
+    const result = parseWorkflowString(source, { baseDir: dir });
+    expect(result.promptTemplate).toBe("Hello {{ issue.identifier }}\n");
+    expect(result.promptVersion).toBe("v7");
+    expect(result.promptSource).toBe("my-prompt.md");
+  });
+
+  it("reports unversioned when the prompt file has no front matter", () => {
+    const promptPath = join(dir, "raw.md");
+    writeFileSync(promptPath, "Hi");
+    const source = `---
+tracker:
+  kind: memory
+  project_slug: "t"
+  active_states: [Todo]
+  terminal_states: [Done]
+polling:
+  interval_ms: 1000
+workspace:
+  root: /tmp
+agent:
+  kind: mock
+prompt: raw.md
+---
+`;
+    const result = parseWorkflowString(source, { baseDir: dir });
+    expect(result.promptTemplate).toBe("Hi");
+    expect(result.promptVersion).toBe("unversioned");
+  });
+
+  it("wraps a missing prompt file in WorkflowParseError", () => {
+    const source = `---
+tracker:
+  kind: memory
+  project_slug: "t"
+  active_states: [Todo]
+  terminal_states: [Done]
+polling:
+  interval_ms: 1000
+workspace:
+  root: /tmp
+agent:
+  kind: mock
+prompt: does-not-exist.md
+---
+`;
+    expect(() => parseWorkflowString(source, { baseDir: dir })).toThrow(WorkflowParseError);
   });
 });

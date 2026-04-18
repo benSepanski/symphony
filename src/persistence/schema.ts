@@ -8,6 +8,8 @@ export const runs = sqliteTable("runs", {
   startedAt: text("started_at").notNull(),
   finishedAt: text("finished_at"),
   scenario: text("scenario"),
+  promptVersion: text("prompt_version"),
+  promptSource: text("prompt_source"),
 });
 
 export const turns = sqliteTable("turns", {
@@ -43,7 +45,9 @@ CREATE TABLE IF NOT EXISTS runs (
   status TEXT NOT NULL DEFAULT 'running',
   started_at TEXT NOT NULL,
   finished_at TEXT,
-  scenario TEXT
+  scenario TEXT,
+  prompt_version TEXT,
+  prompt_source TEXT
 );
 
 CREATE TABLE IF NOT EXISTS turns (

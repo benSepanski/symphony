@@ -15,6 +15,8 @@ export interface StartRunInput {
   issueId: string;
   issueIdentifier: string;
   scenario?: string | null;
+  promptVersion?: string | null;
+  promptSource?: string | null;
 }
 
 export interface RecordTurnInput {
@@ -41,6 +43,8 @@ export interface RunLog {
   startedAt: string;
   finishedAt: string | null;
   scenario: string | null;
+  promptVersion: string | null;
+  promptSource: string | null;
 }
 
 export interface TurnLog {
@@ -89,10 +93,19 @@ export class SymphonyLogger {
     const startedAt = this.isoNow();
     this.db
       .prepare(
-        `INSERT INTO runs (id, issue_id, issue_identifier, status, started_at, scenario)
-         VALUES (?, ?, ?, 'running', ?, ?)`,
+        `INSERT INTO runs
+           (id, issue_id, issue_identifier, status, started_at, scenario, prompt_version, prompt_source)
+         VALUES (?, ?, ?, 'running', ?, ?, ?, ?)`,
       )
-      .run(runId, input.issueId, input.issueIdentifier, startedAt, input.scenario ?? null);
+      .run(
+        runId,
+        input.issueId,
+        input.issueIdentifier,
+        startedAt,
+        input.scenario ?? null,
+        input.promptVersion ?? null,
+        input.promptSource ?? null,
+      );
     this.appendJsonl(runId, {
       ts: startedAt,
       run_id: runId,
@@ -102,6 +115,8 @@ export class SymphonyLogger {
       payload: {
         issue_identifier: input.issueIdentifier,
         scenario: input.scenario ?? null,
+        prompt_version: input.promptVersion ?? null,
+        prompt_source: input.promptSource ?? null,
       },
     });
     return runId;
@@ -191,7 +206,8 @@ export class SymphonyLogger {
     return this.db
       .prepare(
         `SELECT id, issue_id AS issueId, issue_identifier AS issueIdentifier,
-                status, started_at AS startedAt, finished_at AS finishedAt, scenario
+                status, started_at AS startedAt, finished_at AS finishedAt, scenario,
+                prompt_version AS promptVersion, prompt_source AS promptSource
          FROM runs ORDER BY started_at ASC`,
       )
       .all() as RunLog[];

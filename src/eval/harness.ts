@@ -37,6 +37,8 @@ function defaultWorkflow(overrides: Partial<ParsedWorkflow["config"]> = {}): Par
       ...overrides,
     },
     promptTemplate: "{{ issue.identifier }}: {{ issue.title }}",
+    promptVersion: "inline",
+    promptSource: "inline",
   };
 }
 
