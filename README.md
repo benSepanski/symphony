@@ -1,45 +1,85 @@
 # Symphony
 
-Symphony turns project work into isolated, autonomous implementation runs, allowing teams to manage
+Symphony turns project work into isolated, autonomous implementation runs, letting teams manage
 work instead of supervising coding agents.
 
 [![Symphony demo video preview](.github/media/symphony-demo-poster.jpg)](.github/media/symphony-demo.mp4)
 
-_In this [demo video](.github/media/symphony-demo.mp4), Symphony monitors a Linear board for work and spawns agents to handle the tasks. The agents complete the tasks and provide proof of work: CI status, PR review feedback, complexity analysis, and walkthrough videos. When accepted, the agents land the PR safely. Engineers do not need to supervise Codex; they can manage the work at a higher level._
+_In this [demo video](.github/media/symphony-demo.mp4), Symphony monitors a Linear board for work
+and spawns agents to handle each ticket. The agents complete the tasks and provide proof of work
+(CI status, PR review feedback, walkthrough videos). When accepted, the agents land the PR safely.
+Engineers don't supervise the agents; they manage the work at a higher level._
 
 > [!WARNING]
 > Symphony is a low-key engineering preview for testing in trusted environments.
 
-## Running Symphony
+## Stack
 
-### Requirements
+- Node 22 (managed via [`mise`](mise.toml))
+- TypeScript, strict mode
+- Hono HTTP server on port 4000
+- SQLite via `better-sqlite3` + Drizzle ORM at `.symphony/symphony.db`
+- Vite + React + Tailwind dashboard
+- Vitest unit and eval suites
 
-Symphony works best in codebases that have adopted
-[harness engineering](https://openai.com/index/harness-engineering/). Symphony is the next step --
-moving from managing coding agents to managing work that needs to get done.
+## Quick start
 
-### Option 1. Make your own
+```bash
+# 1. Install deps (uses pnpm via corepack; see mise.toml for the Node version)
+pnpm install
 
-Tell your favorite coding agent to build Symphony in a programming language of your choice:
+# 2. Copy the env template and fill in LINEAR_API_KEY if you want real-agent mode
+cp .env.example .env
 
-> Implement Symphony according to the following spec:
-> https://github.com/openai/symphony/blob/main/SPEC.md
+# 3. Try mock mode — no API key or claude CLI needed
+pnpm build:web
+pnpm dev WORKFLOW.md --mock
 
-### Option 2. Use our experimental reference implementation
+# 4. Open the dashboard
+open http://localhost:4000
+```
 
-Check out [elixir/README.md](elixir/README.md) for instructions on how to set up your environment
-and run the Elixir-based Symphony implementation. You can also ask your favorite coding agent to
-help with the setup:
+## Modes
 
-> Set up Symphony for my repository based on
-> https://github.com/openai/symphony/blob/main/elixir/README.md
+- **Mock mode** (`--mock` or `agent.kind: mock` in `WORKFLOW.md`): scripted YAML scenarios under
+  `fixtures/scenarios/` play back through the full orchestrator — workspace creation, turn
+  streaming, tracker transitions, persistence — without spawning the real `claude` CLI or hitting
+  Linear. Scenarios are picked by matching issue labels; unmatched issues round-robin through the
+  full scenario list.
+- **Real mode** (default when `agent.kind: claude_code`): uses `LinearTracker` to poll a Linear
+  project and `ClaudeCodeAgent` to spawn `claude --output-format stream-json --print` for each
+  ticket. Requires `LINEAR_API_KEY` and the `claude` CLI on `$PATH`.
 
----
+## Commands
+
+```bash
+pnpm dev WORKFLOW.md            # run the orchestrator (default subcommand: run)
+pnpm dev WORKFLOW.md --mock     # mock mode with built-in demo issues
+pnpm dev WORKFLOW.md --mock --no-demo              # empty state, no seeded issues
+pnpm dev WORKFLOW.md --mock --seed my-issues.yaml  # seed from YAML
+pnpm tsx src/cli.ts replay <runId> --speed 5       # replay a past run over SSE
+
+pnpm build:web        # build the dashboard bundle into dist/web
+pnpm all              # typecheck + fmt:check + lint + test + eval
+pnpm eval             # run the scenario eval suite only
+```
+
+## Observability
+
+Every agent event writes two artifacts:
+
+- A row in SQLite at `.symphony/symphony.db` (`runs`, `turns`, `log_events`). Queryable by future
+  agents running in a loop — `sqlite3 .symphony/symphony.db "select * from turns limit 5"`.
+- A JSONL line under `.symphony/logs/<runId>.jsonl` with the stable shape
+  `{ ts, run_id, turn_id, event_type, issue_id, payload }`.
+
+The HTTP API exposes `/api/runs`, `/api/runs/:id`, `/api/events` (SSE), and `/api/search?q=...`.
+
+## Development
+
+See [`CLAUDE.md`](CLAUDE.md) for the stack + command summary and [`PROGRESS.md`](PROGRESS.md) for
+the long-running plan state. Run `pnpm all` before committing.
 
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE).
-
-# symphony
-
-# symphony
+Apache License 2.0. See [`LICENSE`](LICENSE).
