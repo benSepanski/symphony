@@ -75,7 +75,7 @@ export function Search({ query }: { query: string }) {
 
 function SearchResults({ query, matches }: { query: string; matches: ApiSearchMatch[] }) {
   if (matches.length === 0) {
-    return <p className="text-sm text-slate-400">No matches for {JSON.stringify(query)}.</p>;
+    return <p className="text-sm text-slate-400">No matches for "{query}".</p>;
   }
   return (
     <ul className="space-y-2">
@@ -86,7 +86,11 @@ function SearchResults({ query, matches }: { query: string; matches: ApiSearchMa
         >
           <a href={`#/runs/${m.runId}`} className="flex flex-wrap items-baseline gap-2 text-sm">
             <span className="font-mono text-cyan-400">{m.issueIdentifier}</span>
-            {m.issueTitle && <span className="text-slate-300 truncate">{m.issueTitle}</span>}
+            {m.issueTitle && (
+              <span className="text-slate-300 truncate" title={m.issueTitle}>
+                {m.issueTitle}
+              </span>
+            )}
             <StatusBadge status={m.status} />
             <span className="text-xs text-slate-500">
               {m.matchKind === "turn" ? `turn #${m.turnNumber}` : `event ${m.eventType}`}

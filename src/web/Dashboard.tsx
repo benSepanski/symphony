@@ -72,7 +72,12 @@ export function Dashboard() {
               }}
             >
               <td className="py-2 pr-4 font-mono">{r.issueIdentifier}</td>
-              <td className="py-2 pr-4 text-slate-200 max-w-xs truncate">{r.issueTitle ?? "—"}</td>
+              <td
+                className="py-2 pr-4 text-slate-200 max-w-xs truncate"
+                title={r.issueTitle ?? "—"}
+              >
+                {r.issueTitle ?? "—"}
+              </td>
               <td className="py-2 pr-4">
                 <StatusBadge status={r.status} />
               </td>
