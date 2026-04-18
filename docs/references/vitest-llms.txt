@@ -1,0 +1,55 @@
+VITEST — snapshot reference
+===========================
+Version: vitest ^3.0.5. Fast-check ^4.7.0 for properties.
+
+Config
+------
+vitest.config.ts — unit suite.
+vitest.eval.config.ts — eval suite (scenario replays).
+Both include Node + TypeScript via tsx; no jsdom today.
+
+Running
+-------
+pnpm test          # unit
+pnpm eval          # eval
+pnpm all           # typecheck + fmt:check + lint + test + eval
+
+Writing tests
+-------------
+  import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+  describe("Module", () => {
+    it("does the thing", () => {
+      expect(actual).toBe(expected);
+    });
+  });
+
+Deterministic time
+------------------
+- Inject a `now: () => Date` into services that stamp timestamps
+  (SymphonyLogger).
+- Inject a `sleep: (ms) => Promise<void>` into the mock agent.
+- Do NOT `vi.useFakeTimers()` in our suites; the injection pattern is
+  simpler and self-documenting.
+
+Property tests
+--------------
+  import fc from "fast-check";
+
+  it("orchestrator never double-claims", () => {
+    fc.assert(fc.property(fc.array(issueArb), async (issues) => {
+      // ...
+    }));
+  });
+
+Evals
+-----
+src/eval/scenarios.eval.ts drives MockAgent through each fixture scenario
+and asserts the transcript + tracker transitions.
+
+Gotchas
+-------
+- Vitest picks up *.test.ts by default; evals use *.eval.ts with a separate
+  config so they never run inadvertently.
+- `vi.mock` is strong-glue; prefer constructor injection.
+- Tests must not write outside their temp dirs. `.symphony/` is disallowed.

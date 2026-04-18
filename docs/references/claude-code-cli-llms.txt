@@ -1,0 +1,56 @@
+CLAUDE CODE CLI — snapshot reference
+====================================
+Binary: `claude` (path configurable via `WORKFLOW.md` or `CLAUDE_CLI` env var).
+Used by: src/agent/claude-code.ts.
+
+Invocation Symphony uses
+------------------------
+  claude --output-format stream-json --print [--model <id>] [--permission-mode <mode>] "<prompt>"
+
+- `--output-format stream-json`: newline-delimited JSON on stdout.
+- `--print`: one-shot mode, exit after the stream.
+- `--model`: optional. We pass `workflow.config.claude_code.model`
+  (e.g. `claude-sonnet-4-6`).
+- `--permission-mode`: e.g. `full` (tool use allowed), `plan` (no tool use).
+
+We spawn with stdin/stdout/stderr all piped; stdin is currently unused
+(the prompt is an argv) but the session exposes `writePrompt(text)` as a
+hook for future multi-turn.
+
+Stream-json event shapes
+------------------------
+Each line is one JSON object with a `type`:
+
+- `type: "assistant"` — an assistant message.
+  `message.content: Array<{ type: "text", text } | { type: "tool_use", name, input, id } | ...>`
+- `type: "user"` — a tool_result message (echoed back by Claude Code).
+  `message.content: Array<{ type: "tool_result", tool_use_id, content }>`
+- `type: "result"` — the session is over; we close the stream.
+
+Any other `type` (system, metadata, error) is currently ignored.
+
+Exit behavior
+-------------
+- Exit code 0: normal completion.
+- Non-zero: surface as `exitError` with tail of stderr.
+- SIGTERM: 2s grace, then SIGKILL (session.stop()).
+
+Stderr
+------
+Capped at 8 KiB (trailing bytes kept). The tail is included in exit errors
+to make triage bearable.
+
+Known behaviors
+---------------
+- `claude` occasionally emits an unparseable stream-json line during
+  startup; we drop non-JSON lines silently.
+- In `permission-mode: plan`, the agent can't run tools but will still
+  emit text turns.
+- Terminal width leaks into some outputs; we don't attach a PTY.
+
+Gotchas
+-------
+- `claude` exits immediately if stdin is not a TTY and there's no prompt.
+  We pass the prompt via argv; never leave `child.stdin` hanging open.
+- Rate limits: on 429, the CLI exits non-zero; retry-at-poll-interval
+  semantics apply (no in-session retry).

@@ -1,0 +1,52 @@
+HONO — snapshot reference
+=========================
+Version: ^4.7.6. Node adapter: @hono/node-server ^1.13.8.
+
+The slice of Hono Symphony uses
+-------------------------------
+- new Hono()
+- app.get(path, handler)
+- app.use(pattern, middleware)
+- c.req.param("name")       // path parameters
+- c.req.query("name")       // query parameters
+- c.json(value, status?)
+- c.html(text)
+- import { streamSSE } from "hono/streaming"
+- import { serveStatic } from "@hono/node-server/serve-static"
+
+Starting the server
+-------------------
+  import { serve } from "@hono/node-server";
+  const server = serve({ fetch: app.fetch, port });
+  server.close();
+
+Server-Sent Events
+------------------
+  app.get("/api/events", (c) => streamSSE(c, async (stream) => {
+    const push = (event, data) => stream.writeSSE({ event, data: JSON.stringify(data) });
+    stream.onAbort(() => { /* remove listeners */ });
+    while (!stream.aborted) {
+      // pump events
+      await stream.sleep(250);
+    }
+  }));
+
+Static assets
+-------------
+We serve Vite's dist/web/ as static assets at /assets/*, and read
+dist/web/index.html directly for the SPA shell on "/":
+
+  app.use("/assets/*", serveStatic({ root: relative(cwd, resolvedWebRoot) }));
+  app.get("/", (c) => c.html(readFileSync(indexPath, "utf8")));
+
+Testing
+-------
+Hono apps expose `.fetch`; our tests hit `app.fetch(new Request(...))` and
+assert on the returned `Response`. No HTTP server needed for unit tests.
+
+Gotchas
+-------
+- `streamSSE` writes with `event: ...` and `data: ...` — include both.
+- `serveStatic({ root })` needs a relative path from process.cwd() or a
+  deliberate absolute path; passing an absolute path sometimes 404s.
+- `c.req.param` returns `string | undefined` depending on path shape.

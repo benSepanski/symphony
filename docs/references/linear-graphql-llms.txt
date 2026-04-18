@@ -1,0 +1,80 @@
+LINEAR GRAPHQL — snapshot reference
+===================================
+Endpoint: https://api.linear.app/graphql.
+Auth: `Authorization: <api_key>` header (personal API key; no `Bearer ` prefix).
+
+The slice Symphony uses
+-----------------------
+1. Fetching active issues in a project:
+
+   query IssuesForProject($slug: String!, $states: [String!]!) {
+     issues(
+       filter: {
+         project: { slugId: { eq: $slug } }
+         state: { name: { in: $states } }
+       }
+       first: 100
+     ) {
+       nodes {
+         id
+         identifier
+         title
+         description
+         url
+         labels { nodes { name } }
+         state { id name }
+         team { id }
+       }
+     }
+   }
+
+2. Resolving workflow state ids for a team (to turn "Blocked" → <stateId>):
+
+   query StatesForTeam($teamId: ID!) {
+     workflowStates(filter: { team: { id: { eq: $teamId } } }, first: 200) {
+       nodes { id name team { id } }
+     }
+   }
+
+3. Updating an issue state:
+
+   mutation UpdateIssueState($id: String!, $stateId: String!) {
+     issueUpdate(id: $id, input: { stateId: $stateId }) { success }
+   }
+
+4. Commenting:
+
+   mutation CreateComment($issueId: String!, $body: String!) {
+     commentCreate(input: { issueId: $issueId, body: $body }) { success }
+   }
+
+Caching we do
+-------------
+- teamByIssue: Map<issueId, teamId>, populated by fetch.
+- stateIdByTeam: Map<teamId, Map<name, stateId>>, lazy on first transition.
+
+Error shape
+-----------
+GraphQL errors arrive as:
+
+  { errors: [{ message: string, ... }] }
+
+LinearApiError wraps operation name + list of messages.
+
+Known drift
+-----------
+- `project.slugId.eq` has historically toggled between `slugId.eq`,
+  `slugId`, and `id.eq`. Verify against the Linear schema when a
+  live smoke test 401/422s.
+- `workflowStates` filter shape has moved (`state.team.id`, `team.id.eq`).
+
+Auth + rate limits
+------------------
+- Rate limit is request-based + per IP; we don't hit it in steady state.
+- On 401 we fail fast at startup (LinearTracker requires an apiKey).
+
+Gotchas
+-------
+- `identifier` is the user-visible "BEN-42" string and is always unique
+  across a workspace.
+- State names are case-sensitive; "blocked" ≠ "Blocked".
