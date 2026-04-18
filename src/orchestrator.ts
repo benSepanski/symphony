@@ -29,7 +29,7 @@ export interface TurnEvent {
 export interface RunFinishedEvent {
   runId: string;
   issue: Issue;
-  status: "completed" | "max_turns" | "failed";
+  status: "completed" | "max_turns" | "failed" | "cancelled";
   error?: Error;
 }
 
@@ -94,6 +94,12 @@ export class Orchestrator extends EventEmitter {
     if (this.claimed.has(issue.id)) return;
     this.claimed.add(issue.id);
     let runId: string | null = null;
+    let workspaceCreated = false;
+    let session: import("./agent/types.js").AgentSession | null = null;
+    let status: RunFinishedEvent["status"] = "completed";
+    let finalState: string | undefined;
+    let caughtError: Error | undefined;
+
     try {
       const initialPrompt = await this.renderPrompt(issue, 1);
       const scenario = this.scenarioFor?.(issue);
@@ -107,6 +113,7 @@ export class Orchestrator extends EventEmitter {
       this.emit("runStarted", { runId, issue } satisfies RunStartedEvent);
 
       const ws = await this.workspace.create(issue);
+      workspaceCreated = true;
       this.logger.logEvent({
         runId,
         eventType: "workspace_created",
@@ -114,19 +121,21 @@ export class Orchestrator extends EventEmitter {
         payload: { path: ws.path },
       });
 
-      const session = await this.agent.startSession({
+      session = await this.agent.startSession({
         workdir: ws.path,
         prompt: initialPrompt,
         issueIdentifier: issue.identifier,
         labels: issue.labels,
       });
 
-      let status: RunFinishedEvent["status"] = "completed";
       let turnsTaken = 0;
       const maxTurns = this.workflow.config.agent.max_turns;
-      let finalState: string | undefined;
 
       while (!session.isDone()) {
+        if (this.shuttingDown) {
+          status = "cancelled";
+          break;
+        }
         if (turnsTaken >= maxTurns) {
           status = "max_turns";
           finalState = this.workflow.config.agent.max_turns_state;
@@ -148,48 +157,92 @@ export class Orchestrator extends EventEmitter {
         this.emit("turn", { runId, issue, turn } satisfies TurnEvent);
         if (turn.finalState) finalState = turn.finalState;
       }
-
-      await session.stop();
-
-      if (finalState) {
-        await this.tracker.updateIssueState(issue.id, finalState);
-        this.logger.logEvent({
-          runId,
-          eventType: "state_transition",
-          issueId: issue.id,
-          payload: { to: finalState },
-        });
-      }
-
-      await this.workspace.destroy(issue);
-      this.logger.logEvent({
-        runId,
-        eventType: "workspace_destroyed",
-        issueId: issue.id,
-      });
-
-      this.logger.finishRun(runId, status);
-      this.emit("runFinished", { runId, issue, status } satisfies RunFinishedEvent);
     } catch (err) {
-      const error = err as Error;
+      caughtError = err as Error;
+      status = "failed";
       if (runId) {
         this.logger.logEvent({
           runId,
           eventType: "error",
           issueId: issue.id,
-          payload: { message: error.message, name: error.name },
+          payload: { message: caughtError.message, name: caughtError.name },
         });
-        this.logger.finishRun(runId, "failed");
+      }
+    } finally {
+      try {
+        if (session) await session.stop();
+      } catch (err) {
+        if (runId) {
+          this.logger.logEvent({
+            runId,
+            eventType: "session_stop_error",
+            issueId: issue.id,
+            payload: { message: (err as Error).message },
+          });
+        }
+      }
+
+      const transitionState =
+        finalState ??
+        (status === "failed" || status === "cancelled"
+          ? this.workflow.config.agent.max_turns_state
+          : undefined);
+      if (transitionState) {
+        try {
+          await this.tracker.updateIssueState(issue.id, transitionState);
+          if (runId) {
+            this.logger.logEvent({
+              runId,
+              eventType: "state_transition",
+              issueId: issue.id,
+              payload: { to: transitionState },
+            });
+          }
+        } catch (err) {
+          if (runId) {
+            this.logger.logEvent({
+              runId,
+              eventType: "state_transition_error",
+              issueId: issue.id,
+              payload: { message: (err as Error).message },
+            });
+          }
+        }
+      }
+
+      if (workspaceCreated) {
+        try {
+          await this.workspace.destroy(issue);
+          if (runId) {
+            this.logger.logEvent({
+              runId,
+              eventType: "workspace_destroyed",
+              issueId: issue.id,
+            });
+          }
+        } catch (err) {
+          if (runId) {
+            this.logger.logEvent({
+              runId,
+              eventType: "workspace_destroy_error",
+              issueId: issue.id,
+              payload: { message: (err as Error).message },
+            });
+          }
+        }
+      }
+
+      if (runId) {
+        this.logger.finishRun(runId, status);
         this.emit("runFinished", {
           runId,
           issue,
-          status: "failed",
-          error,
+          status,
+          error: caughtError,
         } satisfies RunFinishedEvent);
-      } else {
-        this.emit("error", error);
+      } else if (caughtError) {
+        this.emit("error", caughtError);
       }
-    } finally {
       this.claimed.delete(issue.id);
     }
   }

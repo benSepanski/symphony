@@ -208,6 +208,41 @@ describe("Orchestrator", () => {
     expect(run.promptSource).toBe("prompts/default-v7.md");
   });
 
+  it("cleans up the workspace and transitions the issue after a crash", async () => {
+    const crashing: Scenario = {
+      name: "crash-in-test",
+      labels: [],
+      steps: [
+        { role: "assistant", content: "about to crash", delay_ms: 0 },
+        { role: "tool", content: "boom", delay_ms: 0, throw: true },
+      ],
+    };
+    const agent = new MockAgent({ scenarios: [crashing], sleep: async () => {} });
+    const orch = new Orchestrator({
+      workflow: workflow({
+        agent: {
+          kind: "mock",
+          max_concurrent_agents: 1,
+          max_turns: 10,
+          max_turns_state: "Blocked",
+        },
+      }),
+      tracker,
+      agent,
+      workspace,
+      logger,
+    });
+    await orch.tick();
+
+    const run = logger.listRuns()[0];
+    expect(run.status).toBe("failed");
+    expect(existsSync(join(dir, "worktrees", "BEN-1"))).toBe(false);
+    expect(tracker.getIssue("i-1")?.state).toBe("Blocked");
+
+    await orch.tick();
+    expect(logger.listRuns()).toHaveLength(1);
+  });
+
   it("captures the rendered prompt on each turn with a growing attempt number", async () => {
     const wf = workflow();
     wf.promptTemplate = "Ticket {{ issue.identifier }} attempt {{ attempt }}";
