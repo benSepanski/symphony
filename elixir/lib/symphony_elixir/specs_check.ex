@@ -99,7 +99,7 @@ defmodule SymphonyElixir.SpecsCheck do
   defp consume_form({:@, _, _}, state, _module_name, _file, _exemptions), do: state
 
   defp consume_form({:def, meta, [head_ast, _]} = _form, state, module_name, file, exemptions) do
-    {name, arity} = def_head_to_identifier(head_ast)
+    {name, arity} = head_to_identifier(head_ast)
 
     id = {name, arity}
 
@@ -149,14 +149,14 @@ defmodule SymphonyElixir.SpecsCheck do
   defp normalize_block(form), do: [form]
 
   defp extract_spec_identifiers({:"::", _, [head, _return_type]}) do
-    case spec_head_to_identifier(head) do
+    case head_to_identifier(head) do
       nil -> []
       id -> [id]
     end
   end
 
   defp extract_spec_identifiers({:when, _, [{:"::", _, [head, _return_type]} | _guards]}) do
-    case spec_head_to_identifier(head) do
+    case head_to_identifier(head) do
       nil -> []
       id -> [id]
     end
@@ -164,12 +164,8 @@ defmodule SymphonyElixir.SpecsCheck do
 
   defp extract_spec_identifiers(_), do: []
 
-  defp spec_head_to_identifier({:when, _, [inner | _guards]}), do: spec_head_to_identifier(inner)
-  defp spec_head_to_identifier({name, _, args}) when is_atom(name) and is_list(args), do: {name, length(args)}
-  defp spec_head_to_identifier({name, _, nil}) when is_atom(name), do: {name, 0}
-  defp spec_head_to_identifier(_), do: nil
-
-  defp def_head_to_identifier({:when, _, [head | _guards]}), do: def_head_to_identifier(head)
-  defp def_head_to_identifier({name, _, args}) when is_atom(name) and is_list(args), do: {name, length(args)}
-  defp def_head_to_identifier({name, _, nil}) when is_atom(name), do: {name, 0}
+  defp head_to_identifier({:when, _, [inner | _guards]}), do: head_to_identifier(inner)
+  defp head_to_identifier({name, _, args}) when is_atom(name) and is_list(args), do: {name, length(args)}
+  defp head_to_identifier({name, _, nil}) when is_atom(name), do: {name, 0}
+  defp head_to_identifier(_), do: nil
 end
