@@ -4,10 +4,39 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 3 — bugs + test review. Complete** (5/6, log rotation
-deferred). Moving to Phase 4 (UI rigor loop).
+**Phase 4 — UI rigor loop. Complete** (structural items; iterative
+browser polish remains for a browser-equipped context). Moving to
+the final work chunk: real-agent mode (Linear tracker + claude-code
+agent) so the system can drive real tickets.
 
-## Last checkpoint (Phase 3)
+## Last checkpoint (Phase 4)
+
+Phase 4 landed across two commits:
+
+- `879d427` — Richer run rows (new `issue_title` column, shown on
+  the dashboard + run detail), an Error panel for failed/cancelled
+  runs that parses the first `error` event's payload, a pulse dot
+  on the `running` status badge, an SSE connected/connecting/
+  disconnected indicator, and CLI `--no-demo` + `--seed <path>`
+  flags so the empty-state journey is reachable and humans can
+  hand-craft mock issues without patching `cli.ts`.
+- `5f24941` — `/api/search?q=...` (SymphonyLogger.search unions
+  turn content + event payload LIKE, escapes user-supplied % / \_)
+  and a third SPA route at `#/search` rendering compact result
+  cards with the query highlighted in amber.
+
+All four Phase 4 journeys from the plan have a code answer now:
+
+- Empty state → `--no-demo`.
+- Watching a live agent → SSE indicator, pulse, title on each row.
+- An agent fails → rose-tinted Error panel in RunDetail.
+- Inspecting past runs → search endpoint + route.
+
+The next context (with a browser / MCP) should load
+`localhost:4000` and iterate: spacing, color contrast, focus
+styles, keyboard nav. Code path is ready; polish remains.
+
+## Earlier checkpoint (Phase 3)
 
 - `1e53cae` — Reject path-traversing issue identifiers in
   WorkspaceManager; confirm env-var-as-argv is injection-safe.
@@ -67,7 +96,7 @@ Phase 1 summary (all before Phase 2):
 
 ## Gate status
 
-- `pnpm all` — green. 53 unit tests + 5 eval scenarios.
+- `pnpm all` — green. 60 unit tests + 5 eval scenarios.
 - `pnpm dev WORKFLOW.md --mock` — live mock run, dashboard shows
   turns + per-turn rendered prompt.
 - `pnpm build:web` — produces `dist/web`, served by Hono at `/`.
@@ -78,29 +107,47 @@ Phase 1 summary (all before Phase 2):
 
 ## Next action
 
-**Phase 4 — UI rigor loop.** The plan is: open `localhost:4000`,
-exercise the four journeys, note friction, fix, repeat. Without a
-browser MCP in this context, lean on structural improvements that
-the next context (with a browser) can iterate on.
+**Real-agent mode** — the last work item from the original plan,
+and the thing that makes symphony actually useful against Linear
+tickets with a real `claude` CLI.
 
-Backlog ordered by value per journey:
+Two modules to implement, each with its own commit:
 
-1. **Empty state.** Dashboard renders a decent card. Mock demo
-   issues take over as soon as the server boots; a `--no-demo` flag
-   would make the empty state reachable.
+1. **`src/tracker/linear.ts`** — Linear GraphQL client.
+   - Auth: `Authorization: <api_key>` header (Linear accepts the
+     raw API key, no `Bearer` prefix).
+   - `fetchCandidateIssues()` → query by `project.slug ==
+config.tracker.project_slug` and `state.name IN active_states`.
+     Return them as `Issue[]`.
+   - `updateIssueState(issueId, state)` → first resolve `state` to a
+     state id (cache the team's state map), then
+     `issueUpdate(input: { stateId })`.
+   - `addComment(issueId, body)` → `commentCreate`.
+   - Pluck `LINEAR_API_KEY` from `process.env`. Error early if
+     missing in real-agent mode.
+   - Test with `vi.fn()` over `fetch` so the GraphQL shape is
+     pinned without real API calls.
 
-2. **Watching a live agent.**
-   - Connected/disconnected indicator for the SSE stream.
-   - Issue title on each dashboard row (needs issue_title on runs).
-   - Pulse on the status badge when status = "running".
+2. **`src/agent/claude-code.ts`** — spawn `claude
+--output-format stream-json --print --input-format stream-json`,
+   write the initial prompt + subsequent turn results, read
+   line-delimited JSON off stdout, convert each assistant message /
+   tool result into an `AgentTurn`.
+   - Config from `workflow.config.claude_code`: `command`, `model`,
+     `permission_mode`.
+   - `isDone()` when the child emits the `result` message or exits.
+   - `stop()` sends `SIGTERM` then `SIGKILL` after a short grace.
+   - Test by injecting a fake spawn that feeds scripted stdout
+     lines; assert turns come out in order.
 
-3. **An agent fails.** Error event lands in log_events but isn't
-   surfaced prominently in RunDetail. Add an "Error" section at
-   the top of RunDetail for failed/cancelled runs.
+Then in `cli.ts`, drop the "Real agent mode is not wired yet" throw
+and instead:
 
-4. **Inspecting past runs.** Add `/api/search?q=...` that runs
-   `LIKE` against turn content + event payload, plus a `#/search`
-   route.
+- if `--mock` or `agent.kind: mock` → current path.
+- else → `LinearTracker` + `ClaudeCodeAgent`, refuse to boot if
+  `LINEAR_API_KEY` is missing.
+
+Also add `.env.example` listing `LINEAR_API_KEY`.
 
 ## Deferred from Phase 3
 
