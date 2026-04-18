@@ -3,4 +3,5 @@ node_modules/
 dist/
 .symphony/
 .pnpm-store/
+.env
 *.tsbuildinfo

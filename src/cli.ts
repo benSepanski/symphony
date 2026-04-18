@@ -5,12 +5,14 @@ import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { createServer } from "./api/server.js";
+import { ClaudeCodeAgent } from "./agent/claude-code.js";
 import { MockAgent, loadScenariosDir } from "./agent/mock.js";
 import type { Agent } from "./agent/types.js";
 import { parseWorkflow } from "./config/workflow.js";
 import { Orchestrator } from "./orchestrator.js";
 import { SymphonyLogger } from "./persistence/logger.js";
 import { createReplayEmitter } from "./replay.js";
+import { LinearTracker } from "./tracker/linear.js";
 import { MemoryTracker } from "./tracker/memory.js";
 import type { Issue, Tracker } from "./tracker/types.js";
 import { WorkspaceManager } from "./workspace/manager.js";
@@ -64,25 +66,43 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
   const workflow = parseWorkflow(workflowPath);
   const isMock = mock || workflow.config.agent.kind === "mock";
 
-  if (!isMock) {
-    throw new Error(
-      "Real agent mode is not wired yet; pass --mock or set agent.kind: mock in WORKFLOW.md.",
-    );
-  }
-
   const dbPath = resolve(".symphony/symphony.db");
   const logsDir = resolve(".symphony/logs");
   const logger = new SymphonyLogger({ dbPath, logsDir });
 
-  const seedIssues = seedPath ? loadSeedIssues(resolve(seedPath)) : noDemo ? [] : DEMO_ISSUES;
-  const tracker: Tracker = new MemoryTracker({
-    activeStates: workflow.config.tracker.active_states,
-    issues: seedIssues,
-  });
+  let tracker: Tracker;
+  let agent: Agent;
+  let modeLabel: string;
 
-  const scenariosDir = workflow.config.mock?.scenarios_dir ?? "fixtures/scenarios";
-  const scenarios = loadScenariosDir(resolve(scenariosDir));
-  const agent: Agent = new MockAgent({ scenarios });
+  if (isMock) {
+    const seedIssues = seedPath ? loadSeedIssues(resolve(seedPath)) : noDemo ? [] : DEMO_ISSUES;
+    tracker = new MemoryTracker({
+      activeStates: workflow.config.tracker.active_states,
+      issues: seedIssues,
+    });
+    const scenariosDir = workflow.config.mock?.scenarios_dir ?? "fixtures/scenarios";
+    const scenarios = loadScenariosDir(resolve(scenariosDir));
+    agent = new MockAgent({ scenarios });
+    modeLabel = "mock mode";
+  } else {
+    const apiKey = process.env.LINEAR_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "LINEAR_API_KEY is not set. Real-agent mode requires a Linear API key — copy .env.example to .env and fill it in, or pass --mock.",
+      );
+    }
+    tracker = new LinearTracker({
+      apiKey,
+      projectSlug: workflow.config.tracker.project_slug,
+      activeStates: workflow.config.tracker.active_states,
+    });
+    agent = new ClaudeCodeAgent({
+      command: workflow.config.claude_code?.command,
+      model: workflow.config.claude_code?.model,
+      permissionMode: workflow.config.claude_code?.permission_mode,
+    });
+    modeLabel = "real mode (Linear + claude)";
+  }
 
   const workspaceRoot =
     workflow.config.workspace.root.startsWith("~") || workflow.config.workspace.root.startsWith("/")
@@ -114,7 +134,7 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
   const server = serve({ fetch: app.fetch, port });
 
   orchestrator.start();
-  console.log(`symphony listening on http://localhost:${port} (mock mode)`);
+  console.log(`symphony listening on http://localhost:${port} (${modeLabel})`);
 
   const shutdown = async () => {
     console.log("\nshutting down");
