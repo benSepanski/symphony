@@ -4,7 +4,7 @@
 
 #### TL;DR
 
-*<!-- A short description of what we are changing. Use simple language. Assume reader is not familiar with this code. Length <= 120 chars -->*
+_<!-- A short description of what we are changing. Use simple language. Assume the reader is not familiar with this code. Length <= 120 chars -->_
 
 #### Summary
 
@@ -18,5 +18,6 @@
 
 #### Test Plan
 
-- [ ] `make -C elixir all`
+- [ ] `pnpm all` — typecheck + fmt:check + lint + test + eval
+- [ ] `pnpm build:web` — web bundle builds
 - [ ] <!-- Additional targeted checks (list below) -->

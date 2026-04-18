@@ -9,9 +9,6 @@ on:
 jobs:
   make-all:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: elixir
 
     steps:
       - name: Checkout
@@ -22,17 +19,27 @@ jobs:
         with:
           install: true
           cache: true
-          working_directory: elixir
 
-      - name: Cache deps and build
+      - name: Enable corepack (for pinned pnpm)
+        run: corepack enable
+
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: |
-            elixir/deps
-            elixir/_build
-          key: ${{ runner.os }}-mix-${{ hashFiles('elixir/mix.lock') }}
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-mix-
+            ${{ runner.os }}-pnpm-
 
-      - name: Verify make all
-        run: make all
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web bundle
+        run: pnpm build:web
+
+      - name: Run pnpm all (typecheck, fmt, lint, test, eval)
+        run: pnpm all
