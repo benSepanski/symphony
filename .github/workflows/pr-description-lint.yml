@@ -7,27 +7,38 @@ on:
 jobs:
   validate-pr-description:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: elixir
 
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up mise tools
-        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
-        with:
-          install: true
-          cache: true
-          working_directory: elixir
-
-      - name: Validate PR description format
+      - name: Validate PR description
         env:
-          PR_BODY_JSON: ${{ toJson(github.event.pull_request.body) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix deps.get
-          printf '%s' "$PR_BODY_JSON" | jq -r '.' > /tmp/pr_body.md
-          mix pr_body.check --file /tmp/pr_body.md
+          set -euo pipefail
+          BODY="${PR_BODY:-}"
+
+          if [ -z "$BODY" ]; then
+            echo "::error::PR description is empty. Fill in the PR template."
+            exit 1
+          fi
+
+          missing=()
+          for heading in "#### Context" "#### TL;DR" "#### Summary" "#### Test Plan"; do
+            if ! printf '%s' "$BODY" | grep -qxF "$heading"; then
+              missing+=("$heading")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::PR description is missing required sections:"
+            for h in "${missing[@]}"; do
+              echo "  - $h"
+            done
+            echo
+            echo "See .github/pull_request_template.md for the expected format."
+            exit 1
+          fi
+
+          echo "PR description has all required sections."

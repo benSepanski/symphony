@@ -1,0 +1,11 @@
+dist/
+node_modules/
+.symphony/
+pnpm-lock.yaml
+.codex/
+.github/
+.pnpm-store/
+worktrees/
+drizzle/
+LICENSE
+NOTICE

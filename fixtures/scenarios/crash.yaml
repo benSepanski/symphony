@@ -1,0 +1,14 @@
+name: crash
+labels:
+  - crash
+steps:
+  - role: assistant
+    delay_ms: 50
+    content: |
+      Starting work — about to run the build.
+
+  - role: tool
+    delay_ms: 50
+    content: |
+      segmentation fault (core dumped)
+    throw: true

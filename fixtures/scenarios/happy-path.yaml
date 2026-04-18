@@ -1,0 +1,40 @@
+name: happy-path
+labels:
+  - happy
+steps:
+  - role: assistant
+    delay_ms: 100
+    content: |
+      Reading the issue and sketching a plan.
+
+      Plan:
+      1. Reproduce the bug.
+      2. Add a regression test.
+      3. Fix and verify.
+
+  - role: tool
+    delay_ms: 100
+    content: |
+      Ran: `pnpm test` — 1 new failing test added.
+    tool_calls:
+      - name: bash
+        input: { command: "pnpm test" }
+
+  - role: assistant
+    delay_ms: 100
+    content: |
+      Fix implemented in src/foo.ts; rerunning.
+
+  - role: tool
+    delay_ms: 100
+    content: |
+      Ran: `pnpm all` — green.
+    tool_calls:
+      - name: bash
+        input: { command: "pnpm all" }
+
+  - role: assistant
+    delay_ms: 50
+    content: |
+      PR opened. Transitioning to Human Review.
+    final_state: Human Review

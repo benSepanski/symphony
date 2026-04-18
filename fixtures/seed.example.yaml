@@ -1,0 +1,32 @@
+issues:
+  - id: demo-happy
+    identifier: DEMO-1
+    title: Investigate a race condition in the dispatch loop
+    description: Users report stuck runs. Repro + fix.
+    state: Todo
+    labels: [bug, happy]
+    url: https://example.com/DEMO-1
+
+  - id: demo-ratelimit
+    identifier: DEMO-2
+    title: Reconcile with upstream after a rate-limit window
+    description: Check Linear token usage and back off cleanly.
+    state: Todo
+    labels: [rate-limit]
+    url: https://example.com/DEMO-2
+
+  - id: demo-crash
+    identifier: DEMO-3
+    title: Crash path — driver panics on startup
+    description: Reproduce a segfault, capture core dump, file report.
+    state: Todo
+    labels: [crash]
+    url: https://example.com/DEMO-3
+
+  - id: demo-long
+    identifier: DEMO-4
+    title: Multi-step investigation into slow CI
+    description: Long-running flow, expected 10 turns with realistic delays.
+    state: Todo
+    labels: [long-running]
+    url: https://example.com/DEMO-4

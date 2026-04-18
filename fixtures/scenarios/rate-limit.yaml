@@ -1,0 +1,23 @@
+name: rate-limit
+labels:
+  - rate-limit
+steps:
+  - role: assistant
+    delay_ms: 50
+    content: |
+      Reading the issue and preparing to call the tracker.
+
+  - role: tool
+    delay_ms: 100
+    content: |
+      HTTP 429 Too Many Requests from tracker API.
+      Rate-limit window resets in 30s.
+    tool_calls:
+      - name: linear.update
+        error: { status: 429, retry_after_ms: 30000 }
+
+  - role: assistant
+    delay_ms: 50
+    content: |
+      Rate limit hit. Marking the issue Blocked so the human can retry later.
+    final_state: Blocked
