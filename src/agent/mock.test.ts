@@ -72,6 +72,21 @@ describe("MockAgent", () => {
     expect(sleep).toHaveBeenNthCalledWith(2, 200);
   });
 
+  it("raises when a step is marked throw:true", async () => {
+    const scenario: Scenario = {
+      name: "crash",
+      labels: [],
+      steps: [
+        { role: "assistant", content: "about to crash", delay_ms: 0 },
+        { role: "tool", content: "boom", delay_ms: 0, throw: true },
+      ],
+    };
+    const agent = new MockAgent({ scenarios: [scenario], sleep: async () => {} });
+    const session = await agent.startSession({ workdir: "/tmp", prompt: "" });
+    await session.runTurn();
+    await expect(session.runTurn()).rejects.toThrow(/raised at step/);
+  });
+
   it("refuses to run past the last step", async () => {
     const agent = new MockAgent({
       scenarios: [TWO_STEP],

@@ -10,6 +10,7 @@ export const ScenarioStepSchema = z.object({
   delay_ms: z.number().int().nonnegative().default(0),
   tool_calls: z.array(z.unknown()).optional(),
   final_state: z.string().optional(),
+  throw: z.boolean().optional(),
 });
 
 export const ScenarioSchema = z.object({
@@ -118,6 +119,11 @@ class MockAgentSession implements AgentSession {
     }
     const step = this.scenario.steps[this.cursor++];
     if (step.delay_ms > 0) await this.sleep(step.delay_ms);
+    if (step.throw) {
+      throw new Error(
+        `scenario ${this.scenario.name} raised at step ${this.cursor}: ${step.content}`,
+      );
+    }
     return {
       role: step.role,
       content: step.content,

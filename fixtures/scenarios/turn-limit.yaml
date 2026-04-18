@@ -1,0 +1,37 @@
+name: turn-limit
+labels:
+  - turn-limit
+steps:
+  - role: assistant
+    delay_ms: 30
+    content: Still exploring the repo.
+  - role: assistant
+    delay_ms: 30
+    content: Reading related modules.
+  - role: assistant
+    delay_ms: 30
+    content: Considering an approach.
+  - role: assistant
+    delay_ms: 30
+    content: Re-reading the issue description.
+  - role: assistant
+    delay_ms: 30
+    content: Writing a plan.
+  - role: assistant
+    delay_ms: 30
+    content: Revising the plan.
+  - role: assistant
+    delay_ms: 30
+    content: Thinking some more.
+  - role: assistant
+    delay_ms: 30
+    content: Thinking even more.
+  - role: assistant
+    delay_ms: 30
+    content: Still thinking.
+  - role: assistant
+    delay_ms: 30
+    content: Not done yet.
+  - role: assistant
+    delay_ms: 30
+    content: Never going to converge.

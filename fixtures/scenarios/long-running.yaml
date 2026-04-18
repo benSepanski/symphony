@@ -1,0 +1,67 @@
+name: long-running
+labels:
+  - long-running
+steps:
+  - role: assistant
+    delay_ms: 200
+    content: |
+      Cloning the workspace and reading the ticket.
+
+  - role: assistant
+    delay_ms: 400
+    content: |
+      Sketching an investigation plan.
+
+  - role: tool
+    delay_ms: 300
+    content: |
+      $ rg "suspicious pattern" src/
+      src/foo.ts:42: // TODO: suspicious pattern here
+    tool_calls:
+      - name: bash
+        input: { command: "rg suspicious pattern src/" }
+
+  - role: assistant
+    delay_ms: 500
+    content: |
+      Found the likely culprit in src/foo.ts. Patching.
+
+  - role: tool
+    delay_ms: 400
+    content: |
+      Applied diff to src/foo.ts (12 insertions, 3 deletions).
+    tool_calls:
+      - name: edit
+        input: { file: "src/foo.ts" }
+
+  - role: assistant
+    delay_ms: 300
+    content: |
+      Running the full test suite.
+
+  - role: tool
+    delay_ms: 800
+    content: |
+      Ran: `pnpm all` — green.
+    tool_calls:
+      - name: bash
+        input: { command: "pnpm all" }
+
+  - role: assistant
+    delay_ms: 400
+    content: |
+      Writing a PR description.
+
+  - role: tool
+    delay_ms: 600
+    content: |
+      PR opened: https://github.com/example/repo/pull/42
+    tool_calls:
+      - name: gh
+        input: { command: "pr create" }
+
+  - role: assistant
+    delay_ms: 200
+    content: |
+      Handing off to a human reviewer.
+    final_state: Human Review
