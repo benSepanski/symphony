@@ -5,11 +5,13 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { SymphonyLogger } from "../persistence/logger.js";
+import type { UsageUpdatedEvent } from "../orchestrator.js";
 
 export interface ServerOptions {
   events: EventEmitter;
   logger: SymphonyLogger;
   webRoot?: string;
+  getUsage?: () => UsageUpdatedEvent;
 }
 
 const PLACEHOLDER_HTML = `<!doctype html>
@@ -19,7 +21,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
 <p>Web UI bundle not found. Run <code>pnpm build:web</code> or visit <code>/api/runs</code>.</p>
 `;
 
-export function createServer({ events, logger, webRoot }: ServerOptions): Hono {
+export function createServer({ events, logger, webRoot, getUsage }: ServerOptions): Hono {
   const app = new Hono();
 
   const resolvedWebRoot = webRoot ?? resolve("dist/web");
@@ -38,6 +40,10 @@ export function createServer({ events, logger, webRoot }: ServerOptions): Hono {
   }
 
   app.get("/api/runs", (c) => c.json(logger.listRuns()));
+
+  app.get("/api/usage", (c) =>
+    c.json(getUsage ? getUsage() : { snapshot: null, rateLimitedWindow: null }),
+  );
 
   app.get("/api/runs/:id", (c) => {
     const id = c.req.param("id");
@@ -66,13 +72,17 @@ export function createServer({ events, logger, webRoot }: ServerOptions): Hono {
       const onRunStarted = (e: unknown) => push("runStarted", e);
       const onTurn = (e: unknown) => push("turn", e);
       const onRunFinished = (e: unknown) => push("runFinished", e);
+      const onUsageUpdated = (e: unknown) => push("usageUpdated", e);
       events.on("runStarted", onRunStarted);
       events.on("turn", onTurn);
       events.on("runFinished", onRunFinished);
+      events.on("usageUpdated", onUsageUpdated);
+      if (getUsage) push("usageUpdated", getUsage());
       stream.onAbort(() => {
         events.off("runStarted", onRunStarted);
         events.off("turn", onTurn);
         events.off("runFinished", onRunFinished);
+        events.off("usageUpdated", onUsageUpdated);
       });
       while (!stream.aborted) {
         while (queue.length > 0) {

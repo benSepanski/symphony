@@ -70,3 +70,25 @@ export async function searchRuns(q: string): Promise<ApiSearchResult> {
   if (!res.ok) throw new Error(`/api/search returned ${res.status}`);
   return (await res.json()) as ApiSearchResult;
 }
+
+export interface ApiUsageWindow {
+  utilization: number;
+  resetsAt: string;
+}
+
+export interface ApiUsageSnapshot {
+  fiveHour: ApiUsageWindow;
+  sevenDay: ApiUsageWindow;
+  fetchedAt: string;
+}
+
+export interface ApiUsage {
+  snapshot: ApiUsageSnapshot | null;
+  rateLimitedWindow: "fiveHour" | "sevenDay" | null;
+}
+
+export async function fetchUsage(): Promise<ApiUsage> {
+  const res = await fetch("/api/usage");
+  if (!res.ok) throw new Error(`/api/usage returned ${res.status}`);
+  return (await res.json()) as ApiUsage;
+}

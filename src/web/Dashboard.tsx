@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchRuns, type ApiRun } from "./api.js";
+import { fetchRuns, fetchUsage, type ApiRun, type ApiUsage } from "./api.js";
 import { StreamStatus, useEventStream } from "./useEventStream.js";
 
 type LoadState =
@@ -9,17 +9,28 @@ type LoadState =
 
 export function Dashboard() {
   const [state, setState] = useState<LoadState>({ tag: "loading" });
-  const streamStatus = useEventStream(["runStarted", "turn", "runFinished"], async () => {
-    const runs = await fetchRuns();
-    setState({ tag: "ready", runs });
-  });
+  const [usage, setUsage] = useState<ApiUsage | null>(null);
+  const streamStatus = useEventStream(
+    ["runStarted", "turn", "runFinished", "usageUpdated"],
+    async (name, data) => {
+      if (name === "usageUpdated") {
+        setUsage(data as ApiUsage);
+        return;
+      }
+      const runs = await fetchRuns();
+      setState({ tag: "ready", runs });
+    },
+  );
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const runs = await fetchRuns();
-        if (!cancelled) setState({ tag: "ready", runs });
+        const [runs, u] = await Promise.all([fetchRuns(), fetchUsage()]);
+        if (!cancelled) {
+          setState({ tag: "ready", runs });
+          setUsage(u);
+        }
       } catch (err) {
         if (!cancelled) setState({ tag: "error", message: (err as Error).message });
       }
@@ -36,6 +47,7 @@ export function Dashboard() {
     return (
       <div className="flex flex-col gap-4">
         <StreamIndicator status={streamStatus} />
+        <UsageBanner usage={usage} />
         <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
           <h2 className="text-lg font-medium mb-2">No runs yet</h2>
           <p className="text-slate-400 text-sm">
@@ -51,6 +63,7 @@ export function Dashboard() {
   return (
     <div className="flex flex-col gap-4">
       <StreamIndicator status={streamStatus} />
+      <UsageBanner usage={usage} />
       <table className="w-full text-sm">
         <thead className="text-left text-slate-400 border-b border-slate-800">
           <tr>
@@ -99,9 +112,11 @@ export function StatusBadge({ status }: { status: string }) {
           ? "bg-amber-500/10 text-amber-300"
           : status === "failed"
             ? "bg-rose-500/10 text-rose-300"
-            : status === "cancelled"
-              ? "bg-slate-500/10 text-slate-300"
-              : "bg-slate-500/10 text-slate-300";
+            : status === "rate_limited"
+              ? "bg-fuchsia-500/10 text-fuchsia-300"
+              : status === "cancelled"
+                ? "bg-slate-500/10 text-slate-300"
+                : "bg-slate-500/10 text-slate-300";
   return (
     <span
       className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${color}`}
@@ -134,4 +149,33 @@ function StreamIndicator({ status }: { status: StreamStatus }) {
 function formatTs(ts: string): string {
   const d = new Date(ts);
   return d.toLocaleTimeString();
+}
+
+function UsageBanner({ usage }: { usage: ApiUsage | null }) {
+  if (!usage || !usage.snapshot) return null;
+  const { snapshot, rateLimitedWindow } = usage;
+  if (!rateLimitedWindow) {
+    return (
+      <div className="text-xs text-slate-400">
+        Claude usage: 5h {formatPct(snapshot.fiveHour.utilization)} · 7d{" "}
+        {formatPct(snapshot.sevenDay.utilization)}
+      </div>
+    );
+  }
+  const window = snapshot[rateLimitedWindow];
+  const label = rateLimitedWindow === "fiveHour" ? "5-hour" : "7-day";
+  return (
+    <div className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 p-4 text-sm">
+      <div className="font-medium text-fuchsia-200">Rate limited — no new agents will spawn</div>
+      <div className="text-fuchsia-300/80">
+        {label} window at {formatPct(window.utilization)}. Resets at{" "}
+        {new Date(window.resetsAt).toLocaleString()}.
+      </div>
+    </div>
+  );
+}
+
+function formatPct(utilization: number): string {
+  const pct = utilization <= 1 ? utilization * 100 : utilization;
+  return `${pct.toFixed(0)}%`;
 }

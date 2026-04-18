@@ -15,6 +15,8 @@ import { createReplayEmitter } from "./replay.js";
 import { LinearTracker } from "./tracker/linear.js";
 import { MemoryTracker } from "./tracker/memory.js";
 import type { Issue, Tracker } from "./tracker/types.js";
+import { ClaudeOAuthUsageChecker } from "./usage/claude-oauth.js";
+import type { UsageChecker } from "./usage/types.js";
 import { WorkspaceManager } from "./workspace/manager.js";
 
 const DEMO_ISSUES: Issue[] = [
@@ -73,6 +75,7 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
   let tracker: Tracker;
   let agent: Agent;
   let modeLabel: string;
+  let usageChecker: UsageChecker | undefined;
 
   if (isMock) {
     const seedIssues = seedPath ? loadSeedIssues(resolve(seedPath)) : noDemo ? [] : DEMO_ISSUES;
@@ -101,6 +104,9 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
       model: workflow.config.claude_code?.model,
       permissionMode: workflow.config.claude_code?.permission_mode,
     });
+    usageChecker = new ClaudeOAuthUsageChecker({
+      onError: (err) => console.warn("[usage]", err.message),
+    });
     modeLabel = "real mode (Linear + claude)";
   }
 
@@ -124,13 +130,18 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
     agent,
     workspace,
     logger,
+    usageChecker,
   });
 
   orchestrator.on("error", (err: Error) => {
     console.error("[orchestrator]", err);
   });
 
-  const app = createServer({ events: orchestrator, logger });
+  const app = createServer({
+    events: orchestrator,
+    logger,
+    getUsage: () => orchestrator.getUsage(),
+  });
   const server = serve({ fetch: app.fetch, port });
 
   orchestrator.start();
