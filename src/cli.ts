@@ -210,6 +210,45 @@ program
   );
 
 program
+  .command("prune")
+  .description("Delete runs (and their JSONL logs) older than the given duration")
+  .option("--older-than <duration>", "retention cutoff: e.g. 7d, 24h, 30m. Defaults to 30d.", "30d")
+  .action((opts: { olderThan: string }) => {
+    const cutoff = new Date(Date.now() - parseDurationMs(opts.olderThan));
+    const dbPath = resolve(".symphony/symphony.db");
+    const logsDir = resolve(".symphony/logs");
+    const logger = new SymphonyLogger({ dbPath, logsDir });
+    try {
+      const result = logger.pruneOlderThan(cutoff);
+      console.log(
+        `pruned ${result.runsRemoved} run(s) and ${result.filesRemoved} JSONL file(s) older than ${cutoff.toISOString()}`,
+      );
+    } finally {
+      logger.close();
+    }
+  });
+
+function parseDurationMs(input: string): number {
+  const match = /^(\d+)\s*(ms|s|m|h|d)$/.exec(input.trim());
+  if (!match) {
+    throw new Error(`cannot parse duration ${JSON.stringify(input)}; expected e.g. 7d, 24h, 30m`);
+  }
+  const value = Number(match[1]);
+  const unit = match[2];
+  const mult =
+    unit === "ms"
+      ? 1
+      : unit === "s"
+        ? 1000
+        : unit === "m"
+          ? 60_000
+          : unit === "h"
+            ? 3_600_000
+            : 86_400_000;
+  return value * mult;
+}
+
+program
   .command("replay")
   .argument("<runId>", "id of a previously recorded run from .symphony/symphony.db")
   .option("-p, --port <port>", "HTTP server port", "4000")

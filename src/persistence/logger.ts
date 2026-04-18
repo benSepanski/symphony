@@ -1,4 +1,4 @@
-import { appendFileSync, closeSync, mkdirSync, openSync } from "node:fs";
+import { appendFileSync, closeSync, mkdirSync, openSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import Database, { type Database as BetterDb } from "better-sqlite3";
@@ -253,6 +253,35 @@ export class SymphonyLogger {
          FROM log_events WHERE run_id = ? ORDER BY id ASC`,
       )
       .all(runId) as EventLog[];
+  }
+
+  pruneOlderThan(cutoff: Date): { runsRemoved: number; filesRemoved: number } {
+    const cutoffIso = cutoff.toISOString();
+    const targets = this.db
+      .prepare(`SELECT id FROM runs WHERE started_at < ?`)
+      .all(cutoffIso) as Array<{ id: string }>;
+    if (targets.length === 0) return { runsRemoved: 0, filesRemoved: 0 };
+
+    const ids = targets.map((r) => r.id);
+    const placeholders = ids.map(() => "?").join(",");
+    const tx = this.db.transaction(() => {
+      this.db.prepare(`DELETE FROM log_events WHERE run_id IN (${placeholders})`).run(...ids);
+      this.db.prepare(`DELETE FROM turns WHERE run_id IN (${placeholders})`).run(...ids);
+      this.db.prepare(`DELETE FROM runs WHERE id IN (${placeholders})`).run(...ids);
+    });
+    tx();
+
+    let filesRemoved = 0;
+    for (const id of ids) {
+      try {
+        rmSync(this.jsonlPath(id), { force: true });
+        filesRemoved += 1;
+      } catch {
+        /* ignore missing files */
+      }
+      this.turnCounts.delete(id);
+    }
+    return { runsRemoved: ids.length, filesRemoved };
   }
 
   search(query: string, limit = 100): SearchMatch[] {

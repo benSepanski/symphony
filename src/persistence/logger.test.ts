@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -113,6 +113,33 @@ describe("SymphonyLogger", () => {
     expect(JSON.parse(turn.toolCalls!)).toEqual([{ name: "bash", input: { command: "ls" } }]);
     const event = logger.listEvents(runId)[0];
     expect(JSON.parse(event.payload!)).toEqual({ counts: { a: 1 } });
+  });
+
+  it("pruneOlderThan removes runs, children, and JSONL files older than the cutoff", () => {
+    clock = Date.UTC(2026, 0, 1);
+    const oldRun = logger.startRun({ issueId: "a", issueIdentifier: "A-1" });
+    logger.recordTurn({ runId: oldRun, role: "assistant", content: "old" });
+    logger.finishRun(oldRun, "completed");
+
+    clock = Date.UTC(2026, 0, 10);
+    const newRun = logger.startRun({ issueId: "b", issueIdentifier: "B-1" });
+    logger.recordTurn({ runId: newRun, role: "assistant", content: "new" });
+
+    expect(existsSync(logger.jsonlPath(oldRun))).toBe(true);
+    const result = logger.pruneOlderThan(new Date(Date.UTC(2026, 0, 5)));
+    expect(result).toEqual({ runsRemoved: 1, filesRemoved: 1 });
+    expect(logger.listRuns().map((r) => r.id)).toEqual([newRun]);
+    expect(logger.listTurns(oldRun)).toEqual([]);
+    expect(existsSync(logger.jsonlPath(oldRun))).toBe(false);
+    expect(existsSync(logger.jsonlPath(newRun))).toBe(true);
+  });
+
+  it("pruneOlderThan is a no-op when nothing predates the cutoff", () => {
+    const runId = logger.startRun({ issueId: "x", issueIdentifier: "X-1" });
+    logger.recordTurn({ runId, role: "assistant", content: "hi" });
+    const result = logger.pruneOlderThan(new Date(Date.UTC(1970, 0, 1)));
+    expect(result).toEqual({ runsRemoved: 0, filesRemoved: 0 });
+    expect(logger.listRuns()).toHaveLength(1);
   });
 
   it("finds turn + event matches via search()", () => {
