@@ -112,8 +112,12 @@ describe("api/server", () => {
     expect(res.status).toBe(404);
   });
 
-  it("GET / serves a placeholder HTML page", async () => {
-    const app = createServer({ orchestrator, logger });
+  it("GET / serves a placeholder HTML page when no web bundle is present", async () => {
+    const app = createServer({
+      orchestrator,
+      logger,
+      webRoot: join(dir, "web-does-not-exist"),
+    });
     const res = await app.request("/");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/text\/html/);

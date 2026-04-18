@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { Orchestrator } from "../orchestrator.js";
@@ -6,19 +9,33 @@ import type { SymphonyLogger } from "../persistence/logger.js";
 export interface ServerOptions {
   orchestrator: Orchestrator;
   logger: SymphonyLogger;
+  webRoot?: string;
 }
 
-export function createServer({ orchestrator, logger }: ServerOptions): Hono {
-  const app = new Hono();
-
-  app.get("/", (c) =>
-    c.html(`<!doctype html>
+const PLACEHOLDER_HTML = `<!doctype html>
 <meta charset="utf-8">
 <title>Symphony</title>
 <h1>Symphony</h1>
-<p>Web UI is not built yet. See <code>/api/runs</code> and <code>/api/events</code>.</p>
-`),
-  );
+<p>Web UI bundle not found. Run <code>pnpm build:web</code> or visit <code>/api/runs</code>.</p>
+`;
+
+export function createServer({ orchestrator, logger, webRoot }: ServerOptions): Hono {
+  const app = new Hono();
+
+  const resolvedWebRoot = webRoot ?? resolve("dist/web");
+  const indexPath = join(resolvedWebRoot, "index.html");
+  const hasWebBundle = existsSync(indexPath);
+
+  if (hasWebBundle) {
+    const root = relative(process.cwd(), resolvedWebRoot) || ".";
+    app.use("/assets/*", serveStatic({ root }));
+    app.get("/", (c) => {
+      const html = readFileSync(indexPath, "utf8");
+      return c.html(html);
+    });
+  } else {
+    app.get("/", (c) => c.html(PLACEHOLDER_HTML));
+  }
 
   app.get("/api/runs", (c) => c.json(logger.listRuns()));
 

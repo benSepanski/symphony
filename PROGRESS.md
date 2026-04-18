@@ -4,41 +4,42 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 1 — TS core port.** Core complete. `pnpm dev WORKFLOW.md --mock`
-runs a full simulated agent end-to-end over HTTP. Next: the web UI.
+**Phase 1 — TS core port. Complete.** `pnpm dev WORKFLOW.md --mock`
+runs a full simulated agent end-to-end; `pnpm build:web` produces a
+Vite bundle served by the Hono app at `/`. Next: Phase 2 (AI
+harnessing — eval harness, scenario suite, replay).
 
 ## Last checkpoint
 
-API + CLI wiring (commit pending at HEAD after the next `git commit`):
+Web UI (commit pending at HEAD after the next `git commit`):
 
-- `src/api/server.ts` — Hono app exposing `GET /api/runs`,
-  `GET /api/runs/:id` (run + turns + events), `GET /api/events` (SSE
-  stream piped from orchestrator events), and a placeholder `/` HTML
-  page until the Vite bundle lands.
-- `src/api/server.test.ts` — 4 cases over the Hono `app.request` test
-  helper: list runs, fetch one by id, 404 on unknown id, `/` serves
-  HTML.
-- `src/cli.ts` — wired up. Parses WORKFLOW.md, seeds a MemoryTracker
-  with two demo issues in mock mode, loads scenarios from
-  `fixtures/scenarios/` (path overridable via `mock.scenarios_dir`),
-  constructs WorkspaceManager / SymphonyLogger / Orchestrator, serves
-  over Hono (`@hono/node-server`), SIGINT/SIGTERM trigger a clean
-  shutdown. Real-agent mode still throws — deliberate until
-  `tracker/linear.ts` + `agent/claude-code.ts` land.
-- In mock mode, workspace hooks are stripped (they assume real git
-  worktree plumbing that doesn't exist in scripted-scenario runs).
-- Smoke test (ran locally, not committed):
-  `rm -rf .symphony && pnpm dev WORKFLOW.md --mock --port 4321`
-  then `curl /api/runs` → returns one completed DEMO-1 run with 5
-  turns, ending in `Human Review`. `.symphony/symphony.db` + JSONL
-  populated as expected.
+- `vite.config.ts` — Vite + `@vitejs/plugin-react` + `@tailwindcss/vite`
+  rooted at `src/web`, building to `dist/web`. Dev server on 5173 with
+  `/api` proxied to port 4000.
+- `src/web/{index.html,index.css,main.tsx,App.tsx,Dashboard.tsx,RunDetail.tsx,api.ts}` —
+  minimal React 19 + Tailwind v4 UI. Hash routing (`#/` = dashboard,
+  `#/runs/:id` = detail). Both views poll on mount and subscribe to
+  the SSE stream at `/api/events` so they refresh live.
+- `src/api/server.ts` — when `dist/web/index.html` exists, the Hono
+  app serves that at `/` and `/assets/*` via
+  `@hono/node-server/serve-static`; otherwise falls back to a
+  placeholder HTML page.
+- `package.json` — `pnpm build` now runs `vite build` then `tsc`;
+  new `pnpm dev:web` + `pnpm build:web` scripts.
+- `tsconfig.json` — added `jsx: "react-jsx"` + DOM libs so the repo
+  type-checks React + fetch/EventSource.
+- Smoke (manual): `pnpm build:web && pnpm dev WORKFLOW.md --mock`,
+  `curl /` returns the built index.html with script/CSS links,
+  `/assets/index-*.js` and `/assets/index-*.css` both 200.
 
-**Phase 1 gate: passed.** `symphony --mock ./WORKFLOW.md` boots,
-simulates a full agent run end-to-end, HTTP endpoints show it, and
-both SQLite and JSONL contain the full trace.
+**Phase 1 fully gated:** a human can now open `localhost:4000`, see
+runs listed, click into one, watch turns arrive live, all without
+spawning a real agent.
 
 Prior checkpoints:
 
+- `e7ba3e3` — Tidy PROGRESS.md after Phase 1 gate passed.
+- `b32cc23` — Wire the CLI and Hono API so mock mode runs end to end.
 - `e8e802b` — Add Orchestrator that drives a mock-mode run end to end.
 - `64ff62b` — Add WorkspaceManager that owns per-issue worktree directories.
 - `9a08eb3` — Add SymphonyLogger writing both SQLite and JSONL.
@@ -49,62 +50,82 @@ Prior checkpoints:
 
 ## Next action
 
-Phase 1, step 8 — **web UI** (final Phase 1 piece):
+**Phase 2 — AI harnessing.** The harness needs to be AI-maintainable
+(queryable trace, reproducible runs, eval gate). Sequence:
 
-1. Add `src/web/` — Vite + React + TS + Tailwind, separate `tsconfig`
-   (JSX) so server and web share the repo root but not compiler flags.
-2. Package additions (`pnpm add -D`): `vite`, `@vitejs/plugin-react`,
-   `react`, `react-dom`, `@types/react`, `@types/react-dom`,
-   `tailwindcss`, `postcss`, `autoprefixer`.
-3. Three routes (React Router or simple hash routing):
-   - Dashboard — list of runs (polls `/api/runs` or listens on SSE);
-     each row: identifier, title, state, last turn content, status.
-   - Run detail — single run with a timeline of turns + events, and
-     a live tail if the run is still active.
-   - Log search — text-filtered view over all events (SQLite
-     `content LIKE '%q%'` behind an endpoint).
-4. Add Vite build to `pnpm build`. Hono app serves the built assets
-   via `serveStatic` at `/` (replacing the placeholder).
-5. Smoke: `pnpm dev WORKFLOW.md --mock`, open `localhost:4000`, watch
-   a run stream in.
-6. `pnpm all` green; commit. **This is the Phase 1 gate for the
-   "watchable" smoke test** per the plan.
+1. **Scenario suite.** Add four more fixture YAMLs to exercise the
+   failure modes the plan calls out:
+   - `fixtures/scenarios/rate-limit.yaml` — agent turns emit a tool
+     error representing HTTP 429, ending in `Blocked`.
+   - `fixtures/scenarios/turn-limit.yaml` — a long scenario of pure
+     "still thinking" turns designed to trip `max_turns`.
+   - `fixtures/scenarios/crash.yaml` — a step whose content signals a
+     crash; use a new scenario field like `throw: true` so the mock
+     agent raises and the orchestrator records a `failed` run.
+   - `fixtures/scenarios/long-running.yaml` — realistic 10-turn flow
+     with small `delay_ms` to look alive on the dashboard.
+     Each scenario carries a `labels` entry so they can be exercised by
+     label match in smoke runs.
 
-Subsequent phases:
+2. **Eval harness.** Turn the placeholder `pnpm eval` script into a
+   real Vitest project that boots the orchestrator against
+   `MemoryTracker` + `MockAgent` once per scenario and asserts
+   invariants:
+   - happy-path → run status `completed`, tracker state `Human Review`.
+   - rate-limit → run status `completed`, tracker state `Blocked`.
+   - turn-limit → run status `max_turns`, tracker state `Blocked`.
+   - crash → run status `failed`.
+     Wire the eval project into `pnpm all` so regressions fail CI.
 
-- Phase 2 — AI harnessing: eval harness under `pnpm eval`, scenario
-  suite (rate-limit, turn-limit, crash, long-running), prompt
-  versioning, `symphony replay <run_id>`.
-- Phase 3 — Bug + test review (fast-check for the scheduler, error
-  paths).
-- Phase 4 — UI polish loop with the Claude-in-Chrome MCP.
-- Finally `tracker/linear.ts` + `agent/claude-code.ts` for real mode.
+3. **`symphony replay <run_id>`.** Re-render a prior run from its
+   SQLite + JSONL trace, streaming the recorded turns back through
+   the UI. Minimal impl: a CLI subcommand that opens the DB, fetches
+   run + turns + events, and re-emits them through a fresh
+   `EventEmitter` so any subscriber (web UI, SSE client) sees the
+   same sequence. Covers the "Reproducibility" principle in the plan.
+
+4. **Prompt versioning.** Move the Liquid prompt out of
+   `WORKFLOW.md` into `prompts/default.md` with a `version: v1` header
+   and teach the parser to pull `prompt: prompts/default.md` from the
+   front matter. Old workflows that still inline the prompt keep
+   working.
+
+5. **Per-turn rendered prompt.** Right now we render the prompt once
+   per run. For Phase 2 "Observable context" we want to log the
+   rendered prompt per turn. Add a `rendered_prompt` column on the
+   turns table and plumb it through.
+
+Each step is its own commit + `pnpm all` gate.
 
 ## Open issues / deferred
 
 - `PROGRESS.md` screenshot gallery (Phase 4) — not yet started.
-- Eval harness under `pnpm eval` (Phase 2) is a placeholder — `package.json`
-  wires `eval` to `vitest run --project eval` but Vitest is not configured
-  with projects yet. Revisit when reaching Phase 2.
-- `prompts/` is empty. `fixtures/scenarios/` has `happy-path.yaml`; the
-  plan calls for `rate-limit.yaml`, `turn-limit.yaml`, `crash.yaml`,
-  `long-running.yaml` — add as we hit Phase 2.
-- No `.env.example` yet. CLAUDE.md references one — create when wiring up
-  the real Linear tracker.
-- `Makefile` mentioned in the plan not yet created; low priority since the
-  `pnpm` script surface is sufficient.
-- `worktrees/` still contains leftover BEN-\* directories from the old Elixir
-  runtime. Safe to ignore (they're in `.gitignore`).
+- Real-agent mode (Phase "final") still throws at boot. Needs
+  `tracker/linear.ts` (GraphQL client) + `agent/claude-code.ts`
+  (spawn `claude --output-format stream-json`) before the human-facing
+  Linear + claude flow is usable.
+- No `.env.example` yet. CLAUDE.md references one — create when
+  wiring up the real Linear tracker.
+- `Makefile` mentioned in the plan not yet created; low priority
+  since the `pnpm` script surface is sufficient.
+- `worktrees/` still contains leftover BEN-\* directories from the
+  old Elixir runtime. Safe to ignore (in `.gitignore`).
+- The Vitest web-ui test coverage is thin — no component-level tests
+  because I didn't want to pull in jsdom + testing-library on a bare
+  dashboard. Revisit in Phase 3.
 
 ## Decisions log
 
-- **2026-04-17** — Runtime is Node 22 via `mise`, package manager is pnpm via
-  corepack. Persistence is SQLite (Drizzle). HTTP is Hono. Web UI is Vite +
-  React + Tailwind. Tests are Vitest.
-- **2026-04-17** — Single-package repo at root (no monorepo). Agents navigate
-  one tsconfig / one `src/` tree.
-- **2026-04-17** — `pnpm test` uses `--passWithNoTests` during bootstrap so
-  the CI gate stays green before any tests exist. Keep this flag; the gate
-  still fails on real test failures.
-- **2026-04-17** — ESLint configured to allow `_`-prefixed unused args/vars
-  (standard TS convention).
+- **2026-04-17** — Runtime is Node 22 via `mise`, package manager is
+  pnpm via corepack. Persistence is SQLite (Drizzle). HTTP is Hono.
+  Web UI is Vite + React + Tailwind. Tests are Vitest.
+- **2026-04-17** — Single-package repo at root (no monorepo). Agents
+  navigate one tsconfig / one `src/` tree.
+- **2026-04-17** — `pnpm test` uses `--passWithNoTests` during
+  bootstrap so the CI gate stays green before any tests exist. Keep
+  this flag; the gate still fails on real test failures.
+- **2026-04-17** — ESLint configured to allow `_`-prefixed unused
+  args/vars (standard TS convention).
+- **2026-04-18** — Tailwind v4 via `@tailwindcss/vite` (no postcss
+  config needed). React 19. Hash-based routing instead of React
+  Router to keep web deps minimal.
