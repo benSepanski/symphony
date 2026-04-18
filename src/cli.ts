@@ -142,6 +142,39 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
     logger,
     getUsage: () => orchestrator.getUsage(),
     getState: () => orchestrator.getState(),
+    getSettings: () => orchestrator.getSettings(),
+    updateSettings: (patch) => orchestrator.updateSettings(patch),
+    requestTick: () => orchestrator.tick(),
+    getWorkflowSummary: () => ({
+      tracker: {
+        kind: workflow.config.tracker.kind,
+        projectSlug: workflow.config.tracker.project_slug,
+        activeStates: workflow.config.tracker.active_states,
+        terminalStates: workflow.config.tracker.terminal_states,
+      },
+      workspaceRoot,
+      agentKind: workflow.config.agent.kind,
+      claudeCode: workflow.config.claude_code
+        ? {
+            command: workflow.config.claude_code.command,
+            model: workflow.config.claude_code.model,
+            permissionMode: workflow.config.claude_code.permission_mode,
+          }
+        : null,
+      mock: workflow.config.mock
+        ? {
+            scenariosDir: workflow.config.mock.scenarios_dir,
+            assignment: workflow.config.mock.assignment,
+            defaultScenario: workflow.config.mock.default_scenario,
+          }
+        : null,
+      promptSource: workflow.promptSource,
+      promptVersion: workflow.promptVersion,
+      hooks: {
+        afterCreate: Boolean(workflow.config.hooks?.after_create),
+        beforeRemove: Boolean(workflow.config.hooks?.before_remove),
+      },
+    }),
   });
   const server = serve({ fetch: app.fetch, port });
 

@@ -4,8 +4,30 @@ import { join, relative, resolve } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
+import { z } from "zod";
 import type { SymphonyLogger } from "../persistence/logger.js";
-import type { OrchestratorState, UsageUpdatedEvent } from "../orchestrator.js";
+import type {
+  OrchestratorSettings,
+  OrchestratorState,
+  PollingMode,
+  UsageUpdatedEvent,
+} from "../orchestrator.js";
+
+export interface WorkflowSummary {
+  tracker: {
+    kind: string;
+    projectSlug: string;
+    activeStates: string[];
+    terminalStates: string[];
+  };
+  workspaceRoot: string;
+  agentKind: string;
+  claudeCode: { command?: string; model?: string; permissionMode?: string } | null;
+  mock: { scenariosDir: string; assignment: string; defaultScenario?: string } | null;
+  promptSource: string;
+  promptVersion: string;
+  hooks: { afterCreate: boolean; beforeRemove: boolean };
+}
 
 export interface ServerOptions {
   events: EventEmitter;
@@ -13,7 +35,23 @@ export interface ServerOptions {
   webRoot?: string;
   getUsage?: () => UsageUpdatedEvent;
   getState?: () => OrchestratorState;
+  getSettings?: () => OrchestratorSettings;
+  updateSettings?: (patch: Partial<OrchestratorSettings>) => OrchestratorSettings;
+  requestTick?: () => Promise<void> | void;
+  getWorkflowSummary?: () => WorkflowSummary;
 }
+
+const PollingModeSchema: z.ZodType<PollingMode> = z.enum(["auto", "manual"]);
+
+const SettingsPatchSchema = z
+  .object({
+    pollIntervalMs: z.number().int().min(1_000).optional(),
+    maxConcurrentAgents: z.number().int().min(1).optional(),
+    maxTurns: z.number().int().min(1).optional(),
+    maxTurnsState: z.string().min(1).optional(),
+    pollingMode: PollingModeSchema.optional(),
+  })
+  .strict();
 
 const DEFAULT_ERROR_EVENT_TYPES = [
   "error",
@@ -30,7 +68,17 @@ const PLACEHOLDER_HTML = `<!doctype html>
 <p>Web UI bundle not found. Run <code>pnpm build:web</code> or visit <code>/api/runs</code>.</p>
 `;
 
-export function createServer({ events, logger, webRoot, getUsage, getState }: ServerOptions): Hono {
+export function createServer({
+  events,
+  logger,
+  webRoot,
+  getUsage,
+  getState,
+  getSettings,
+  updateSettings,
+  requestTick,
+  getWorkflowSummary,
+}: ServerOptions): Hono {
   const app = new Hono();
 
   const resolvedWebRoot = webRoot ?? resolve("dist/web");
@@ -85,6 +133,47 @@ export function createServer({ events, logger, webRoot, getUsage, getState }: Se
     });
   });
 
+  app.get("/api/settings", (c) =>
+    c.json({
+      settings: getSettings ? getSettings() : null,
+      workflow: getWorkflowSummary ? getWorkflowSummary() : null,
+    }),
+  );
+
+  app.patch("/api/settings", async (c) => {
+    if (!updateSettings) {
+      return c.json({ error: "settings editing not available in this mode" }, 400);
+    }
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    const parsed = SettingsPatchSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid patch", issues: parsed.error.issues }, 400);
+    }
+    try {
+      const next = updateSettings(parsed.data);
+      return c.json({ settings: next });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
+  });
+
+  app.post("/api/orchestrator/tick", async (c) => {
+    if (!requestTick) {
+      return c.json({ error: "manual tick not available in this mode" }, 400);
+    }
+    try {
+      await requestTick();
+      return c.json({ ok: true, state: getState ? getState() : null });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 500);
+    }
+  });
+
   app.get("/api/search", (c) => {
     const q = c.req.query("q") ?? "";
     const limitRaw = c.req.query("limit");
@@ -103,19 +192,23 @@ export function createServer({ events, logger, webRoot, getUsage, getState }: Se
       const onRunFinished = (e: unknown) => push("runFinished", e);
       const onUsageUpdated = (e: unknown) => push("usageUpdated", e);
       const onTick = (e: unknown) => push("tick", e);
+      const onSettingsUpdated = (e: unknown) => push("settingsUpdated", e);
       events.on("runStarted", onRunStarted);
       events.on("turn", onTurn);
       events.on("runFinished", onRunFinished);
       events.on("usageUpdated", onUsageUpdated);
       events.on("tick", onTick);
+      events.on("settingsUpdated", onSettingsUpdated);
       if (getUsage) push("usageUpdated", getUsage());
       if (getState) push("tick", getState());
+      if (getSettings) push("settingsUpdated", getSettings());
       stream.onAbort(() => {
         events.off("runStarted", onRunStarted);
         events.off("turn", onTurn);
         events.off("runFinished", onRunFinished);
         events.off("usageUpdated", onUsageUpdated);
         events.off("tick", onTick);
+        events.off("settingsUpdated", onSettingsUpdated);
       });
       while (!stream.aborted) {
         while (queue.length > 0) {

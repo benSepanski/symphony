@@ -94,12 +94,76 @@ export async function fetchUsage(): Promise<ApiUsage> {
   return (await res.json()) as ApiUsage;
 }
 
+export type ApiPollingMode = "auto" | "manual";
+
 export interface ApiOrchestratorState {
   polling: boolean;
   pollIntervalMs: number;
+  pollingMode: ApiPollingMode;
   lastTickAt: number | null;
   concurrency: { current: number; max: number };
   queueDepth: number;
+}
+
+export interface ApiOrchestratorSettings {
+  pollIntervalMs: number;
+  maxConcurrentAgents: number;
+  maxTurns: number;
+  maxTurnsState: string;
+  pollingMode: ApiPollingMode;
+}
+
+export interface ApiWorkflowSummary {
+  tracker: {
+    kind: string;
+    projectSlug: string;
+    activeStates: string[];
+    terminalStates: string[];
+  };
+  workspaceRoot: string;
+  agentKind: string;
+  claudeCode: { command?: string; model?: string; permissionMode?: string } | null;
+  mock: { scenariosDir: string; assignment: string; defaultScenario?: string } | null;
+  promptSource: string;
+  promptVersion: string;
+  hooks: { afterCreate: boolean; beforeRemove: boolean };
+}
+
+export interface ApiSettingsResponse {
+  settings: ApiOrchestratorSettings | null;
+  workflow: ApiWorkflowSummary | null;
+}
+
+export async function fetchSettings(): Promise<ApiSettingsResponse> {
+  const res = await fetch("/api/settings");
+  if (!res.ok) throw new Error(`/api/settings returned ${res.status}`);
+  return (await res.json()) as ApiSettingsResponse;
+}
+
+export async function patchSettings(
+  patch: Partial<ApiOrchestratorSettings>,
+): Promise<ApiOrchestratorSettings> {
+  const res = await fetch("/api/settings", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  const body = (await res.json()) as {
+    settings?: ApiOrchestratorSettings;
+    error?: string;
+  };
+  if (!res.ok || !body.settings) {
+    throw new Error(body.error ?? `/api/settings PATCH returned ${res.status}`);
+  }
+  return body.settings;
+}
+
+export async function requestManualTick(): Promise<void> {
+  const res = await fetch("/api/orchestrator/tick", { method: "POST" });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `/api/orchestrator/tick returned ${res.status}`);
+  }
 }
 
 export interface ApiHealth {

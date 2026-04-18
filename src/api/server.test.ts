@@ -177,6 +177,108 @@ describe("api/server", () => {
     expect((capped as { events: unknown[] }).events).toHaveLength(1);
   });
 
+  it("GET /api/settings returns orchestrator settings + workflow summary", async () => {
+    const app = createServer({
+      events: orchestrator,
+      logger,
+      getSettings: () => orchestrator.getSettings(),
+      getWorkflowSummary: () => ({
+        tracker: {
+          kind: "memory",
+          projectSlug: "t",
+          activeStates: ["Todo"],
+          terminalStates: ["Done"],
+        },
+        workspaceRoot: "/unused",
+        agentKind: "mock",
+        claudeCode: null,
+        mock: null,
+        promptSource: "inline",
+        promptVersion: "inline",
+        hooks: { afterCreate: false, beforeRemove: false },
+      }),
+    });
+    const res = await app.request("/api/settings");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      settings: { pollIntervalMs: number; pollingMode: string };
+      workflow: { agentKind: string; workspaceRoot: string };
+    };
+    expect(body.settings.pollIntervalMs).toBe(10_000);
+    expect(body.settings.pollingMode).toBe("auto");
+    expect(body.workflow.agentKind).toBe("mock");
+  });
+
+  it("PATCH /api/settings validates + applies runtime updates", async () => {
+    const app = createServer({
+      events: orchestrator,
+      logger,
+      getSettings: () => orchestrator.getSettings(),
+      updateSettings: (patch) => orchestrator.updateSettings(patch),
+    });
+
+    const bad = await app.request("/api/settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pollIntervalMs: 10 }),
+    });
+    expect(bad.status).toBe(400);
+
+    const rejected = await app.request("/api/settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ unknownField: 1 }),
+    });
+    expect(rejected.status).toBe(400);
+
+    const ok = await app.request("/api/settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pollIntervalMs: 15_000, pollingMode: "manual" }),
+    });
+    expect(ok.status).toBe(200);
+    const body = (await ok.json()) as {
+      settings: { pollIntervalMs: number; pollingMode: string };
+    };
+    expect(body.settings.pollIntervalMs).toBe(15_000);
+    expect(body.settings.pollingMode).toBe("manual");
+    expect(orchestrator.getSettings().pollingMode).toBe("manual");
+  });
+
+  it("PATCH /api/settings returns 400 when not wired", async () => {
+    const app = createServer({ events: orchestrator, logger });
+    const res = await app.request("/api/settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pollIntervalMs: 15_000 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/orchestrator/tick triggers a manual tick", async () => {
+    let tickCalls = 0;
+    const app = createServer({
+      events: orchestrator,
+      logger,
+      getState: () => orchestrator.getState(),
+      requestTick: async () => {
+        tickCalls += 1;
+      },
+    });
+    const res = await app.request("/api/orchestrator/tick", { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(tickCalls).toBe(1);
+    const body = (await res.json()) as { ok: boolean; state: unknown };
+    expect(body.ok).toBe(true);
+    expect(body.state).not.toBeNull();
+  });
+
+  it("POST /api/orchestrator/tick returns 400 when not wired", async () => {
+    const app = createServer({ events: orchestrator, logger });
+    const res = await app.request("/api/orchestrator/tick", { method: "POST" });
+    expect(res.status).toBe(400);
+  });
+
   it("GET / serves a placeholder HTML page when no web bundle is present", async () => {
     const app = createServer({
       events: orchestrator,

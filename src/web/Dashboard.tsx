@@ -3,15 +3,19 @@ import {
   fetchHealth,
   fetchRecentEvents,
   fetchRuns,
+  fetchSettings,
   type ApiEvent,
+  type ApiOrchestratorSettings,
   type ApiOrchestratorState,
   type ApiRun,
   type ApiUsage,
+  type ApiWorkflowSummary,
 } from "./api.js";
 import { useEventStream } from "./useEventStream.js";
 import { HealthStrip } from "./HealthStrip.js";
 import { MetricsPanel } from "./MetricsPanel.js";
 import { ErrorFeed } from "./ErrorFeed.js";
+import { SettingsPanel } from "./SettingsPanel.js";
 import { StatusBadge, formatTs } from "./shared.js";
 
 export { StatusBadge } from "./shared.js";
@@ -24,9 +28,11 @@ export function Dashboard() {
   const [usage, setUsage] = useState<ApiUsage | null>(null);
   const [state, setState] = useState<ApiOrchestratorState | null>(null);
   const [events, setEvents] = useState<ApiEvent[]>([]);
+  const [settings, setSettings] = useState<ApiOrchestratorSettings | null>(null);
+  const [workflow, setWorkflow] = useState<ApiWorkflowSummary | null>(null);
 
   const streamStatus = useEventStream(
-    ["runStarted", "turn", "runFinished", "usageUpdated", "tick"],
+    ["runStarted", "turn", "runFinished", "usageUpdated", "tick", "settingsUpdated"],
     async (name, data) => {
       if (name === "usageUpdated") {
         setUsage(data as ApiUsage);
@@ -34,6 +40,10 @@ export function Dashboard() {
       }
       if (name === "tick") {
         setState(data as ApiOrchestratorState);
+        return;
+      }
+      if (name === "settingsUpdated") {
+        setSettings(data as ApiOrchestratorSettings);
         return;
       }
       const [freshRuns, freshEvents] = await Promise.all([fetchRuns(), fetchRecentEvents()]);
@@ -46,16 +56,19 @@ export function Dashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const [r, health, recent] = await Promise.all([
+        const [r, health, recent, settingsResp] = await Promise.all([
           fetchRuns(),
           fetchHealth(),
           fetchRecentEvents(),
+          fetchSettings(),
         ]);
         if (cancelled) return;
         setRuns(r);
         setUsage(health.usage);
         setState(health.orchestrator);
         setEvents(recent.events);
+        setSettings(settingsResp.settings);
+        setWorkflow(settingsResp.workflow);
         setLoad({ tag: "ready" });
       } catch (err) {
         if (!cancelled) setLoad({ tag: "error", message: (err as Error).message });
@@ -72,6 +85,11 @@ export function Dashboard() {
   return (
     <div className="flex flex-col gap-4">
       <HealthStrip state={state} usage={usage} streamStatus={streamStatus} />
+      <SettingsPanel
+        settings={settings}
+        workflow={workflow}
+        onSettingsChanged={(next) => setSettings(next)}
+      />
       <MetricsPanel runs={runs} />
       <ErrorFeed events={events} runs={runs} />
       {runs.length === 0 ? <EmptyState /> : <RunsTable runs={runs} />}
