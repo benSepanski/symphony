@@ -48,6 +48,7 @@ export interface RunLog {
   scenario: string | null;
   promptVersion: string | null;
   promptSource: string | null;
+  turnCount: number;
 }
 
 export interface TurnLog {
@@ -225,13 +226,37 @@ export class SymphonyLogger {
   listRuns(): RunLog[] {
     return this.db
       .prepare(
-        `SELECT id, issue_id AS issueId, issue_identifier AS issueIdentifier,
-                issue_title AS issueTitle, status, started_at AS startedAt,
-                finished_at AS finishedAt, scenario,
-                prompt_version AS promptVersion, prompt_source AS promptSource
-         FROM runs ORDER BY started_at ASC`,
+        `SELECT r.id AS id, r.issue_id AS issueId,
+                r.issue_identifier AS issueIdentifier,
+                r.issue_title AS issueTitle, r.status AS status,
+                r.started_at AS startedAt, r.finished_at AS finishedAt,
+                r.scenario AS scenario,
+                r.prompt_version AS promptVersion,
+                r.prompt_source AS promptSource,
+                COALESCE(tc.turn_count, 0) AS turnCount
+         FROM runs r
+         LEFT JOIN (
+           SELECT run_id, COUNT(*) AS turn_count FROM turns GROUP BY run_id
+         ) tc ON tc.run_id = r.id
+         ORDER BY r.started_at ASC`,
       )
       .all() as RunLog[];
+  }
+
+  listRecentEvents(types: string[], limit = 50): EventLog[] {
+    if (types.length === 0) return [];
+    const capped = Math.max(1, Math.min(500, limit));
+    const placeholders = types.map(() => "?").join(",");
+    return this.db
+      .prepare(
+        `SELECT id, run_id AS runId, turn_id AS turnId, event_type AS eventType,
+                issue_id AS issueId, payload, ts
+         FROM log_events
+         WHERE event_type IN (${placeholders})
+         ORDER BY id DESC
+         LIMIT ?`,
+      )
+      .all(...types, capped) as EventLog[];
   }
 
   listTurns(runId: string): TurnLog[] {

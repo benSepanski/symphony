@@ -175,4 +175,50 @@ describe("SymphonyLogger", () => {
     const runId = logger.startRun({ issueId: "x", issueIdentifier: "BEN-X" });
     expect(logger.jsonlPath(runId)).toBe(join(dir, "logs", `${runId}.jsonl`));
   });
+
+  it("listRuns includes turnCount", () => {
+    const a = logger.startRun({ issueId: "a", issueIdentifier: "A-1" });
+    logger.recordTurn({ runId: a, role: "assistant", content: "one" });
+    logger.recordTurn({ runId: a, role: "assistant", content: "two" });
+    const b = logger.startRun({ issueId: "b", issueIdentifier: "B-1" });
+    logger.recordTurn({ runId: b, role: "assistant", content: "one" });
+    logger.startRun({ issueId: "c", issueIdentifier: "C-1" });
+
+    const runs = logger.listRuns();
+    const byId = new Map(runs.map((r) => [r.id, r.turnCount]));
+    expect(byId.get(a)).toBe(2);
+    expect(byId.get(b)).toBe(1);
+    expect(runs.find((r) => r.issueIdentifier === "C-1")?.turnCount).toBe(0);
+  });
+
+  it("listRecentEvents filters by type, orders newest first, and caps limit", () => {
+    const a = logger.startRun({ issueId: "a", issueIdentifier: "A-1" });
+    const b = logger.startRun({ issueId: "b", issueIdentifier: "B-1" });
+    logger.logEvent({ runId: a, eventType: "workspace_created", issueId: "a", payload: {} });
+    logger.logEvent({
+      runId: a,
+      eventType: "error",
+      issueId: "a",
+      payload: { message: "boom-1" },
+    });
+    logger.logEvent({
+      runId: b,
+      eventType: "rate_limited",
+      issueId: "b",
+      payload: { window: "fiveHour" },
+    });
+    logger.logEvent({ runId: b, eventType: "error", issueId: "b", payload: { message: "boom-2" } });
+
+    const all = logger.listRecentEvents(["error", "rate_limited"]);
+    expect(all.map((e) => e.eventType)).toEqual(["error", "rate_limited", "error"]);
+    expect(all[0].runId).toBe(b);
+
+    const onlyErrors = logger.listRecentEvents(["error"]);
+    expect(onlyErrors.map((e) => e.eventType)).toEqual(["error", "error"]);
+
+    const capped = logger.listRecentEvents(["error", "rate_limited"], 2);
+    expect(capped).toHaveLength(2);
+
+    expect(logger.listRecentEvents([])).toEqual([]);
+  });
 });

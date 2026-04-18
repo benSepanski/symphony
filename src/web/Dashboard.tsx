@@ -1,24 +1,44 @@
 import { useEffect, useState } from "react";
-import { fetchRuns, fetchUsage, type ApiRun, type ApiUsage } from "./api.js";
-import { StreamStatus, useEventStream } from "./useEventStream.js";
+import {
+  fetchHealth,
+  fetchRecentEvents,
+  fetchRuns,
+  type ApiEvent,
+  type ApiOrchestratorState,
+  type ApiRun,
+  type ApiUsage,
+} from "./api.js";
+import { useEventStream } from "./useEventStream.js";
+import { HealthStrip } from "./HealthStrip.js";
+import { MetricsPanel } from "./MetricsPanel.js";
+import { ErrorFeed } from "./ErrorFeed.js";
+import { StatusBadge, formatTs } from "./shared.js";
 
-type LoadState =
-  | { tag: "loading" }
-  | { tag: "ready"; runs: ApiRun[] }
-  | { tag: "error"; message: string };
+export { StatusBadge } from "./shared.js";
+
+type LoadState = { tag: "loading" } | { tag: "ready" } | { tag: "error"; message: string };
 
 export function Dashboard() {
-  const [state, setState] = useState<LoadState>({ tag: "loading" });
+  const [load, setLoad] = useState<LoadState>({ tag: "loading" });
+  const [runs, setRuns] = useState<ApiRun[]>([]);
   const [usage, setUsage] = useState<ApiUsage | null>(null);
+  const [state, setState] = useState<ApiOrchestratorState | null>(null);
+  const [events, setEvents] = useState<ApiEvent[]>([]);
+
   const streamStatus = useEventStream(
-    ["runStarted", "turn", "runFinished", "usageUpdated"],
+    ["runStarted", "turn", "runFinished", "usageUpdated", "tick"],
     async (name, data) => {
       if (name === "usageUpdated") {
         setUsage(data as ApiUsage);
         return;
       }
-      const runs = await fetchRuns();
-      setState({ tag: "ready", runs });
+      if (name === "tick") {
+        setState(data as ApiOrchestratorState);
+        return;
+      }
+      const [freshRuns, freshEvents] = await Promise.all([fetchRuns(), fetchRecentEvents()]);
+      setRuns(freshRuns);
+      setEvents(freshEvents.events);
     },
   );
 
@@ -26,13 +46,19 @@ export function Dashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const [runs, u] = await Promise.all([fetchRuns(), fetchUsage()]);
-        if (!cancelled) {
-          setState({ tag: "ready", runs });
-          setUsage(u);
-        }
+        const [r, health, recent] = await Promise.all([
+          fetchRuns(),
+          fetchHealth(),
+          fetchRecentEvents(),
+        ]);
+        if (cancelled) return;
+        setRuns(r);
+        setUsage(health.usage);
+        setState(health.orchestrator);
+        setEvents(recent.events);
+        setLoad({ tag: "ready" });
       } catch (err) {
-        if (!cancelled) setState({ tag: "error", message: (err as Error).message });
+        if (!cancelled) setLoad({ tag: "error", message: (err as Error).message });
       }
     })();
     return () => {
@@ -40,147 +66,71 @@ export function Dashboard() {
     };
   }, []);
 
-  if (state.tag === "loading") return <p className="text-slate-400">loading…</p>;
-  if (state.tag === "error") return <p className="text-rose-400">error: {state.message}</p>;
-
-  if (state.runs.length === 0) {
-    return (
-      <div className="flex flex-col gap-4">
-        <StreamIndicator status={streamStatus} />
-        <UsageBanner usage={usage} />
-        <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
-          <h2 className="text-lg font-medium mb-2">No runs yet</h2>
-          <p className="text-slate-400 text-sm">
-            Symphony will poll your tracker and start a run as soon as a ticket enters an active
-            state. In mock mode, demo issues are seeded at boot (pass <code>--no-demo</code> to
-            skip, or <code>--seed &lt;file.yaml&gt;</code> to supply your own).
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (load.tag === "loading") return <p className="text-slate-400">loading…</p>;
+  if (load.tag === "error") return <p className="text-rose-400">error: {load.message}</p>;
 
   return (
     <div className="flex flex-col gap-4">
-      <StreamIndicator status={streamStatus} />
-      <UsageBanner usage={usage} />
-      <table className="w-full text-sm">
-        <thead className="text-left text-slate-400 border-b border-slate-800">
-          <tr>
-            <th className="py-2 pr-4">Issue</th>
-            <th className="py-2 pr-4">Title</th>
-            <th className="py-2 pr-4">Status</th>
-            <th className="py-2 pr-4">Scenario</th>
-            <th className="py-2 pr-4">Started</th>
-            <th className="py-2 pr-4">Finished</th>
+      <HealthStrip state={state} usage={usage} streamStatus={streamStatus} />
+      <MetricsPanel runs={runs} />
+      <ErrorFeed events={events} runs={runs} />
+      {runs.length === 0 ? <EmptyState /> : <RunsTable runs={runs} />}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
+      <h2 className="text-lg font-medium mb-2">No runs yet</h2>
+      <p className="text-slate-400 text-sm">
+        Symphony will poll your tracker and start a run as soon as a ticket enters an active state.
+        In mock mode, demo issues are seeded at boot (pass <code>--no-demo</code> to skip, or{" "}
+        <code>--seed &lt;file.yaml&gt;</code> to supply your own).
+      </p>
+    </div>
+  );
+}
+
+function RunsTable({ runs }: { runs: ApiRun[] }) {
+  return (
+    <table className="w-full text-sm">
+      <thead className="text-left text-slate-400 border-b border-slate-800">
+        <tr>
+          <th className="py-2 pr-4">Issue</th>
+          <th className="py-2 pr-4">Title</th>
+          <th className="py-2 pr-4">Status</th>
+          <th className="py-2 pr-4">Scenario</th>
+          <th className="py-2 pr-4">Turns</th>
+          <th className="py-2 pr-4">Started</th>
+          <th className="py-2 pr-4">Finished</th>
+        </tr>
+      </thead>
+      <tbody>
+        {runs.map((r) => (
+          <tr
+            key={r.id}
+            className="border-b border-slate-900 hover:bg-slate-900/60 cursor-pointer"
+            onClick={() => {
+              window.location.hash = `#/runs/${r.id}`;
+            }}
+          >
+            <td className="py-2 pr-4 font-mono">{r.issueIdentifier}</td>
+            <td className="py-2 pr-4 text-slate-200 max-w-xs truncate" title={r.issueTitle ?? "—"}>
+              {r.issueTitle ?? "—"}
+            </td>
+            <td className="py-2 pr-4">
+              <StatusBadge status={r.status} />
+            </td>
+            <td className="py-2 pr-4 text-slate-400">{r.scenario ?? "—"}</td>
+            <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">{r.turnCount}</td>
+            <td className="py-2 pr-4 text-slate-400">{formatTs(r.startedAt)}</td>
+            <td className="py-2 pr-4 text-slate-400">
+              {r.finishedAt ? formatTs(r.finishedAt) : "—"}
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {state.runs.map((r) => (
-            <tr
-              key={r.id}
-              className="border-b border-slate-900 hover:bg-slate-900/60 cursor-pointer"
-              onClick={() => {
-                window.location.hash = `#/runs/${r.id}`;
-              }}
-            >
-              <td className="py-2 pr-4 font-mono">{r.issueIdentifier}</td>
-              <td
-                className="py-2 pr-4 text-slate-200 max-w-xs truncate"
-                title={r.issueTitle ?? "—"}
-              >
-                {r.issueTitle ?? "—"}
-              </td>
-              <td className="py-2 pr-4">
-                <StatusBadge status={r.status} />
-              </td>
-              <td className="py-2 pr-4 text-slate-400">{r.scenario ?? "—"}</td>
-              <td className="py-2 pr-4 text-slate-400">{formatTs(r.startedAt)}</td>
-              <td className="py-2 pr-4 text-slate-400">
-                {r.finishedAt ? formatTs(r.finishedAt) : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
-}
-
-export function StatusBadge({ status }: { status: string }) {
-  const color =
-    status === "completed"
-      ? "bg-emerald-500/10 text-emerald-300"
-      : status === "running"
-        ? "bg-cyan-500/10 text-cyan-300"
-        : status === "max_turns"
-          ? "bg-amber-500/10 text-amber-300"
-          : status === "failed"
-            ? "bg-rose-500/10 text-rose-300"
-            : status === "rate_limited"
-              ? "bg-fuchsia-500/10 text-fuchsia-300"
-              : status === "cancelled"
-                ? "bg-slate-500/10 text-slate-300"
-                : "bg-slate-500/10 text-slate-300";
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${color}`}
-    >
-      {status === "running" && (
-        <span className="inline-block size-1.5 rounded-full bg-cyan-300 animate-pulse" />
-      )}
-      {status}
-    </span>
-  );
-}
-
-function StreamIndicator({ status }: { status: StreamStatus }) {
-  const color =
-    status === "connected"
-      ? "bg-emerald-500"
-      : status === "connecting"
-        ? "bg-amber-500"
-        : "bg-slate-500";
-  const label =
-    status === "connected" ? "live" : status === "connecting" ? "connecting…" : "disconnected";
-  return (
-    <div className="flex items-center gap-2 text-xs text-slate-400">
-      <span className={`inline-block size-2 rounded-full ${color}`} />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function formatTs(ts: string): string {
-  const d = new Date(ts);
-  return d.toLocaleTimeString();
-}
-
-function UsageBanner({ usage }: { usage: ApiUsage | null }) {
-  if (!usage || !usage.snapshot) return null;
-  const { snapshot, rateLimitedWindow } = usage;
-  if (!rateLimitedWindow) {
-    return (
-      <div className="text-xs text-slate-400">
-        Claude usage: 5h {formatPct(snapshot.fiveHour.utilization)} · 7d{" "}
-        {formatPct(snapshot.sevenDay.utilization)}
-      </div>
-    );
-  }
-  const window = snapshot[rateLimitedWindow];
-  const label = rateLimitedWindow === "fiveHour" ? "5-hour" : "7-day";
-  return (
-    <div className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 p-4 text-sm">
-      <div className="font-medium text-fuchsia-200">Rate limited — no new agents will spawn</div>
-      <div className="text-fuchsia-300/80">
-        {label} window at {formatPct(window.utilization)}. Resets at{" "}
-        {new Date(window.resetsAt).toLocaleString()}.
-      </div>
-    </div>
-  );
-}
-
-function formatPct(utilization: number): string {
-  const pct = utilization <= 1 ? utilization * 100 : utilization;
-  return `${pct.toFixed(0)}%`;
 }

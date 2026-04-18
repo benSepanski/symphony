@@ -5,14 +5,23 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { SymphonyLogger } from "../persistence/logger.js";
-import type { UsageUpdatedEvent } from "../orchestrator.js";
+import type { OrchestratorState, UsageUpdatedEvent } from "../orchestrator.js";
 
 export interface ServerOptions {
   events: EventEmitter;
   logger: SymphonyLogger;
   webRoot?: string;
   getUsage?: () => UsageUpdatedEvent;
+  getState?: () => OrchestratorState;
 }
+
+const DEFAULT_ERROR_EVENT_TYPES = [
+  "error",
+  "rate_limited",
+  "session_stop_error",
+  "state_transition_error",
+  "workspace_destroy_error",
+];
 
 const PLACEHOLDER_HTML = `<!doctype html>
 <meta charset="utf-8">
@@ -21,7 +30,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
 <p>Web UI bundle not found. Run <code>pnpm build:web</code> or visit <code>/api/runs</code>.</p>
 `;
 
-export function createServer({ events, logger, webRoot, getUsage }: ServerOptions): Hono {
+export function createServer({ events, logger, webRoot, getUsage, getState }: ServerOptions): Hono {
   const app = new Hono();
 
   const resolvedWebRoot = webRoot ?? resolve("dist/web");
@@ -44,6 +53,26 @@ export function createServer({ events, logger, webRoot, getUsage }: ServerOption
   app.get("/api/usage", (c) =>
     c.json(getUsage ? getUsage() : { snapshot: null, rateLimitedWindow: null }),
   );
+
+  app.get("/api/health", (c) =>
+    c.json({
+      orchestrator: getState ? getState() : null,
+      usage: getUsage ? getUsage() : { snapshot: null, rateLimitedWindow: null },
+    }),
+  );
+
+  app.get("/api/events/recent", (c) => {
+    const typesParam = c.req.query("types");
+    const types = typesParam
+      ? typesParam
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0)
+      : DEFAULT_ERROR_EVENT_TYPES;
+    const limitRaw = c.req.query("limit");
+    const limit = limitRaw ? Math.max(1, Math.min(200, Number(limitRaw))) : 50;
+    return c.json({ events: logger.listRecentEvents(types, limit) });
+  });
 
   app.get("/api/runs/:id", (c) => {
     const id = c.req.param("id");
@@ -73,16 +102,20 @@ export function createServer({ events, logger, webRoot, getUsage }: ServerOption
       const onTurn = (e: unknown) => push("turn", e);
       const onRunFinished = (e: unknown) => push("runFinished", e);
       const onUsageUpdated = (e: unknown) => push("usageUpdated", e);
+      const onTick = (e: unknown) => push("tick", e);
       events.on("runStarted", onRunStarted);
       events.on("turn", onTurn);
       events.on("runFinished", onRunFinished);
       events.on("usageUpdated", onUsageUpdated);
+      events.on("tick", onTick);
       if (getUsage) push("usageUpdated", getUsage());
+      if (getState) push("tick", getState());
       stream.onAbort(() => {
         events.off("runStarted", onRunStarted);
         events.off("turn", onTurn);
         events.off("runFinished", onRunFinished);
         events.off("usageUpdated", onUsageUpdated);
+        events.off("tick", onTick);
       });
       while (!stream.aborted) {
         while (queue.length > 0) {

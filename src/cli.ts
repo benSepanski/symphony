@@ -141,6 +141,7 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
     events: orchestrator,
     logger,
     getUsage: () => orchestrator.getUsage(),
+    getState: () => orchestrator.getState(),
   });
   const server = serve({ fetch: app.fetch, port });
 
