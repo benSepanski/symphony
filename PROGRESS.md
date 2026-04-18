@@ -4,128 +4,126 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 1 — TS core port. Complete.** `pnpm dev WORKFLOW.md --mock`
-runs a full simulated agent end-to-end; `pnpm build:web` produces a
-Vite bundle served by the Hono app at `/`. Next: Phase 2 (AI
-harnessing — eval harness, scenario suite, replay).
+**Phase 2 — AI harnessing.** 3/5 steps done. Scenario suite + eval
+harness + replay subcommand all landed. Remaining: prompt versioning
+and per-turn rendered prompt.
 
 ## Last checkpoint
 
-Web UI (commit pending at HEAD after the next `git commit`):
+symphony replay `<run_id>` (commit `f955252`):
 
-- `vite.config.ts` — Vite + `@vitejs/plugin-react` + `@tailwindcss/vite`
-  rooted at `src/web`, building to `dist/web`. Dev server on 5173 with
-  `/api` proxied to port 4000.
-- `src/web/{index.html,index.css,main.tsx,App.tsx,Dashboard.tsx,RunDetail.tsx,api.ts}` —
-  minimal React 19 + Tailwind v4 UI. Hash routing (`#/` = dashboard,
-  `#/runs/:id` = detail). Both views poll on mount and subscribe to
-  the SSE stream at `/api/events` so they refresh live.
-- `src/api/server.ts` — when `dist/web/index.html` exists, the Hono
-  app serves that at `/` and `/assets/*` via
-  `@hono/node-server/serve-static`; otherwise falls back to a
-  placeholder HTML page.
-- `package.json` — `pnpm build` now runs `vite build` then `tsc`;
-  new `pnpm dev:web` + `pnpm build:web` scripts.
-- `tsconfig.json` — added `jsx: "react-jsx"` + DOM libs so the repo
-  type-checks React + fetch/EventSource.
-- Smoke (manual): `pnpm build:web && pnpm dev WORKFLOW.md --mock`,
-  `curl /` returns the built index.html with script/CSS links,
-  `/assets/index-*.js` and `/assets/index-*.css` both 200.
+- `src/replay.ts` — `createReplayEmitter({ runId, logger, speed })`
+  returns `{ events, run }`. `run()` looks up the run in the
+  `SymphonyLogger`, re-emits every recorded turn (respecting original
+  gaps / `speed`), then emits `runFinished`. `ReplayNotFound` when
+  the run id is missing.
+- `src/api/server.ts` — `createServer` now accepts
+  `{ events: EventEmitter, logger }` instead of `{ orchestrator }`.
+  Both orchestrator (live) and replay emitter plug in the same way.
+- `src/cli.ts` — explicit `run` + `replay` subcommands (via
+  commander `isDefault: true`, so `symphony WORKFLOW.md` still works).
+  `replay --port <p> --speed <n>` serves the replay over the same
+  Hono app at `/`, so the dashboard watches it like a live run.
+- `src/replay.test.ts` — 2 Vitest cases: order of re-emitted events,
+  `ReplayNotFound` on an unknown id.
+- Manual smoke: record a run via `run`, replay it — replay server's
+  `/api/runs` returns the original run, replay log prints "replay
+  finished".
 
-**Phase 1 fully gated:** a human can now open `localhost:4000`, see
-runs listed, click into one, watch turns arrive live, all without
-spawning a real agent.
+Prior Phase 2 checkpoints:
 
-Prior checkpoints:
+- `d956377` — Turn pnpm eval into a real Vitest scenario suite.
+- `770b9e7` — Flesh out scenario fixture suite for Phase 2 eval harness.
 
-- `e7ba3e3` — Tidy PROGRESS.md after Phase 1 gate passed.
+Phase 1 checkpoints (summary — see `git log` for full history):
+
+- `560be37` — Vite + React + Tailwind dashboard served by the Hono app.
 - `b32cc23` — Wire the CLI and Hono API so mock mode runs end to end.
-- `e8e802b` — Add Orchestrator that drives a mock-mode run end to end.
-- `64ff62b` — Add WorkspaceManager that owns per-issue worktree directories.
-- `9a08eb3` — Add SymphonyLogger writing both SQLite and JSONL.
-- `373e25e` — Add MockAgent that replays scripted YAML scenarios.
-- `d026612` — Add in-memory Tracker for tests and mock-mode runs.
-- `5bbafc0` — Parse WORKFLOW.md front matter + ship a reference workflow.
-- `321edf4` — Delete Elixir implementation and scaffold TypeScript rewrite.
+- `e8e802b` — Orchestrator.
+- `64ff62b` — WorkspaceManager.
+- `9a08eb3` — SymphonyLogger.
+- `373e25e` — MockAgent + scenarios.
+- `d026612` — MemoryTracker.
+- `5bbafc0` — WORKFLOW.md parser.
+- `321edf4` — Phase 0 scaffold.
+
+## Gate status
+
+- `pnpm all` — green. 42 unit tests + 5 eval scenarios.
+- `pnpm dev WORKFLOW.md --mock` — end-to-end mock run works.
+- `pnpm build:web` — produces `dist/web`, served by Hono at `/`.
+- `symphony replay <run_id>` — replays a recorded run with the same
+  SSE surface as live.
 
 ## Next action
 
-**Phase 2 — AI harnessing.** The harness needs to be AI-maintainable
-(queryable trace, reproducible runs, eval gate). Sequence:
+**Phase 2, step 4 — prompt versioning.**
 
-1. **Scenario suite.** Add four more fixture YAMLs to exercise the
-   failure modes the plan calls out:
-   - `fixtures/scenarios/rate-limit.yaml` — agent turns emit a tool
-     error representing HTTP 429, ending in `Blocked`.
-   - `fixtures/scenarios/turn-limit.yaml` — a long scenario of pure
-     "still thinking" turns designed to trip `max_turns`.
-   - `fixtures/scenarios/crash.yaml` — a step whose content signals a
-     crash; use a new scenario field like `throw: true` so the mock
-     agent raises and the orchestrator records a `failed` run.
-   - `fixtures/scenarios/long-running.yaml` — realistic 10-turn flow
-     with small `delay_ms` to look alive on the dashboard.
-     Each scenario carries a `labels` entry so they can be exercised by
-     label match in smoke runs.
+1. Move the Liquid prompt body out of `WORKFLOW.md` into
+   `prompts/default-v1.md` (keep the existing inline template as a
+   fallback). Header line `-- version: v1 --` or similar.
+2. Teach `parseWorkflow` to accept `prompt: prompts/default-v1.md` in
+   the front matter. When present, read that file; when absent, use
+   the inline template after the front matter (current behavior).
+3. Store the prompt version in the `runs` row (new `prompt_version`
+   column, default `"inline"`). Log it in each run's JSONL too.
+4. Keep the existing repo-root `WORKFLOW.md` working by splitting its
+   template into `prompts/default-v1.md` and pointing the front
+   matter at it.
+5. Tests: parser tests cover both inline + file-referenced prompts.
+6. `pnpm all` green; commit.
 
-2. **Eval harness.** Turn the placeholder `pnpm eval` script into a
-   real Vitest project that boots the orchestrator against
-   `MemoryTracker` + `MockAgent` once per scenario and asserts
-   invariants:
-   - happy-path → run status `completed`, tracker state `Human Review`.
-   - rate-limit → run status `completed`, tracker state `Blocked`.
-   - turn-limit → run status `max_turns`, tracker state `Blocked`.
-   - crash → run status `failed`.
-     Wire the eval project into `pnpm all` so regressions fail CI.
+**Phase 2, step 5 — per-turn rendered prompt.**
 
-3. **`symphony replay <run_id>`.** Re-render a prior run from its
-   SQLite + JSONL trace, streaming the recorded turns back through
-   the UI. Minimal impl: a CLI subcommand that opens the DB, fetches
-   run + turns + events, and re-emits them through a fresh
-   `EventEmitter` so any subscriber (web UI, SSE client) sees the
-   same sequence. Covers the "Reproducibility" principle in the plan.
+1. Add `rendered_prompt` column to `turns` table. Update
+   `SymphonyLogger.recordTurn` to accept + persist it.
+2. In the orchestrator, render the Liquid template once per turn
+   (attempt number is available) and pass the result through to the
+   logger.
+3. Expose the rendered prompt in `/api/runs/:id` so the UI can show
+   exactly what the model saw per turn. Add a collapsed
+   "prompt" disclosure on each turn in the run detail view.
+4. Tests: orchestrator test asserts the prompt is captured; API test
+   asserts it comes back in the detail payload.
+5. `pnpm all` green; commit.
 
-4. **Prompt versioning.** Move the Liquid prompt out of
-   `WORKFLOW.md` into `prompts/default.md` with a `version: v1` header
-   and teach the parser to pull `prompt: prompts/default.md` from the
-   front matter. Old workflows that still inline the prompt keep
-   working.
-
-5. **Per-turn rendered prompt.** Right now we render the prompt once
-   per run. For Phase 2 "Observable context" we want to log the
-   rendered prompt per turn. Add a `rendered_prompt` column on the
-   turns table and plumb it through.
-
-Each step is its own commit + `pnpm all` gate.
+Then Phase 2 is done and we move to **Phase 3 — bug + test review**
+(fast-check on the scheduler, SIGINT handling, log rotation, SQLite
+WAL under concurrent writers, command-injection in user hooks).
 
 ## Open issues / deferred
 
 - `PROGRESS.md` screenshot gallery (Phase 4) — not yet started.
-- Real-agent mode (Phase "final") still throws at boot. Needs
-  `tracker/linear.ts` (GraphQL client) + `agent/claude-code.ts`
-  (spawn `claude --output-format stream-json`) before the human-facing
-  Linear + claude flow is usable.
+- Real-agent mode still throws at boot. Needs `tracker/linear.ts`
+  (GraphQL client) + `agent/claude-code.ts` (spawn
+  `claude --output-format stream-json`). Blocked on nothing — just
+  not implemented yet.
 - No `.env.example` yet. CLAUDE.md references one — create when
   wiring up the real Linear tracker.
 - `Makefile` mentioned in the plan not yet created; low priority
   since the `pnpm` script surface is sufficient.
 - `worktrees/` still contains leftover BEN-\* directories from the
   old Elixir runtime. Safe to ignore (in `.gitignore`).
-- The Vitest web-ui test coverage is thin — no component-level tests
-  because I didn't want to pull in jsdom + testing-library on a bare
-  dashboard. Revisit in Phase 3.
+- Vitest web-ui component coverage is thin — no jsdom +
+  testing-library. Revisit in Phase 3 or Phase 4.
+- No log search endpoint or UI yet (plan calls for it). Consider in
+  Phase 3 once the scenarios push enough data through the logger.
 
 ## Decisions log
 
 - **2026-04-17** — Runtime is Node 22 via `mise`, package manager is
   pnpm via corepack. Persistence is SQLite (Drizzle). HTTP is Hono.
   Web UI is Vite + React + Tailwind. Tests are Vitest.
-- **2026-04-17** — Single-package repo at root (no monorepo). Agents
-  navigate one tsconfig / one `src/` tree.
+- **2026-04-17** — Single-package repo at root (no monorepo).
 - **2026-04-17** — `pnpm test` uses `--passWithNoTests` during
-  bootstrap so the CI gate stays green before any tests exist. Keep
-  this flag; the gate still fails on real test failures.
-- **2026-04-17** — ESLint configured to allow `_`-prefixed unused
-  args/vars (standard TS convention).
+  bootstrap; gate still fails on real test failures.
+- **2026-04-17** — ESLint allows `_`-prefixed unused args/vars.
 - **2026-04-18** — Tailwind v4 via `@tailwindcss/vite` (no postcss
-  config needed). React 19. Hash-based routing instead of React
-  Router to keep web deps minimal.
+  config). React 19. Hash-based routing instead of React Router.
+- **2026-04-18** — Eval suite lives under `src/eval/*.eval.ts` with a
+  separate `vitest.eval.config.ts`. `pnpm all` chains test + eval.
+- **2026-04-18** — `createServer` takes any `EventEmitter`, not the
+  full orchestrator, so live run and replay share one HTTP surface.
+- **2026-04-18** — `crash` scenario added a `throw: true` step field
+  so scenarios can represent genuine mock-agent failures that surface
+  as "failed" orchestrator runs.
