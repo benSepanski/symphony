@@ -4,10 +4,30 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 2 — AI harnessing. Complete.** 5/5 steps landed. Next:
-Phase 3 (bugs + test review).
+**Phase 3 — bugs + test review. Complete** (5/6, log rotation
+deferred). Moving to Phase 4 (UI rigor loop).
 
-## Last checkpoint
+## Last checkpoint (Phase 3)
+
+- `1e53cae` — Reject path-traversing issue identifiers in
+  WorkspaceManager; confirm env-var-as-argv is injection-safe.
+- `c1e894a` — Assert SymphonyLogger survives two concurrent writers
+  on one DB (WAL contract).
+- `04aec5a` — Cover SIGINT mid-run with a cancellation test.
+- `54d98ce` — Clean up workspace + tracker state on crash; add
+  fast-check scheduler property (40 randomized cases).
+
+Notable behavior changes from Phase 3:
+
+- Orchestrator.runIssue now cleans up unconditionally in a finally:
+  session.stop, tracker transition (to max_turns_state when no
+  final_state was set), workspace destroy, run finalize.
+- New run status "cancelled" for the SIGINT path.
+- WorkspaceManager rejects identifiers that don't match
+  /^[A-Za-z0-9_-]+$/ via UnsafeIdentifierError, so a malicious
+  Linear identifier can never escape the workspace root.
+
+## Earlier checkpoints
 
 Per-turn rendered prompt (commit `34f2f3b`):
 
@@ -47,7 +67,7 @@ Phase 1 summary (all before Phase 2):
 
 ## Gate status
 
-- `pnpm all` — green. 48 unit tests + 5 eval scenarios.
+- `pnpm all` — green. 53 unit tests + 5 eval scenarios.
 - `pnpm dev WORKFLOW.md --mock` — live mock run, dashboard shows
   turns + per-turn rendered prompt.
 - `pnpm build:web` — produces `dist/web`, served by Hono at `/`.
@@ -58,52 +78,34 @@ Phase 1 summary (all before Phase 2):
 
 ## Next action
 
-**Phase 3 — bugs + test review.** The plan calls out specific risk
-areas; tackle them in order of blast radius:
+**Phase 4 — UI rigor loop.** The plan is: open `localhost:4000`,
+exercise the four journeys, note friction, fix, repeat. Without a
+browser MCP in this context, lean on structural improvements that
+the next context (with a browser) can iterate on.
 
-1. **Scheduler under race** — use `fast-check` to property-test
-   `Orchestrator.tick()`. Interesting invariants:
-   - `claimed.size` never exceeds `max_concurrent_agents` across
-     concurrent `tick()` calls.
-   - No issue is dispatched twice (even if the tracker returns it
-     across consecutive ticks while a run is in flight).
-   - A failed run releases its claim so the next tick can pick up
-     the same issue.
-     Add `fast-check` as a devDep. Start with 100 runs.
+Backlog ordered by value per journey:
 
-2. **Worktree cleanup on crash** — right now if the agent throws
-   mid-turn, `workspace.destroy` is never called. The current
-   behavior leaves a lingering directory. Decide whether destroy
-   should run in a `finally` regardless of error, and how to keep
-   the resulting tests deterministic under `--mock` (workspaces
-   stripped of hooks). Add a regression test.
+1. **Empty state.** Dashboard renders a decent card. Mock demo
+   issues take over as soon as the server boots; a `--no-demo` flag
+   would make the empty state reachable.
 
-3. **SIGINT mid-run** — `Orchestrator.stop` awaits in-flight ticks,
-   but it does not currently stop an in-flight session. Verify that
-   `stop()` is called on each active session and that the run
-   status moves to `failed` or a new `cancelled` status. CLI should
-   exit cleanly even when a long-running scenario is active.
+2. **Watching a live agent.**
+   - Connected/disconnected indicator for the SSE stream.
+   - Issue title on each dashboard row (needs issue_title on runs).
+   - Pulse on the status badge when status = "running".
 
-4. **SQLite WAL under concurrent writers** — the logger already
-   enables WAL, but we never exercised multiple concurrent runs
-   against the same DB. Add a test that opens two orchestrators
-   sharing one DB path and drives them in parallel. Assert no
-   rows are lost or duplicated.
+3. **An agent fails.** Error event lands in log_events but isn't
+   surfaced prominently in RunDetail. Add an "Error" section at
+   the top of RunDetail for failed/cancelled runs.
 
-5. **Command injection in hooks** — the workspace manager shells
-   out via `bash -eu -c <script>`. A hook can reference
-   `$ISSUE_IDENTIFIER` which comes from Linear. If the identifier
-   ever contains shell metacharacters, we have a problem. Audit
-   the hook input surface, add a test that feeds a malicious
-   identifier through the hook, and document the contract.
+4. **Inspecting past runs.** Add `/api/search?q=...` that runs
+   `LIKE` against turn content + event payload, plus a `#/search`
+   route.
 
-6. **Log rotation** — JSONL files grow per run. Decide policy:
-   keep per-run file (current), roll by size, archive oldest.
-   Probably a Phase 4 concern — note here and move on unless it's
-   actively biting.
+## Deferred from Phase 3
 
-Each is its own commit + `pnpm all` gate. Target one commit per
-risk area so failures are easy to bisect.
+- **Log rotation** — JSONL files grow per run. Revisit only if it
+  actively bites.
 
 ## Open issues / deferred
 
