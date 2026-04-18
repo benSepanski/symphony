@@ -42,9 +42,20 @@ export interface RunFinishedEvent {
   error?: Error;
 }
 
+export type PollingMode = "auto" | "manual";
+
+export interface OrchestratorSettings {
+  pollIntervalMs: number;
+  maxConcurrentAgents: number;
+  maxTurns: number;
+  maxTurnsState: string;
+  pollingMode: PollingMode;
+}
+
 export interface OrchestratorState {
   polling: boolean;
   pollIntervalMs: number;
+  pollingMode: PollingMode;
   lastTickAt: number | null;
   concurrency: { current: number; max: number };
   queueDepth: number;
@@ -69,6 +80,11 @@ export class Orchestrator extends EventEmitter {
   private lastRateLimitWindow: "fiveHour" | "sevenDay" | null = null;
   private lastTickAt: number | null = null;
   private lastQueueDepth = 0;
+  private pollIntervalMs: number;
+  private maxConcurrentAgents: number;
+  private maxTurns: number;
+  private maxTurnsState: string;
+  private pollingMode: PollingMode = "auto";
 
   constructor(options: OrchestratorOptions) {
     super();
@@ -81,6 +97,10 @@ export class Orchestrator extends EventEmitter {
     this.scenarioFor = options.scenarioFor;
     this.usageChecker = options.usageChecker;
     this.usageMinIntervalMs = options.usageMinIntervalMs ?? 30_000;
+    this.pollIntervalMs = options.workflow.config.polling.interval_ms;
+    this.maxConcurrentAgents = options.workflow.config.agent.max_concurrent_agents;
+    this.maxTurns = options.workflow.config.agent.max_turns;
+    this.maxTurnsState = options.workflow.config.agent.max_turns_state;
   }
 
   getUsage(): UsageUpdatedEvent {
@@ -90,29 +110,98 @@ export class Orchestrator extends EventEmitter {
   getState(): OrchestratorState {
     return {
       polling: this.pollTimer !== null && !this.shuttingDown,
-      pollIntervalMs: this.workflow.config.polling.interval_ms,
+      pollIntervalMs: this.pollIntervalMs,
+      pollingMode: this.pollingMode,
       lastTickAt: this.lastTickAt,
       concurrency: {
         current: this.claimed.size,
-        max: this.workflow.config.agent.max_concurrent_agents,
+        max: this.maxConcurrentAgents,
       },
       queueDepth: this.lastQueueDepth,
     };
   }
 
+  getSettings(): OrchestratorSettings {
+    return {
+      pollIntervalMs: this.pollIntervalMs,
+      maxConcurrentAgents: this.maxConcurrentAgents,
+      maxTurns: this.maxTurns,
+      maxTurnsState: this.maxTurnsState,
+      pollingMode: this.pollingMode,
+    };
+  }
+
+  updateSettings(patch: Partial<OrchestratorSettings>): OrchestratorSettings {
+    if (patch.pollIntervalMs !== undefined) {
+      if (!Number.isFinite(patch.pollIntervalMs) || patch.pollIntervalMs < 1_000) {
+        throw new Error("pollIntervalMs must be a finite number >= 1000");
+      }
+      this.pollIntervalMs = Math.floor(patch.pollIntervalMs);
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer);
+        this.pollTimer = setInterval(() => this.scheduleTick(), this.pollIntervalMs);
+        this.pollTimer.unref?.();
+      }
+    }
+    if (patch.maxConcurrentAgents !== undefined) {
+      if (!Number.isInteger(patch.maxConcurrentAgents) || patch.maxConcurrentAgents < 1) {
+        throw new Error("maxConcurrentAgents must be an integer >= 1");
+      }
+      this.maxConcurrentAgents = patch.maxConcurrentAgents;
+    }
+    if (patch.maxTurns !== undefined) {
+      if (!Number.isInteger(patch.maxTurns) || patch.maxTurns < 1) {
+        throw new Error("maxTurns must be an integer >= 1");
+      }
+      this.maxTurns = patch.maxTurns;
+    }
+    if (patch.maxTurnsState !== undefined) {
+      if (typeof patch.maxTurnsState !== "string" || patch.maxTurnsState.length === 0) {
+        throw new Error("maxTurnsState must be a non-empty string");
+      }
+      this.maxTurnsState = patch.maxTurnsState;
+    }
+    if (patch.pollingMode !== undefined) {
+      this.setPollingMode(patch.pollingMode);
+    }
+    const settings = this.getSettings();
+    this.emit("settingsUpdated", settings);
+    this.emit("tick", this.getState());
+    return settings;
+  }
+
+  setPollingMode(mode: PollingMode): void {
+    if (mode !== "auto" && mode !== "manual") {
+      throw new Error(`unknown polling mode: ${String(mode)}`);
+    }
+    if (this.pollingMode === mode) return;
+    this.pollingMode = mode;
+    if (mode === "manual") {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer);
+        this.pollTimer = null;
+      }
+    } else if (!this.pollTimer && !this.shuttingDown) {
+      this.pollTimer = setInterval(() => this.scheduleTick(), this.pollIntervalMs);
+      this.pollTimer.unref?.();
+    }
+  }
+
+  private scheduleTick(): void {
+    const p = this.tick().catch((err) => {
+      this.emit("error", err);
+    });
+    this.inflightTicks.add(p);
+    p.finally(() => this.inflightTicks.delete(p));
+  }
+
   start(): void {
     if (this.pollTimer || this.shuttingDown) return;
-    const interval = this.workflow.config.polling.interval_ms;
-    const tick = () => {
-      const p = this.tick().catch((err) => {
-        this.emit("error", err);
-      });
-      this.inflightTicks.add(p);
-      p.finally(() => this.inflightTicks.delete(p));
-    };
-    tick();
-    this.pollTimer = setInterval(tick, interval);
-    this.pollTimer.unref?.();
+    this.scheduleTick();
+    if (this.pollingMode === "auto") {
+      this.pollTimer = setInterval(() => this.scheduleTick(), this.pollIntervalMs);
+      this.pollTimer.unref?.();
+    }
   }
 
   async stop(): Promise<void> {
@@ -134,7 +223,7 @@ export class Orchestrator extends EventEmitter {
       return;
     }
     const issues = await this.tracker.fetchCandidateIssues();
-    const capacity = this.workflow.config.agent.max_concurrent_agents - this.claimed.size;
+    const capacity = this.maxConcurrentAgents - this.claimed.size;
     const available = issues.filter((i) => !this.claimed.has(i.id));
     const toStart = capacity > 0 ? available.slice(0, capacity) : [];
     this.lastQueueDepth = available.length - toStart.length;
@@ -198,16 +287,15 @@ export class Orchestrator extends EventEmitter {
       });
 
       let turnsTaken = 0;
-      const maxTurns = this.workflow.config.agent.max_turns;
 
       while (!session.isDone()) {
         if (this.shuttingDown) {
           status = "cancelled";
           break;
         }
-        if (turnsTaken >= maxTurns) {
+        if (turnsTaken >= this.maxTurns) {
           status = "max_turns";
-          finalState = this.workflow.config.agent.max_turns_state;
+          finalState = this.maxTurnsState;
           break;
         }
         const attempt = turnsTaken + 1;
@@ -268,9 +356,7 @@ export class Orchestrator extends EventEmitter {
 
       const transitionState =
         finalState ??
-        (status === "failed" || status === "cancelled"
-          ? this.workflow.config.agent.max_turns_state
-          : undefined);
+        (status === "failed" || status === "cancelled" ? this.maxTurnsState : undefined);
       if (transitionState) {
         try {
           await this.tracker.updateIssueState(issue.id, transitionState);

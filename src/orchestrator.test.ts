@@ -464,6 +464,90 @@ describe("Orchestrator", () => {
     expect(s.lastTickAt).not.toBeNull();
   });
 
+  it("exposes editable runtime settings + emits settingsUpdated", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const orch = new Orchestrator({ workflow: workflow(), tracker, agent, workspace, logger });
+
+    const updates: Array<Record<string, unknown>> = [];
+    orch.on("settingsUpdated", (s) => updates.push(s as Record<string, unknown>));
+
+    expect(orch.getSettings()).toEqual({
+      pollIntervalMs: 1_000,
+      maxConcurrentAgents: 1,
+      maxTurns: 5,
+      maxTurnsState: "Blocked",
+      pollingMode: "auto",
+    });
+
+    const next = orch.updateSettings({
+      pollIntervalMs: 2_000,
+      maxConcurrentAgents: 2,
+      maxTurns: 7,
+      maxTurnsState: "Rework",
+    });
+    expect(next).toEqual({
+      pollIntervalMs: 2_000,
+      maxConcurrentAgents: 2,
+      maxTurns: 7,
+      maxTurnsState: "Rework",
+      pollingMode: "auto",
+    });
+    expect(updates).toHaveLength(1);
+    expect(orch.getState().pollIntervalMs).toBe(2_000);
+    expect(orch.getState().concurrency.max).toBe(2);
+
+    expect(() => orch.updateSettings({ pollIntervalMs: 10 })).toThrow(/>= 1000/);
+    expect(() => orch.updateSettings({ maxConcurrentAgents: 0 })).toThrow(/>= 1/);
+    expect(() => orch.updateSettings({ maxTurns: 0 })).toThrow(/>= 1/);
+  });
+
+  it("honors runtime-updated maxTurns + maxTurnsState on the next run", async () => {
+    const agent = new MockAgent({ scenarios: [NEVER_ENDING], sleep: async () => {} });
+    const orch = new Orchestrator({
+      workflow: workflow({
+        agent: {
+          kind: "mock",
+          max_concurrent_agents: 1,
+          max_turns: 10,
+          max_turns_state: "Blocked",
+        },
+      }),
+      tracker,
+      agent,
+      workspace,
+      logger,
+    });
+
+    orch.updateSettings({ maxTurns: 2, maxTurnsState: "Rework" });
+    await orch.tick();
+
+    expect(tracker.getIssue("i-1")?.state).toBe("Rework");
+    const run = logger.listRuns()[0];
+    expect(run.status).toBe("max_turns");
+    expect(logger.listTurns(run.id)).toHaveLength(2);
+  });
+
+  it("manual polling mode pauses the timer but leaves explicit tick() working", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const orch = new Orchestrator({ workflow: workflow(), tracker, agent, workspace, logger });
+
+    orch.setPollingMode("manual");
+    expect(orch.getState().pollingMode).toBe("manual");
+    expect(orch.getState().polling).toBe(false);
+
+    orch.start();
+    expect(orch.getState().polling).toBe(false);
+
+    // start() still runs an immediate tick. Wait for it to complete.
+    await new Promise((r) => setTimeout(r, 50));
+    const afterStart = logger.listRuns();
+    expect(afterStart).toHaveLength(1);
+
+    orch.setPollingMode("auto");
+    expect(orch.getState().polling).toBe(true);
+    await orch.stop();
+  });
+
   it("renders the Liquid prompt with the issue context", async () => {
     const rendered: string[] = [];
     class CapturingAgent extends MockAgent {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ApiOrchestratorState, ApiUsage } from "./api.js";
+import { requestManualTick, type ApiOrchestratorState, type ApiUsage } from "./api.js";
 import type { StreamStatus } from "./useEventStream.js";
 import { formatPct } from "./shared.js";
 
@@ -9,12 +9,25 @@ interface Props {
   streamStatus: StreamStatus;
 }
 
+type RefreshState = { tag: "idle" } | { tag: "running" } | { tag: "error"; message: string };
+
 export function HealthStrip({ state, usage, streamStatus }: Props) {
   const [now, setNow] = useState(() => Date.now());
+  const [refresh, setRefresh] = useState<RefreshState>({ tag: "idle" });
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  async function onRefresh() {
+    setRefresh({ tag: "running" });
+    try {
+      await requestManualTick();
+      setRefresh({ tag: "idle" });
+    } catch (err) {
+      setRefresh({ tag: "error", message: (err as Error).message });
+    }
+  }
 
   const streamColor =
     streamStatus === "connected"
@@ -46,10 +59,33 @@ export function HealthStrip({ state, usage, streamStatus }: Props) {
               {state.lastTickAt !== null && (
                 <span className="text-slate-500"> · last {formatAge(now, state.lastTickAt)}</span>
               )}
-              {!state.polling && <span className="ml-2 text-rose-300">paused</span>}
+              {state.pollingMode === "manual" && (
+                <span className="ml-2 text-amber-300">manual</span>
+              )}
+              {state.pollingMode === "auto" && !state.polling && (
+                <span className="ml-2 text-rose-300">paused</span>
+              )}
             </span>
             <Pill label="slots" value={`${state.concurrency.current}/${state.concurrency.max}`} />
             <Pill label="queue" value={String(state.queueDepth)} />
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={refresh.tag === "running"}
+              className={`rounded px-2 py-0.5 font-medium ${
+                state.pollingMode === "manual"
+                  ? "bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
+                  : "bg-slate-800/60 text-slate-300 hover:bg-slate-700/60"
+              } disabled:cursor-not-allowed disabled:opacity-40`}
+              title={
+                state.pollingMode === "manual"
+                  ? "Poll the tracker now"
+                  : "Poll the tracker immediately instead of waiting for the next interval"
+              }
+            >
+              {refresh.tag === "running" ? "refreshing…" : "refresh now"}
+            </button>
+            {refresh.tag === "error" && <span className="text-rose-300">{refresh.message}</span>}
           </>
         ) : (
           <span className="text-slate-500">orchestrator idle (replay mode)</span>
