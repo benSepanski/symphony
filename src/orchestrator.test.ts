@@ -208,6 +208,49 @@ describe("Orchestrator", () => {
     expect(run.promptSource).toBe("prompts/default-v7.md");
   });
 
+  it("cancels in-flight runs when stop() is called mid-scenario", async () => {
+    const long: Scenario = {
+      name: "long",
+      labels: [],
+      steps: Array.from({ length: 20 }, (_, i) => ({
+        role: "assistant" as const,
+        content: `step ${i}`,
+        delay_ms: 0,
+      })),
+    };
+    const agent = new MockAgent({ scenarios: [long], sleep: async () => {} });
+    const orch = new Orchestrator({
+      workflow: workflow({
+        agent: {
+          kind: "mock",
+          max_concurrent_agents: 1,
+          max_turns: 100,
+          max_turns_state: "Blocked",
+        },
+      }),
+      tracker,
+      agent,
+      workspace,
+      logger,
+    });
+
+    let stopped = false;
+    orch.on("turn", () => {
+      if (!stopped) {
+        stopped = true;
+        void orch.stop();
+      }
+    });
+
+    await orch.tick();
+    await orch.stop();
+
+    const run = logger.listRuns()[0];
+    expect(run.status).toBe("cancelled");
+    expect(tracker.getIssue("i-1")?.state).toBe("Blocked");
+    expect(existsSync(join(dir, "worktrees", "BEN-1"))).toBe(false);
+  });
+
   it("cleans up the workspace and transitions the issue after a crash", async () => {
     const crashing: Scenario = {
       name: "crash-in-test",
