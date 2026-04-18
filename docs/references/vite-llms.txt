@@ -1,0 +1,29 @@
+VITE — snapshot reference
+=========================
+Version: vite ^8.0.8. Plugins: @vitejs/plugin-react, @tailwindcss/vite.
+
+Config (`vite.config.ts`)
+-------------------------
+- Plugins: react(), tailwindcss().
+- Root = `src/web/`.
+- Build outDir = `dist/web/`.
+- Server port: default (we don't pin one — Hono owns 4000, Vite dev uses
+  whatever is free).
+
+Build
+-----
+`pnpm build:web` → `dist/web/` → served by Hono at `/` in production.
+
+Dev loop
+--------
+`pnpm dev:web` runs Vite's dev server for fast iteration. The API is
+served by `pnpm dev WORKFLOW.md` on 4000; Vite proxies via the browser's
+usual same-origin requests if needed.
+
+Gotchas
+-------
+- The `dist/web/` path is referenced from `src/api/server.ts`. If the
+  build output changes dir, update server.ts.
+- Vite 8 is relatively fresh; watch for plugin compatibility when
+  upgrading Tailwind v4 or the React plugin.
+- Never commit `dist/web/`; it's built on demand.

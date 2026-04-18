@@ -1,0 +1,42 @@
+COMMANDER — snapshot reference
+==============================
+Version: commander ^13.1.0.
+
+The slice Symphony uses
+-----------------------
+  import { Command } from "commander";
+  const program = new Command()
+    .name("symphony")
+    .description("...")
+    .version("0.1.0");
+
+  program
+    .command("run", { isDefault: true })
+    .argument("<workflow>", "path to WORKFLOW.md")
+    .option("-p, --port <port>", "HTTP port", "4000")
+    .option("--mock", "use mock agent")
+    .option("--no-demo", "skip seeded demo issues")
+    .option("--seed <path>", "YAML file of issues")
+    .action(async (workflowPath, opts) => { ... });
+
+  program
+    .command("replay")
+    .argument("<runId>")
+    .option("--speed <factor>", "playback multiplier", "5")
+    .action(async (runId, opts) => { ... });
+
+  program.parseAsync();
+
+Option parsing quirks
+---------------------
+- `--no-demo` → `opts.demo === false` (boolean flipped).
+- Numeric options come in as strings. Coerce with `Number(opts.port)`.
+- `{ isDefault: true }` makes that subcommand run when no subcommand is
+  provided on the CLI.
+
+Gotchas
+-------
+- `commander` does not validate that args match a type; zod (see
+  SeedFileSchema) handles that later for file contents.
+- `parseAsync` rejects on unknown command; catch at the top level to
+  print and exit 1.

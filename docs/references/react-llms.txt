@@ -1,0 +1,50 @@
+REACT — snapshot reference
+==========================
+React 19.2. React-DOM 19.2. Plugin: @vitejs/plugin-react 6.0.1.
+
+The slice we use
+----------------
+- Function components only.
+- Hooks: useState, useEffect, useMemo, useRef.
+- Suspense is available but not heavily used today.
+- No React Router; hash-based routing in `App.tsx`.
+
+Patterns in src/web/
+--------------------
+  export function Dashboard({ runs, events }: Props) {
+    const [filter, setFilter] = useState<string>("");
+    // ...
+  }
+
+  useEffect(() => {
+    const es = new EventSource("/api/events");
+    es.addEventListener("turn", (e) => ...);
+    return () => es.close();
+  }, []);
+
+Fetching
+--------
+All HTTP calls live in src/web/api.ts. Components receive data via props.
+Don't call `fetch` from inside a component body.
+
+SSE consumption
+---------------
+useEventStream wraps `new EventSource("/api/events")` and exposes a
+compact API: a list of recent events + a way to subscribe.
+
+TS
+--
+- `@types/react` and `@types/react-dom` give us strict props typing.
+- Prefer `ReactElement`/`ReactNode` explicitly in component return types
+  when it helps.
+
+Testing
+-------
+No component tests today; asserted via the API layer + manual QA. This is
+filed in docs/exec-plans/tech-debt-tracker.md.
+
+Gotchas
+-------
+- React 19's strict mode double-invokes effects in dev. Keep effect bodies
+  idempotent (or guard with `useRef`).
+- The Vite plugin's HMR loses state on syntax errors — reload is fine.

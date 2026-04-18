@@ -1,0 +1,45 @@
+DRIZZLE ORM — snapshot reference
+================================
+Version: drizzle-orm ^0.45.2.
+
+How Symphony uses Drizzle
+-------------------------
+We use Drizzle *only* to define the schema and derive TypeScript types.
+All actual reads and writes go through better-sqlite3 prepared statements
+in src/persistence/logger.ts. Reasons:
+
+- Prepared statements are the narrowest API surface a logger needs.
+- Drizzle's query builder is overkill for our three tables.
+- Keeping Drizzle only in schema.ts means upgrades are trivial.
+
+Schema shape
+------------
+  import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+
+  export const runs = sqliteTable("runs", {
+    id: text("id").primaryKey(),
+    issueId: text("issue_id").notNull(),
+    ...
+  });
+
+Column types we touch
+---------------------
+  text()                      // maps to TEXT
+  text().primaryKey()         // PRIMARY KEY
+  text().notNull()            // NOT NULL
+  text().default("running")   // DEFAULT
+  text().references(() => runs.id)   // foreign-key hint (not enforced here)
+  integer().primaryKey({ autoIncrement: true })
+
+Migrations
+----------
+drizzle-kit is installed but we do not generate migrations today. The
+schema is applied via the inline CREATE TABLE IF NOT EXISTS SQL exported
+from schema.ts. If you need a migration path, file a design note.
+
+Gotchas
+-------
+- Drizzle column names default to camelCase in JS, snake_case in SQL —
+  mind the mapping when you write raw SQL.
+- We don't use Drizzle's runtime query builder. Don't introduce it for a
+  one-off query; go through SymphonyLogger.

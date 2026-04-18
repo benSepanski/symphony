@@ -1,0 +1,40 @@
+BETTER-SQLITE3 — snapshot reference
+===================================
+Version: better-sqlite3 ^11.7.0.
+
+API we use
+----------
+  import Database from "better-sqlite3";
+  const db = new Database(":memory:" | "/abs/path.db");
+  db.pragma("journal_mode = WAL");
+  db.exec(CREATE_TABLES_SQL);
+
+  db.prepare(SQL).run(...params);       // INSERT/UPDATE/DELETE → { changes, lastInsertRowid }
+  db.prepare(SQL).all(...params);       // SELECT → object[] (camelCase via AS alias)
+  db.prepare(SQL).get(...params);       // SELECT one
+
+  const tx = db.transaction(() => { ... });
+  tx();
+
+  db.close();
+
+Concurrency
+-----------
+- WAL allows multiple readers + one writer concurrently.
+- Writes are synchronous; there's no async API.
+- Multiple processes writing to the same DB file are safe in WAL but will
+  serialize at the SQLite level.
+
+Testing
+-------
+- Use ":memory:" DBs per test. Construct a fresh SymphonyLogger with
+  `{ dbPath: ":memory:", logsDir: <tmpdir>, now: () => ... }`.
+- JSONL dir must be a real path; we use Vitest's tmp helpers.
+
+Gotchas
+-------
+- Queries return fields exactly as the column-alias statements spell them.
+  We use `AS camelCase` to bridge snake_case columns → JS types.
+- A native build is required; CI must be able to install build tools for
+  the `node-gyp` compile.
+- `.close()` twice throws; guard with the WAL mode pragma at open time.

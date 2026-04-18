@@ -78,8 +78,20 @@ The HTTP API exposes `/api/runs`, `/api/runs/:id`, `/api/events` (SSE), and `/ap
 
 ## Development
 
-See [`CLAUDE.md`](CLAUDE.md) for the stack + command summary and [`PROGRESS.md`](PROGRESS.md) for
-the long-running plan state. Run `pnpm all` before committing.
+Symphony follows OpenAI's [harness engineering][hep] playbook: knowledge lives in
+a structured `docs/` tree, and [`AGENTS.md`](AGENTS.md) is a ~120-line table of
+contents that points into it. Start there.
+
+- [`AGENTS.md`](AGENTS.md) — cross-agent entry point (Claude Code, Codex, ...).
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — layered domain map.
+- [`docs/`](docs/) — design notes, product specs, reliability + security
+  invariants, exec plans, stack references.
+- [`PROGRESS.md`](PROGRESS.md) — long-running plan state.
+- [`CLAUDE.md`](CLAUDE.md) — Claude-Code-specific entry point (redirects to `AGENTS.md`).
+
+Run `pnpm all` before committing.
+
+[hep]: https://openai.com/index/harness-engineering/
 
 ## License
 

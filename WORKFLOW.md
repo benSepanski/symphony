@@ -49,10 +49,15 @@ mock:
   scenarios_dir: fixtures/scenarios
   assignment: round_robin
   default_scenario: happy-path
-prompt: prompts/default-v1.md
+prompt: prompts/harness-v1.md
 ---
 
-The full prompt template lives in `prompts/default-v1.md`. This
+The full prompt template lives in `prompts/harness-v1.md`. This
 body is ignored when `prompt:` is set above — it's only used as an
 inline fallback for workflows that don't reference an external prompt
 file.
+
+To switch prompts, change the `prompt:` field above. Old transcripts keep
+their `prompt_version` (e.g. `v1` from `prompts/default-v1.md`) recorded on
+each run, so the new prompt doesn't erase history — see
+[`docs/design-docs/prompt-versioning.md`](docs/design-docs/prompt-versioning.md).

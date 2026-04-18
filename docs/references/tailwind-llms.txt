@@ -1,0 +1,37 @@
+TAILWIND — snapshot reference
+=============================
+Version: tailwindcss ^4.2.2 via @tailwindcss/vite ^4.2.2.
+
+Setup
+-----
+- @tailwindcss/vite in vite.config.ts:
+    plugins: [tailwindcss(), react()]
+- index.css contains `@import "tailwindcss";` and nothing custom today.
+- No tailwind.config.ts — v4 pulls config from the CSS via `@theme`
+  directives if needed (we don't currently need any).
+
+Utility classes we use
+----------------------
+Layout: flex, grid, gap-*, p-*, m-*, max-w-*, w-full
+Color:  bg-*, text-*, border-*
+State:  hover:*, focus:*, disabled:*
+Status legend (Dashboard.tsx): single source for run-status → color class.
+Typography: font-mono (identifiers + timestamps), text-xs/text-sm, leading-*
+Scroll: overflow-auto, whitespace-pre-wrap (transcripts)
+
+No CSS-in-JS
+------------
+Never install styled-components, emotion, css modules, etc. Tailwind is
+enough for this dashboard.
+
+Dark mode
+---------
+Not supported today. Filing a design note before turning it on.
+
+Gotchas
+-------
+- v4 uses `@import "tailwindcss"` (not `@tailwind base/components/utilities`).
+- Class ordering doesn't matter; specificity follows CSS rules, not class
+  order.
+- Purge is automatic via the Vite plugin; unused classes don't bloat the
+  bundle.

@@ -1,0 +1,50 @@
+ZOD — snapshot reference
+========================
+Version: zod ^3.24.2.
+
+Where we use zod
+----------------
+1. WorkflowConfigSchema — src/config/workflow.ts
+2. ScenarioSchema + ScenarioStepSchema — src/agent/mock.ts
+3. SeedIssueSchema + SeedFileSchema — src/cli.ts
+
+Patterns
+--------
+  import { z } from "zod";
+
+  const schema = z.object({
+    field: z.string(),
+    opt:   z.string().optional(),
+    nullable: z.string().nullable().default(null),
+    num:   z.number().default(10),
+    list:  z.array(z.string()).default([]),
+    kind:  z.enum(["a", "b"]),
+  });
+
+  type T = z.infer<typeof schema>;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map(i => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("\n");
+  }
+
+Error style
+-----------
+Surface validation errors as a single human-readable string with one issue
+per line. This is what WorkflowParseError + ScenarioLoadError do.
+
+Why not classes / yup / joi
+---------------------------
+- zod is the only one that lines up with TS `infer` semantics without a
+  codegen step.
+- The API surface is tiny; the bundle cost is zero for us.
+
+Gotchas
+-------
+- `z.enum([...])` accepts the values, not the type — you can't `infer` an
+  enum by passing a TS union.
+- `default(...)` only applies when the field is missing; `null` is not
+  "missing" unless you say `.nullable().default(null)`.
+- `.safeParse` never throws; prefer it at boundaries so we can format
+  errors ourselves.

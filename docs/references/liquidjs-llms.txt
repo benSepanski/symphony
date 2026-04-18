@@ -1,0 +1,43 @@
+LIQUIDJS — snapshot reference
+=============================
+Version: liquidjs ^10.21.0.
+
+How Symphony uses it
+--------------------
+We render each attempt's prompt from a markdown template with `liquid`:
+
+  const liquid = new Liquid();
+  const rendered = await liquid.parseAndRender(template, { issue, attempt });
+
+That's the whole API surface.
+
+Liquid syntax we use
+--------------------
+  {{ issue.identifier }}
+  {% if attempt > 1 %} ... {% endif %}
+  {% if issue.description %}{{ issue.description }}{% else %}No description provided.{% endif %}
+
+We do NOT use
+-------------
+- include / layout tags (no filesystem loader configured).
+- Custom filters.
+- `capture` / `assign` in prompt templates.
+- Non-default options (strict variables, strict filters, etc.).
+
+Prompt context shape
+--------------------
+context: {
+  issue: Issue;           // id, identifier, title, description, state, labels, url
+  attempt: number;        // 1-based
+}
+
+Any other variable reference in a prompt template becomes a silent empty
+string at render time — the doc-gardening eval (proposed) will flag this.
+
+Gotchas
+-------
+- `{% if labels %}` where labels is an empty array is truthy in liquid;
+  iterate / check length instead.
+- No async filters — everything we do is pure string templating.
+- `parseAndRender` is async; `parseAndRenderSync` exists but we don't use
+  it (async fits orchestrator.runTurn).

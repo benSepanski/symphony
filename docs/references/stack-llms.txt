@@ -1,0 +1,61 @@
+SYMPHONY STACK — snapshot reference
+====================================
+Last regenerated: 2026-04-18. Source of truth: package.json + .nvmrc.
+
+Runtime
+-------
+node: 22.x (pinned in .nvmrc)
+pnpm: 9.15.4 (via corepack)
+typescript: ^5.7.3, strict mode
+
+Runtime dependencies (production)
+---------------------------------
+@hono/node-server ^1.13.8  — Node adapter for Hono.
+better-sqlite3 ^11.7.0     — synchronous SQLite bindings.
+commander ^13.1.0          — CLI arg parsing.
+drizzle-orm ^0.45.2        — typed schema; we use it only for sqliteTable().
+hono ^4.7.6                — web framework.
+liquidjs ^10.21.0          — prompt rendering.
+yaml ^2.7.1                — YAML parser for WORKFLOW.md + scenarios.
+zod ^3.24.2                — input validation at every boundary.
+
+Dev dependencies
+----------------
+@tailwindcss/vite ^4.2.2   — Tailwind v4 adapter.
+@types/better-sqlite3 ^7.6 — TS types.
+@types/node ^22.12.0       — TS types.
+@types/react ^19.2         — TS types.
+@types/react-dom ^19.2     — TS types.
+@vitejs/plugin-react ^6.0.1— React plugin.
+drizzle-kit ^0.31.1        — not wired today (no migrations on disk).
+eslint ^9.19.0             — linter.
+fast-check ^4.7.0          — property-based testing.
+prettier ^3.4.2            — formatter.
+react ^19.2.5              — UI.
+react-dom ^19.2.5          — UI.
+tailwindcss ^4.2.2         — utility CSS.
+tsx ^4.19.2                — TypeScript runner (dev + scripts).
+typescript-eslint ^8.23.0  — TS lint rules.
+vite ^8.0.8                — dev server + build.
+vitest ^3.0.5              — test runner.
+
+Scripts
+-------
+dev         tsx src/cli.ts
+dev:web     vite
+build       pnpm build:web && tsc
+build:web   vite build
+test        vitest run --passWithNoTests
+lint        eslint src/
+typecheck   tsc --noEmit
+fmt         prettier --write .
+fmt:check   prettier --check .
+eval        vitest run --config vitest.eval.config.ts
+all         pnpm typecheck && pnpm fmt:check && pnpm lint && pnpm test && pnpm eval
+
+Paths
+-----
+.symphony/symphony.db        SQLite DB (WAL mode).
+.symphony/logs/<runId>.jsonl JSONL mirror.
+worktrees/<issue>            Per-run git worktrees (real mode).
+dist/web/                    Built web bundle served by Hono at "/".
