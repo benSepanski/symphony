@@ -126,6 +126,57 @@ describe("api/server", () => {
     expect(res.status).toBe(404);
   });
 
+  it("GET /api/health returns orchestrator + usage state", async () => {
+    const app = createServer({
+      events: orchestrator,
+      logger,
+      getUsage: () => orchestrator.getUsage(),
+      getState: () => orchestrator.getState(),
+    });
+    const res = await app.request("/api/health");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      orchestrator: { pollIntervalMs: number; concurrency: { max: number } } | null;
+      usage: { snapshot: unknown };
+    };
+    expect(body.orchestrator?.pollIntervalMs).toBe(10_000);
+    expect(body.orchestrator?.concurrency.max).toBe(1);
+  });
+
+  it("GET /api/health returns nulls when getters are not wired (replay mode)", async () => {
+    const app = createServer({ events: orchestrator, logger });
+    const res = await app.request("/api/health");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { orchestrator: unknown; usage: { snapshot: unknown } };
+    expect(body.orchestrator).toBeNull();
+    expect(body.usage).toEqual({ snapshot: null, rateLimitedWindow: null });
+  });
+
+  it("GET /api/events/recent filters by type and caps limit", async () => {
+    const runId = logger.listRuns()[0].id;
+    logger.logEvent({ runId, eventType: "error", issueId: "i-1", payload: { message: "x" } });
+    logger.logEvent({
+      runId,
+      eventType: "rate_limited",
+      issueId: "i-1",
+      payload: { window: "fiveHour" },
+    });
+
+    const app = createServer({ events: orchestrator, logger });
+    const all = await (await app.request("/api/events/recent")).json();
+    expect((all as { events: Array<{ eventType: string }> }).events.length).toBeGreaterThanOrEqual(
+      2,
+    );
+
+    const onlyErrors = await (await app.request("/api/events/recent?types=error")).json();
+    const e = (onlyErrors as { events: Array<{ eventType: string }> }).events;
+    expect(e.every((x) => x.eventType === "error")).toBe(true);
+    expect(e.length).toBeGreaterThan(0);
+
+    const capped = await (await app.request("/api/events/recent?limit=1")).json();
+    expect((capped as { events: unknown[] }).events).toHaveLength(1);
+  });
+
   it("GET / serves a placeholder HTML page when no web bundle is present", async () => {
     const app = createServer({
       events: orchestrator,

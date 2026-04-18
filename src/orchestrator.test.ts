@@ -394,6 +394,76 @@ describe("Orchestrator", () => {
     expect(calls).toBeGreaterThanOrEqual(2);
   });
 
+  it("reports orchestrator state: poll interval, queue depth, concurrency, lastTickAt", async () => {
+    tracker = new MemoryTracker({
+      activeStates: ["Todo"],
+      issues: [
+        makeIssue({ id: "i-1", identifier: "BEN-1" }),
+        makeIssue({ id: "i-2", identifier: "BEN-2" }),
+        makeIssue({ id: "i-3", identifier: "BEN-3" }),
+      ],
+    });
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const orch = new Orchestrator({
+      workflow: workflow({
+        agent: {
+          kind: "mock",
+          max_concurrent_agents: 2,
+          max_turns: 10,
+          max_turns_state: "Blocked",
+        },
+      }),
+      tracker,
+      agent,
+      workspace,
+      logger,
+    });
+
+    const initial = orch.getState();
+    expect(initial.polling).toBe(false);
+    expect(initial.pollIntervalMs).toBe(1_000);
+    expect(initial.lastTickAt).toBeNull();
+    expect(initial.concurrency).toEqual({ current: 0, max: 2 });
+    expect(initial.queueDepth).toBe(0);
+
+    const ticks: number[] = [];
+    orch.on("tick", (s: { concurrency: { current: number }; queueDepth: number }) =>
+      ticks.push(s.concurrency.current * 100 + s.queueDepth),
+    );
+
+    await orch.tick();
+
+    expect(ticks.length).toBeGreaterThan(0);
+    const after = orch.getState();
+    expect(after.lastTickAt).not.toBeNull();
+    expect(after.queueDepth).toBe(1);
+    expect(after.concurrency.current).toBe(0);
+  });
+
+  it("sets queueDepth to 0 when rate-limited", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const checker = {
+      check: async () => ({
+        fetchedAt: new Date().toISOString(),
+        fiveHour: { utilization: 1.0, resetsAt: "2099-01-01T00:00:00Z" },
+        sevenDay: { utilization: 0, resetsAt: "2099-01-07T00:00:00Z" },
+      }),
+    };
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      usageChecker: checker,
+      usageMinIntervalMs: 0,
+    });
+    await orch.tick();
+    const s = orch.getState();
+    expect(s.queueDepth).toBe(0);
+    expect(s.lastTickAt).not.toBeNull();
+  });
+
   it("renders the Liquid prompt with the issue context", async () => {
     const rendered: string[] = [];
     class CapturingAgent extends MockAgent {

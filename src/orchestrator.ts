@@ -42,6 +42,14 @@ export interface RunFinishedEvent {
   error?: Error;
 }
 
+export interface OrchestratorState {
+  polling: boolean;
+  pollIntervalMs: number;
+  lastTickAt: number | null;
+  concurrency: { current: number; max: number };
+  queueDepth: number;
+}
+
 export class Orchestrator extends EventEmitter {
   private readonly workflow: ParsedWorkflow;
   private readonly tracker: Tracker;
@@ -59,6 +67,8 @@ export class Orchestrator extends EventEmitter {
   private lastUsage: UsageSnapshot | null = null;
   private lastUsageAt = 0;
   private lastRateLimitWindow: "fiveHour" | "sevenDay" | null = null;
+  private lastTickAt: number | null = null;
+  private lastQueueDepth = 0;
 
   constructor(options: OrchestratorOptions) {
     super();
@@ -75,6 +85,19 @@ export class Orchestrator extends EventEmitter {
 
   getUsage(): UsageUpdatedEvent {
     return { snapshot: this.lastUsage, rateLimitedWindow: this.lastRateLimitWindow };
+  }
+
+  getState(): OrchestratorState {
+    return {
+      polling: this.pollTimer !== null && !this.shuttingDown,
+      pollIntervalMs: this.workflow.config.polling.interval_ms,
+      lastTickAt: this.lastTickAt,
+      concurrency: {
+        current: this.claimed.size,
+        max: this.workflow.config.agent.max_concurrent_agents,
+      },
+      queueDepth: this.lastQueueDepth,
+    };
   }
 
   start(): void {
@@ -104,12 +127,21 @@ export class Orchestrator extends EventEmitter {
   async tick(): Promise<void> {
     if (this.shuttingDown) return;
     await this.refreshUsage();
-    if (this.lastRateLimitWindow) return;
+    if (this.lastRateLimitWindow) {
+      this.lastQueueDepth = 0;
+      this.lastTickAt = Date.now();
+      this.emit("tick", this.getState());
+      return;
+    }
     const issues = await this.tracker.fetchCandidateIssues();
     const capacity = this.workflow.config.agent.max_concurrent_agents - this.claimed.size;
-    if (capacity <= 0) return;
-    const toStart = issues.filter((i) => !this.claimed.has(i.id)).slice(0, capacity);
-    await Promise.all(toStart.map((issue) => this.runIssue(issue)));
+    const available = issues.filter((i) => !this.claimed.has(i.id));
+    const toStart = capacity > 0 ? available.slice(0, capacity) : [];
+    this.lastQueueDepth = available.length - toStart.length;
+    const started = toStart.map((issue) => this.runIssue(issue));
+    this.lastTickAt = Date.now();
+    this.emit("tick", this.getState());
+    await Promise.all(started);
   }
 
   private async refreshUsage(force = false): Promise<void> {

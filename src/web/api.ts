@@ -7,6 +7,7 @@ export interface ApiRun {
   startedAt: string;
   finishedAt: string | null;
   scenario: string | null;
+  turnCount: number;
 }
 
 export interface ApiTurn {
@@ -91,4 +92,39 @@ export async function fetchUsage(): Promise<ApiUsage> {
   const res = await fetch("/api/usage");
   if (!res.ok) throw new Error(`/api/usage returned ${res.status}`);
   return (await res.json()) as ApiUsage;
+}
+
+export interface ApiOrchestratorState {
+  polling: boolean;
+  pollIntervalMs: number;
+  lastTickAt: number | null;
+  concurrency: { current: number; max: number };
+  queueDepth: number;
+}
+
+export interface ApiHealth {
+  orchestrator: ApiOrchestratorState | null;
+  usage: ApiUsage;
+}
+
+export async function fetchHealth(): Promise<ApiHealth> {
+  const res = await fetch("/api/health");
+  if (!res.ok) throw new Error(`/api/health returned ${res.status}`);
+  return (await res.json()) as ApiHealth;
+}
+
+export interface ApiRecentEventsResponse {
+  events: ApiEvent[];
+}
+
+export async function fetchRecentEvents(
+  types?: string[],
+  limit = 50,
+): Promise<ApiRecentEventsResponse> {
+  const params = new URLSearchParams();
+  if (types && types.length > 0) params.set("types", types.join(","));
+  params.set("limit", String(limit));
+  const res = await fetch(`/api/events/recent?${params.toString()}`);
+  if (!res.ok) throw new Error(`/api/events/recent returned ${res.status}`);
+  return (await res.json()) as ApiRecentEventsResponse;
 }
