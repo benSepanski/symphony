@@ -82,7 +82,7 @@ describe("api/server", () => {
   });
 
   it("GET /api/runs returns the run list", async () => {
-    const app = createServer({ orchestrator, logger });
+    const app = createServer({ events: orchestrator, logger });
     const res = await app.request("/api/runs");
     expect(res.status).toBe(200);
     const runs = (await res.json()) as Array<{ issueIdentifier: string; status: string }>;
@@ -92,7 +92,7 @@ describe("api/server", () => {
   });
 
   it("GET /api/runs/:id returns run details", async () => {
-    const app = createServer({ orchestrator, logger });
+    const app = createServer({ events: orchestrator, logger });
     const runId = logger.listRuns()[0].id;
     const res = await app.request(`/api/runs/${runId}`);
     expect(res.status).toBe(200);
@@ -107,14 +107,14 @@ describe("api/server", () => {
   });
 
   it("GET /api/runs/:id returns 404 for unknown ids", async () => {
-    const app = createServer({ orchestrator, logger });
+    const app = createServer({ events: orchestrator, logger });
     const res = await app.request("/api/runs/nope");
     expect(res.status).toBe(404);
   });
 
   it("GET / serves a placeholder HTML page when no web bundle is present", async () => {
     const app = createServer({
-      orchestrator,
+      events: orchestrator,
       logger,
       webRoot: join(dir, "web-does-not-exist"),
     });

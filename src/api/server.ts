@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
+import type { EventEmitter } from "node:events";
 import { join, relative, resolve } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { Orchestrator } from "../orchestrator.js";
 import type { SymphonyLogger } from "../persistence/logger.js";
 
 export interface ServerOptions {
-  orchestrator: Orchestrator;
+  events: EventEmitter;
   logger: SymphonyLogger;
   webRoot?: string;
 }
@@ -19,7 +19,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
 <p>Web UI bundle not found. Run <code>pnpm build:web</code> or visit <code>/api/runs</code>.</p>
 `;
 
-export function createServer({ orchestrator, logger, webRoot }: ServerOptions): Hono {
+export function createServer({ events, logger, webRoot }: ServerOptions): Hono {
   const app = new Hono();
 
   const resolvedWebRoot = webRoot ?? resolve("dist/web");
@@ -52,24 +52,24 @@ export function createServer({ orchestrator, logger, webRoot }: ServerOptions): 
 
   app.get("/api/events", (c) =>
     streamSSE(c, async (stream) => {
-      const events: Array<{ event: string; data: unknown }> = [];
+      const queue: Array<{ event: string; data: unknown }> = [];
       const push = (event: string, data: unknown) => {
-        events.push({ event, data });
+        queue.push({ event, data });
       };
       const onRunStarted = (e: unknown) => push("runStarted", e);
       const onTurn = (e: unknown) => push("turn", e);
       const onRunFinished = (e: unknown) => push("runFinished", e);
-      orchestrator.on("runStarted", onRunStarted);
-      orchestrator.on("turn", onTurn);
-      orchestrator.on("runFinished", onRunFinished);
+      events.on("runStarted", onRunStarted);
+      events.on("turn", onTurn);
+      events.on("runFinished", onRunFinished);
       stream.onAbort(() => {
-        orchestrator.off("runStarted", onRunStarted);
-        orchestrator.off("turn", onTurn);
-        orchestrator.off("runFinished", onRunFinished);
+        events.off("runStarted", onRunStarted);
+        events.off("turn", onTurn);
+        events.off("runFinished", onRunFinished);
       });
       while (!stream.aborted) {
-        while (events.length > 0) {
-          const evt = events.shift()!;
+        while (queue.length > 0) {
+          const evt = queue.shift()!;
           await stream.writeSSE({
             event: evt.event,
             data: JSON.stringify(evt.data),

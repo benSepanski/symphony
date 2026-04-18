@@ -7,6 +7,7 @@ import type { Agent } from "./agent/types.js";
 import { parseWorkflow } from "./config/workflow.js";
 import { Orchestrator } from "./orchestrator.js";
 import { SymphonyLogger } from "./persistence/logger.js";
+import { createReplayEmitter } from "./replay.js";
 import { MemoryTracker } from "./tracker/memory.js";
 import type { Issue, Tracker } from "./tracker/types.js";
 import { WorkspaceManager } from "./workspace/manager.js";
@@ -87,7 +88,7 @@ async function boot({ workflowPath, port, mock }: BootOptions): Promise<void> {
     console.error("[orchestrator]", err);
   });
 
-  const app = createServer({ orchestrator, logger });
+  const app = createServer({ events: orchestrator, logger });
   const server = serve({ fetch: app.fetch, port });
 
   orchestrator.start();
@@ -104,11 +105,48 @@ async function boot({ workflowPath, port, mock }: BootOptions): Promise<void> {
   process.once("SIGTERM", shutdown);
 }
 
+async function replay(opts: { runId: string; port: number; speed: number }): Promise<void> {
+  const dbPath = resolve(".symphony/symphony.db");
+  const logsDir = resolve(".symphony/logs");
+  const logger = new SymphonyLogger({ dbPath, logsDir });
+
+  const { events, run } = createReplayEmitter({
+    runId: opts.runId,
+    logger,
+    speed: opts.speed,
+  });
+
+  const app = createServer({ events, logger });
+  const server = serve({ fetch: app.fetch, port: opts.port });
+  console.log(`symphony replay serving http://localhost:${opts.port} (speed ${opts.speed}x)`);
+
+  try {
+    await run();
+    console.log("replay finished; press ctrl-c to exit");
+  } catch (err) {
+    console.error(err);
+    server.close();
+    logger.close();
+    process.exit(1);
+  }
+
+  const shutdown = () => {
+    server.close();
+    logger.close();
+    process.exit(0);
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+}
+
 const program = new Command();
 program
   .name("symphony")
   .description("Orchestrator that polls Linear issues and runs coding agents")
-  .version("0.1.0")
+  .version("0.1.0");
+
+program
+  .command("run", { isDefault: true })
   .argument("<workflow>", "path to WORKFLOW.md")
   .option("-p, --port <port>", "HTTP server port", "4000")
   .option("--mock", "use mock agent instead of real agent")
@@ -117,6 +155,19 @@ program
       workflowPath,
       port: Number(opts.port),
       mock: Boolean(opts.mock),
+    });
+  });
+
+program
+  .command("replay")
+  .argument("<runId>", "id of a previously recorded run from .symphony/symphony.db")
+  .option("-p, --port <port>", "HTTP server port", "4000")
+  .option("--speed <factor>", "playback speed multiplier (1 = realtime)", "5")
+  .action(async (runId: string, opts: { port: string; speed: string }) => {
+    await replay({
+      runId,
+      port: Number(opts.port),
+      speed: Number(opts.speed),
     });
   });
 
