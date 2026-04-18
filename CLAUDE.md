@@ -12,7 +12,7 @@ Before taking any action in a fresh context, read these in order:
 
 ## Stack
 
-- **Runtime**: Node 22 (managed via `mise`, see [`mise.toml`](mise.toml))
+- **Runtime**: Node 22 (version pinned in [`.nvmrc`](.nvmrc) — use nvm/fnm/volta, or just install Node 22 directly)
 - **Language**: TypeScript (strict), ESLint + Prettier
 - **Server**: Hono + `@hono/node-server`, port 4000
 - **Persistence**: SQLite via `better-sqlite3` + Drizzle ORM; DB at `.symphony/symphony.db`

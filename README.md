@@ -15,7 +15,7 @@ Engineers don't supervise the agents; they manage the work at a higher level._
 
 ## Stack
 
-- Node 22 (managed via [`mise`](mise.toml))
+- Node 22 (version pinned in [`.nvmrc`](.nvmrc); pnpm comes from corepack)
 - TypeScript, strict mode
 - Hono HTTP server on port 4000
 - SQLite via `better-sqlite3` + Drizzle ORM at `.symphony/symphony.db`
@@ -25,7 +25,8 @@ Engineers don't supervise the agents; they manage the work at a higher level._
 ## Quick start
 
 ```bash
-# 1. Install deps (uses pnpm via corepack; see mise.toml for the Node version)
+# 1. Install deps (uses pnpm via corepack; see .nvmrc for the Node version)
+corepack enable
 pnpm install
 
 # 2. Copy the env template and fill in LINEAR_API_KEY if you want real-agent mode

@@ -89,9 +89,11 @@ moves, roughly in priority order, for a future context:
 
 ## Decisions log
 
-- **2026-04-17** — Runtime is Node 22 via `mise`, package manager is
-  pnpm via corepack. Persistence is SQLite (Drizzle). HTTP is Hono.
-  Web UI is Vite + React + Tailwind. Tests are Vitest.
+- **2026-04-17** — Runtime is Node 22 (pinned in `.nvmrc`), package
+  manager is pnpm via corepack. Persistence is SQLite (Drizzle).
+  HTTP is Hono. Web UI is Vite + React + Tailwind. Tests are
+  Vitest. (Originally pinned via `mise`; switched to `.nvmrc` on
+  2026-04-18 to drop the mise dependency.)
 - **2026-04-17** — Single-package repo at root (no monorepo).
 - **2026-04-17** — `pnpm test` uses `--passWithNoTests` during
   bootstrap; gate still fails on real test failures.
