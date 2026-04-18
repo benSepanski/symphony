@@ -106,6 +106,7 @@ export class Orchestrator extends EventEmitter {
       runId = this.logger.startRun({
         issueId: issue.id,
         issueIdentifier: issue.identifier,
+        issueTitle: issue.title,
         scenario: scenario ?? null,
         promptVersion: this.workflow.promptVersion,
         promptSource: this.workflow.promptSource,

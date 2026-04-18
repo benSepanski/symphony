@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { fetchRun, type ApiRunDetail } from "./api.js";
+import { fetchRun, type ApiEvent, type ApiRunDetail } from "./api.js";
+import { StatusBadge } from "./Dashboard.js";
+import { useEventStream } from "./useEventStream.js";
 
 type LoadState =
   | { tag: "loading" }
@@ -9,24 +11,27 @@ type LoadState =
 export function RunDetail({ runId }: { runId: string }) {
   const [state, setState] = useState<LoadState>({ tag: "loading" });
 
+  useEventStream(["turn", "runFinished"], async () => {
+    try {
+      const detail = await fetchRun(runId);
+      setState({ tag: "ready", detail });
+    } catch (err) {
+      setState({ tag: "error", message: (err as Error).message });
+    }
+  });
+
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    (async () => {
       try {
         const detail = await fetchRun(runId);
         if (!cancelled) setState({ tag: "ready", detail });
       } catch (err) {
         if (!cancelled) setState({ tag: "error", message: (err as Error).message });
       }
-    };
-    load();
-    const es = new EventSource("/api/events");
-    const reload = () => void load();
-    es.addEventListener("turn", reload);
-    es.addEventListener("runFinished", reload);
+    })();
     return () => {
       cancelled = true;
-      es.close();
     };
   }, [runId]);
 
@@ -34,16 +39,26 @@ export function RunDetail({ runId }: { runId: string }) {
   if (state.tag === "error") return <p className="text-rose-400">{state.message}</p>;
 
   const { run, turns, events } = state.detail;
+  const errorEvent = events.find((e) => e.eventType === "error");
+
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="text-lg font-semibold">{run.issueIdentifier}</h2>
-        <p className="text-sm text-slate-400">
-          Status: <span className="font-mono">{run.status}</span> · Started{" "}
-          {new Date(run.startedAt).toLocaleTimeString()}
-          {run.finishedAt && <> · Finished {new Date(run.finishedAt).toLocaleTimeString()}</>}
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-lg font-semibold font-mono">{run.issueIdentifier}</h2>
+          <StatusBadge status={run.status} />
+        </div>
+        {run.issueTitle && <p className="mt-1 text-slate-300">{run.issueTitle}</p>}
+        <p className="mt-1 text-xs text-slate-500">
+          Started {new Date(run.startedAt).toLocaleTimeString()}
+          {run.finishedAt && <> · finished {new Date(run.finishedAt).toLocaleTimeString()}</>}
+          {run.scenario && <> · scenario {run.scenario}</>}
         </p>
       </section>
+
+      {(run.status === "failed" || run.status === "cancelled") && (
+        <ErrorSurface status={run.status} errorEvent={errorEvent} />
+      )}
 
       <section>
         <h3 className="text-sm font-semibold uppercase text-slate-400 mb-2">Turns</h3>
@@ -94,4 +109,44 @@ export function RunDetail({ runId }: { runId: string }) {
       </section>
     </div>
   );
+}
+
+function ErrorSurface({
+  status,
+  errorEvent,
+}: {
+  status: string;
+  errorEvent: ApiEvent | undefined;
+}) {
+  const parsed =
+    errorEvent && errorEvent.payload
+      ? (safeParse(errorEvent.payload) as { message?: string; name?: string } | null)
+      : null;
+  return (
+    <section className="rounded border border-rose-800 bg-rose-950/40 p-4">
+      <h3 className="text-sm font-semibold uppercase text-rose-300">
+        {status === "cancelled" ? "Cancelled" : "Error"}
+      </h3>
+      {parsed?.message ? (
+        <p className="mt-2 text-rose-100 font-mono text-sm whitespace-pre-wrap">
+          {parsed.name ? `${parsed.name}: ` : ""}
+          {parsed.message}
+        </p>
+      ) : (
+        <p className="mt-2 text-rose-200 text-sm">
+          {status === "cancelled"
+            ? "Run was cancelled before completing."
+            : "Run failed. No structured error payload was recorded."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function safeParse(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
 }

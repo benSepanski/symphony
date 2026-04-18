@@ -1,6 +1,9 @@
 import { serve } from "@hono/node-server";
 import { Command } from "commander";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 import { createServer } from "./api/server.js";
 import { MockAgent, loadScenariosDir } from "./agent/mock.js";
 import type { Agent } from "./agent/types.js";
@@ -37,9 +40,27 @@ interface BootOptions {
   workflowPath: string;
   port: number;
   mock: boolean;
+  noDemo: boolean;
+  seedPath?: string;
 }
 
-async function boot({ workflowPath, port, mock }: BootOptions): Promise<void> {
+const SeedIssueSchema = z.object({
+  id: z.string(),
+  identifier: z.string(),
+  title: z.string(),
+  description: z.string().nullable().default(null),
+  state: z.string(),
+  labels: z.array(z.string()).default([]),
+  url: z.string(),
+});
+const SeedFileSchema = z.object({ issues: z.array(SeedIssueSchema) });
+
+function loadSeedIssues(path: string): Issue[] {
+  const raw = parseYaml(readFileSync(path, "utf8"));
+  return SeedFileSchema.parse(raw).issues;
+}
+
+async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions): Promise<void> {
   const workflow = parseWorkflow(workflowPath);
   const isMock = mock || workflow.config.agent.kind === "mock";
 
@@ -53,9 +74,10 @@ async function boot({ workflowPath, port, mock }: BootOptions): Promise<void> {
   const logsDir = resolve(".symphony/logs");
   const logger = new SymphonyLogger({ dbPath, logsDir });
 
+  const seedIssues = seedPath ? loadSeedIssues(resolve(seedPath)) : noDemo ? [] : DEMO_ISSUES;
   const tracker: Tracker = new MemoryTracker({
     activeStates: workflow.config.tracker.active_states,
-    issues: DEMO_ISSUES,
+    issues: seedIssues,
   });
 
   const scenariosDir = workflow.config.mock?.scenarios_dir ?? "fixtures/scenarios";
@@ -150,13 +172,22 @@ program
   .argument("<workflow>", "path to WORKFLOW.md")
   .option("-p, --port <port>", "HTTP server port", "4000")
   .option("--mock", "use mock agent instead of real agent")
-  .action(async (workflowPath: string, opts: { port: string; mock?: boolean }) => {
-    await boot({
-      workflowPath,
-      port: Number(opts.port),
-      mock: Boolean(opts.mock),
-    });
-  });
+  .option("--no-demo", "skip seeding the built-in mock-mode demo issues")
+  .option("--seed <path>", "YAML file with a demo issues list (see fixtures/seed.example.yaml)")
+  .action(
+    async (
+      workflowPath: string,
+      opts: { port: string; mock?: boolean; demo?: boolean; seed?: string },
+    ) => {
+      await boot({
+        workflowPath,
+        port: Number(opts.port),
+        mock: Boolean(opts.mock),
+        noDemo: opts.demo === false,
+        seedPath: opts.seed,
+      });
+    },
+  );
 
 program
   .command("replay")

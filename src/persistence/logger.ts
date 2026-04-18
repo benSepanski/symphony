@@ -14,6 +14,7 @@ export interface LoggerOptions {
 export interface StartRunInput {
   issueId: string;
   issueIdentifier: string;
+  issueTitle?: string | null;
   scenario?: string | null;
   promptVersion?: string | null;
   promptSource?: string | null;
@@ -40,6 +41,7 @@ export interface RunLog {
   id: string;
   issueId: string;
   issueIdentifier: string;
+  issueTitle: string | null;
   status: string;
   startedAt: string;
   finishedAt: string | null;
@@ -96,13 +98,15 @@ export class SymphonyLogger {
     this.db
       .prepare(
         `INSERT INTO runs
-           (id, issue_id, issue_identifier, status, started_at, scenario, prompt_version, prompt_source)
-         VALUES (?, ?, ?, 'running', ?, ?, ?, ?)`,
+           (id, issue_id, issue_identifier, issue_title, status, started_at, scenario,
+            prompt_version, prompt_source)
+         VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)`,
       )
       .run(
         runId,
         input.issueId,
         input.issueIdentifier,
+        input.issueTitle ?? null,
         startedAt,
         input.scenario ?? null,
         input.promptVersion ?? null,
@@ -211,7 +215,8 @@ export class SymphonyLogger {
     return this.db
       .prepare(
         `SELECT id, issue_id AS issueId, issue_identifier AS issueIdentifier,
-                status, started_at AS startedAt, finished_at AS finishedAt, scenario,
+                issue_title AS issueTitle, status, started_at AS startedAt,
+                finished_at AS finishedAt, scenario,
                 prompt_version AS promptVersion, prompt_source AS promptSource
          FROM runs ORDER BY started_at ASC`,
       )

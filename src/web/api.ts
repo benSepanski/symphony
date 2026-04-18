@@ -2,6 +2,7 @@ export interface ApiRun {
   id: string;
   issueId: string;
   issueIdentifier: string;
+  issueTitle: string | null;
   status: string;
   startedAt: string;
   finishedAt: string | null;
