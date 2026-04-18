@@ -301,6 +301,99 @@ describe("Orchestrator", () => {
     ]);
   });
 
+  it("skips spawning when the usage checker reports a capped window", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const checker = {
+      check: async () => ({
+        fetchedAt: new Date().toISOString(),
+        fiveHour: { utilization: 1.0, resetsAt: "2099-01-01T00:00:00Z" },
+        sevenDay: { utilization: 0.2, resetsAt: "2099-01-07T00:00:00Z" },
+      }),
+    };
+    const events: Array<{ window: string | null }> = [];
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      usageChecker: checker,
+      usageMinIntervalMs: 0,
+    });
+    orch.on("usageUpdated", (e: { rateLimitedWindow: string | null }) =>
+      events.push({ window: e.rateLimitedWindow }),
+    );
+    await orch.tick();
+    expect(logger.listRuns()).toHaveLength(0);
+    expect(events.at(-1)?.window).toBe("fiveHour");
+    expect(orch.getUsage().rateLimitedWindow).toBe("fiveHour");
+  });
+
+  it("resumes spawning once the usage checker clears", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    let util = 1.0;
+    const checker = {
+      check: async () => ({
+        fetchedAt: new Date().toISOString(),
+        fiveHour: { utilization: util, resetsAt: "2099-01-01T00:00:00Z" },
+        sevenDay: { utilization: 0, resetsAt: "2099-01-07T00:00:00Z" },
+      }),
+    };
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      usageChecker: checker,
+      usageMinIntervalMs: 0,
+    });
+    await orch.tick();
+    expect(logger.listRuns()).toHaveLength(0);
+    util = 0.2;
+    await orch.tick();
+    expect(logger.listRuns()).toHaveLength(1);
+  });
+
+  it("marks a crashed run as rate_limited when usage is capped after the failure", async () => {
+    const crashing: Scenario = {
+      name: "crash-on-tool",
+      labels: [],
+      steps: [
+        { role: "assistant", content: "about to crash", delay_ms: 0 },
+        { role: "tool", content: "boom", delay_ms: 0, throw: true },
+      ],
+    };
+    const agent = new MockAgent({ scenarios: [crashing], sleep: async () => {} });
+    let calls = 0;
+    const checker = {
+      check: async () => {
+        const utilization = calls === 0 ? 0 : 1.0;
+        calls += 1;
+        return {
+          fetchedAt: new Date().toISOString(),
+          fiveHour: { utilization, resetsAt: "2099-01-01T00:00:00Z" },
+          sevenDay: { utilization: 0, resetsAt: "2099-01-07T00:00:00Z" },
+        };
+      },
+    };
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      usageChecker: checker,
+      usageMinIntervalMs: 0,
+    });
+    await orch.tick();
+    const run = logger.listRuns()[0];
+    expect(run.status).toBe("rate_limited");
+    const eventTypes = logger.listEvents(run.id).map((e) => e.eventType);
+    expect(eventTypes).toContain("rate_limited");
+    expect(calls).toBeGreaterThanOrEqual(2);
+  });
+
   it("renders the Liquid prompt with the issue context", async () => {
     const rendered: string[] = [];
     class CapturingAgent extends MockAgent {

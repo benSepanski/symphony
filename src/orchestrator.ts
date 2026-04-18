@@ -5,6 +5,8 @@ import type { Agent, AgentTurn } from "./agent/types.js";
 import type { Issue, Tracker } from "./tracker/types.js";
 import type { WorkspaceManager } from "./workspace/manager.js";
 import type { SymphonyLogger } from "./persistence/logger.js";
+import type { UsageChecker, UsageSnapshot } from "./usage/types.js";
+import { rateLimitedWindow } from "./usage/types.js";
 
 export interface OrchestratorOptions {
   workflow: ParsedWorkflow;
@@ -13,6 +15,13 @@ export interface OrchestratorOptions {
   workspace: WorkspaceManager;
   logger: SymphonyLogger;
   scenarioFor?: (issue: Issue) => string | undefined;
+  usageChecker?: UsageChecker;
+  usageMinIntervalMs?: number;
+}
+
+export interface UsageUpdatedEvent {
+  snapshot: UsageSnapshot | null;
+  rateLimitedWindow: "fiveHour" | "sevenDay" | null;
 }
 
 export interface RunStartedEvent {
@@ -29,7 +38,7 @@ export interface TurnEvent {
 export interface RunFinishedEvent {
   runId: string;
   issue: Issue;
-  status: "completed" | "max_turns" | "failed" | "cancelled";
+  status: "completed" | "max_turns" | "failed" | "cancelled" | "rate_limited";
   error?: Error;
 }
 
@@ -41,10 +50,15 @@ export class Orchestrator extends EventEmitter {
   private readonly logger: SymphonyLogger;
   private readonly liquid: Liquid;
   private readonly scenarioFor?: (issue: Issue) => string | undefined;
+  private readonly usageChecker?: UsageChecker;
+  private readonly usageMinIntervalMs: number;
   private readonly claimed = new Set<string>();
   private pollTimer: NodeJS.Timeout | null = null;
   private shuttingDown = false;
   private inflightTicks = new Set<Promise<void>>();
+  private lastUsage: UsageSnapshot | null = null;
+  private lastUsageAt = 0;
+  private lastRateLimitWindow: "fiveHour" | "sevenDay" | null = null;
 
   constructor(options: OrchestratorOptions) {
     super();
@@ -55,6 +69,12 @@ export class Orchestrator extends EventEmitter {
     this.logger = options.logger;
     this.liquid = new Liquid();
     this.scenarioFor = options.scenarioFor;
+    this.usageChecker = options.usageChecker;
+    this.usageMinIntervalMs = options.usageMinIntervalMs ?? 30_000;
+  }
+
+  getUsage(): UsageUpdatedEvent {
+    return { snapshot: this.lastUsage, rateLimitedWindow: this.lastRateLimitWindow };
   }
 
   start(): void {
@@ -83,11 +103,27 @@ export class Orchestrator extends EventEmitter {
 
   async tick(): Promise<void> {
     if (this.shuttingDown) return;
+    await this.refreshUsage();
+    if (this.lastRateLimitWindow) return;
     const issues = await this.tracker.fetchCandidateIssues();
     const capacity = this.workflow.config.agent.max_concurrent_agents - this.claimed.size;
     if (capacity <= 0) return;
     const toStart = issues.filter((i) => !this.claimed.has(i.id)).slice(0, capacity);
     await Promise.all(toStart.map((issue) => this.runIssue(issue)));
+  }
+
+  private async refreshUsage(force = false): Promise<void> {
+    if (!this.usageChecker) return;
+    const nowMs = Date.now();
+    if (!force && nowMs - this.lastUsageAt < this.usageMinIntervalMs && this.lastUsage) return;
+    const snapshot = await this.usageChecker.check();
+    this.lastUsageAt = nowMs;
+    this.lastUsage = snapshot;
+    this.lastRateLimitWindow = snapshot ? rateLimitedWindow(snapshot) : null;
+    this.emit("usageUpdated", {
+      snapshot,
+      rateLimitedWindow: this.lastRateLimitWindow,
+    } satisfies UsageUpdatedEvent);
   }
 
   async runIssue(issue: Issue): Promise<void> {
@@ -168,6 +204,21 @@ export class Orchestrator extends EventEmitter {
           issueId: issue.id,
           payload: { message: caughtError.message, name: caughtError.name },
         });
+      }
+      await this.refreshUsage(true);
+      if (this.lastRateLimitWindow) {
+        status = "rate_limited";
+        if (runId) {
+          this.logger.logEvent({
+            runId,
+            eventType: "rate_limited",
+            issueId: issue.id,
+            payload: {
+              window: this.lastRateLimitWindow,
+              resetsAt: this.lastUsage?.[this.lastRateLimitWindow].resetsAt,
+            },
+          });
+        }
       }
     } finally {
       try {
