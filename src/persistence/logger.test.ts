@@ -115,6 +115,35 @@ describe("SymphonyLogger", () => {
     expect(JSON.parse(event.payload!)).toEqual({ counts: { a: 1 } });
   });
 
+  it("finds turn + event matches via search()", () => {
+    const runId = logger.startRun({ issueId: "x", issueIdentifier: "BEN-X" });
+    logger.recordTurn({ runId, role: "assistant", content: "found the magic needle here" });
+    logger.recordTurn({ runId, role: "assistant", content: "boring content" });
+    logger.logEvent({ runId, eventType: "note", payload: { message: "magic in payload too" } });
+
+    const matches = logger.search("magic");
+    expect(matches.map((m) => m.matchKind).sort()).toEqual(["event", "turn"]);
+    const turnMatch = matches.find((m) => m.matchKind === "turn");
+    expect(turnMatch?.snippet).toContain("magic needle");
+    expect(turnMatch?.turnNumber).toBe(1);
+    const eventMatch = matches.find((m) => m.matchKind === "event");
+    expect(eventMatch?.eventType).toBe("note");
+  });
+
+  it("returns an empty list for an empty query", () => {
+    const runId = logger.startRun({ issueId: "x", issueIdentifier: "BEN-X" });
+    logger.recordTurn({ runId, role: "assistant", content: "anything" });
+    expect(logger.search("")).toEqual([]);
+    expect(logger.search("   ")).toEqual([]);
+  });
+
+  it("escapes LIKE wildcards in the query", () => {
+    const runId = logger.startRun({ issueId: "x", issueIdentifier: "BEN-X" });
+    logger.recordTurn({ runId, role: "assistant", content: "benign plain text" });
+    expect(logger.search("%")).toEqual([]);
+    expect(logger.search("_")).toEqual([]);
+  });
+
   it("writes JSONL under .../<runId>.jsonl", () => {
     const runId = logger.startRun({ issueId: "x", issueIdentifier: "BEN-X" });
     expect(logger.jsonlPath(runId)).toBe(join(dir, "logs", `${runId}.jsonl`));

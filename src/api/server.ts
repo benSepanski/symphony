@@ -50,6 +50,13 @@ export function createServer({ events, logger, webRoot }: ServerOptions): Hono {
     });
   });
 
+  app.get("/api/search", (c) => {
+    const q = c.req.query("q") ?? "";
+    const limitRaw = c.req.query("limit");
+    const limit = limitRaw ? Math.max(1, Math.min(500, Number(limitRaw))) : 100;
+    return c.json({ query: q, matches: logger.search(q, limit) });
+  });
+
   app.get("/api/events", (c) =>
     streamSSE(c, async (stream) => {
       const queue: Array<{ event: string; data: unknown }> = [];

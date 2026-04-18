@@ -108,6 +108,18 @@ describe("api/server", () => {
     expect(body.events.map((e) => e.eventType)).toContain("state_transition");
   });
 
+  it("GET /api/search returns matches across turns and events", async () => {
+    const app = createServer({ events: orchestrator, logger });
+    const res = await app.request("/api/search?q=done");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      query: string;
+      matches: Array<{ snippet: string; matchKind: string }>;
+    };
+    expect(body.query).toBe("done");
+    expect(body.matches.some((m) => m.matchKind === "turn" && /done/i.test(m.snippet))).toBe(true);
+  });
+
   it("GET /api/runs/:id returns 404 for unknown ids", async () => {
     const app = createServer({ events: orchestrator, logger });
     const res = await app.request("/api/runs/nope");

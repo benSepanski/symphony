@@ -48,3 +48,25 @@ export async function fetchRun(id: string): Promise<ApiRunDetail> {
   if (!res.ok) throw new Error(`/api/runs/${id} returned ${res.status}`);
   return (await res.json()) as ApiRunDetail;
 }
+
+export interface ApiSearchMatch {
+  runId: string;
+  issueIdentifier: string;
+  issueTitle: string | null;
+  status: string;
+  matchKind: "turn" | "event";
+  turnNumber: number | null;
+  eventType: string | null;
+  snippet: string;
+}
+
+export interface ApiSearchResult {
+  query: string;
+  matches: ApiSearchMatch[];
+}
+
+export async function searchRuns(q: string): Promise<ApiSearchResult> {
+  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error(`/api/search returned ${res.status}`);
+  return (await res.json()) as ApiSearchResult;
+}

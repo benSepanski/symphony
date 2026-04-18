@@ -72,6 +72,17 @@ export interface EventLog {
   ts: string;
 }
 
+export interface SearchMatch {
+  runId: string;
+  issueIdentifier: string;
+  issueTitle: string | null;
+  status: string;
+  matchKind: "turn" | "event";
+  turnNumber: number | null;
+  eventType: string | null;
+  snippet: string;
+}
+
 export class SymphonyLogger {
   readonly db: BetterDb;
   private readonly logsDir: string;
@@ -242,6 +253,43 @@ export class SymphonyLogger {
          FROM log_events WHERE run_id = ? ORDER BY id ASC`,
       )
       .all(runId) as EventLog[];
+  }
+
+  search(query: string, limit = 100): SearchMatch[] {
+    if (query.trim() === "") return [];
+    const like = `%${query.replace(/[%_]/g, (c) => `\\${c}`)}%`;
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM (
+           SELECT r.id AS runId,
+                  r.issue_identifier AS issueIdentifier,
+                  r.issue_title AS issueTitle,
+                  r.status AS status,
+                  'turn' AS matchKind,
+                  t.turn_number AS turnNumber,
+                  NULL AS eventType,
+                  t.content AS snippet,
+                  t.created_at AS matchedAt
+           FROM turns t JOIN runs r ON r.id = t.run_id
+           WHERE t.content LIKE ? ESCAPE '\\'
+           UNION ALL
+           SELECT r.id AS runId,
+                  r.issue_identifier AS issueIdentifier,
+                  r.issue_title AS issueTitle,
+                  r.status AS status,
+                  'event' AS matchKind,
+                  NULL AS turnNumber,
+                  e.event_type AS eventType,
+                  e.payload AS snippet,
+                  e.ts AS matchedAt
+           FROM log_events e JOIN runs r ON r.id = e.run_id
+           WHERE e.payload LIKE ? ESCAPE '\\'
+         )
+         ORDER BY matchedAt DESC
+         LIMIT ?`,
+      )
+      .all(like, like, limit) as Array<SearchMatch & { matchedAt: string }>;
+    return rows.map(({ matchedAt: _, ...rest }) => rest);
   }
 
   jsonlPath(runId: string): string {
