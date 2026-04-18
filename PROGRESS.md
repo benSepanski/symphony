@@ -4,110 +4,125 @@ Long-running state file. Read this first on every fresh context. Update after ev
 
 ## Current phase
 
-**Phase 2 — AI harnessing.** 3/5 steps done. Scenario suite + eval
-harness + replay subcommand all landed. Remaining: prompt versioning
-and per-turn rendered prompt.
+**Phase 2 — AI harnessing. Complete.** 5/5 steps landed. Next:
+Phase 3 (bugs + test review).
 
 ## Last checkpoint
 
-symphony replay `<run_id>` (commit `f955252`):
+Per-turn rendered prompt (commit `34f2f3b`):
 
-- `src/replay.ts` — `createReplayEmitter({ runId, logger, speed })`
-  returns `{ events, run }`. `run()` looks up the run in the
-  `SymphonyLogger`, re-emits every recorded turn (respecting original
-  gaps / `speed`), then emits `runFinished`. `ReplayNotFound` when
-  the run id is missing.
-- `src/api/server.ts` — `createServer` now accepts
-  `{ events: EventEmitter, logger }` instead of `{ orchestrator }`.
-  Both orchestrator (live) and replay emitter plug in the same way.
-- `src/cli.ts` — explicit `run` + `replay` subcommands (via
-  commander `isDefault: true`, so `symphony WORKFLOW.md` still works).
-  `replay --port <p> --speed <n>` serves the replay over the same
-  Hono app at `/`, so the dashboard watches it like a live run.
-- `src/replay.test.ts` — 2 Vitest cases: order of re-emitted events,
-  `ReplayNotFound` on an unknown id.
-- Manual smoke: record a run via `run`, replay it — replay server's
-  `/api/runs` returns the original run, replay log prints "replay
-  finished".
+- `src/persistence/schema.ts` — `turns` gains a `rendered_prompt`
+  column; `CREATE TABLES` SQL matches.
+- `src/persistence/logger.ts` — `recordTurn` accepts + persists
+  `renderedPrompt`; `listTurns` and the JSONL payload carry it.
+- `src/orchestrator.ts` — renders the Liquid template once per turn
+  with `attempt = turnsTaken + 1`, so retry-aware `{% if attempt > 1 %}`
+  blocks actually fire on later turns. The first-turn render is
+  reused as the session's initial prompt to avoid double work.
+- `src/web/RunDetail.tsx` + `src/web/api.ts` — each turn card in
+  the UI now has a "prompt the model saw" disclosure that reveals
+  the exact rendered template.
+- Tests: orchestrator asserts attempt 1..N reach the logger;
+  logger test asserts the new column round-trips.
 
-Prior Phase 2 checkpoints:
+Phase 2 summary (in order):
 
-- `d956377` — Turn pnpm eval into a real Vitest scenario suite.
-- `770b9e7` — Flesh out scenario fixture suite for Phase 2 eval harness.
+- `770b9e7` — Scenario fixture suite (rate-limit, turn-limit, crash, long-running).
+- `d956377` — `pnpm eval` wired into `pnpm all` against 5 scenarios.
+- `f955252` — `symphony replay <run_id>` via any EventEmitter.
+- `7912cc3` — Versioned prompt files (`prompts/default-v1.md`).
+- `34f2f3b` — Per-turn rendered prompt captured on each turn.
 
-Phase 1 checkpoints (summary — see `git log` for full history):
+Phase 1 summary (all before Phase 2):
 
-- `560be37` — Vite + React + Tailwind dashboard served by the Hono app.
-- `b32cc23` — Wire the CLI and Hono API so mock mode runs end to end.
-- `e8e802b` — Orchestrator.
-- `64ff62b` — WorkspaceManager.
-- `9a08eb3` — SymphonyLogger.
-- `373e25e` — MockAgent + scenarios.
-- `d026612` — MemoryTracker.
-- `5bbafc0` — WORKFLOW.md parser.
-- `321edf4` — Phase 0 scaffold.
+- `560be37` Vite + React + Tailwind dashboard.
+- `b32cc23` CLI + Hono API wiring.
+- `e8e802b` Orchestrator.
+- `64ff62b` WorkspaceManager.
+- `9a08eb3` SymphonyLogger.
+- `373e25e` MockAgent + scenarios.
+- `d026612` MemoryTracker.
+- `5bbafc0` WORKFLOW.md parser.
+- `321edf4` Phase 0 scaffold.
 
 ## Gate status
 
-- `pnpm all` — green. 42 unit tests + 5 eval scenarios.
-- `pnpm dev WORKFLOW.md --mock` — end-to-end mock run works.
+- `pnpm all` — green. 48 unit tests + 5 eval scenarios.
+- `pnpm dev WORKFLOW.md --mock` — live mock run, dashboard shows
+  turns + per-turn rendered prompt.
 - `pnpm build:web` — produces `dist/web`, served by Hono at `/`.
-- `symphony replay <run_id>` — replays a recorded run with the same
-  SSE surface as live.
+- `symphony replay <run_id>` — replays a recorded run.
+- Prompt versioning live: `WORKFLOW.md` references
+  `prompts/default-v1.md`; each run row records `prompt_version` /
+  `prompt_source`.
 
 ## Next action
 
-**Phase 2, step 4 — prompt versioning.**
+**Phase 3 — bugs + test review.** The plan calls out specific risk
+areas; tackle them in order of blast radius:
 
-1. Move the Liquid prompt body out of `WORKFLOW.md` into
-   `prompts/default-v1.md` (keep the existing inline template as a
-   fallback). Header line `-- version: v1 --` or similar.
-2. Teach `parseWorkflow` to accept `prompt: prompts/default-v1.md` in
-   the front matter. When present, read that file; when absent, use
-   the inline template after the front matter (current behavior).
-3. Store the prompt version in the `runs` row (new `prompt_version`
-   column, default `"inline"`). Log it in each run's JSONL too.
-4. Keep the existing repo-root `WORKFLOW.md` working by splitting its
-   template into `prompts/default-v1.md` and pointing the front
-   matter at it.
-5. Tests: parser tests cover both inline + file-referenced prompts.
-6. `pnpm all` green; commit.
+1. **Scheduler under race** — use `fast-check` to property-test
+   `Orchestrator.tick()`. Interesting invariants:
+   - `claimed.size` never exceeds `max_concurrent_agents` across
+     concurrent `tick()` calls.
+   - No issue is dispatched twice (even if the tracker returns it
+     across consecutive ticks while a run is in flight).
+   - A failed run releases its claim so the next tick can pick up
+     the same issue.
+     Add `fast-check` as a devDep. Start with 100 runs.
 
-**Phase 2, step 5 — per-turn rendered prompt.**
+2. **Worktree cleanup on crash** — right now if the agent throws
+   mid-turn, `workspace.destroy` is never called. The current
+   behavior leaves a lingering directory. Decide whether destroy
+   should run in a `finally` regardless of error, and how to keep
+   the resulting tests deterministic under `--mock` (workspaces
+   stripped of hooks). Add a regression test.
 
-1. Add `rendered_prompt` column to `turns` table. Update
-   `SymphonyLogger.recordTurn` to accept + persist it.
-2. In the orchestrator, render the Liquid template once per turn
-   (attempt number is available) and pass the result through to the
-   logger.
-3. Expose the rendered prompt in `/api/runs/:id` so the UI can show
-   exactly what the model saw per turn. Add a collapsed
-   "prompt" disclosure on each turn in the run detail view.
-4. Tests: orchestrator test asserts the prompt is captured; API test
-   asserts it comes back in the detail payload.
-5. `pnpm all` green; commit.
+3. **SIGINT mid-run** — `Orchestrator.stop` awaits in-flight ticks,
+   but it does not currently stop an in-flight session. Verify that
+   `stop()` is called on each active session and that the run
+   status moves to `failed` or a new `cancelled` status. CLI should
+   exit cleanly even when a long-running scenario is active.
 
-Then Phase 2 is done and we move to **Phase 3 — bug + test review**
-(fast-check on the scheduler, SIGINT handling, log rotation, SQLite
-WAL under concurrent writers, command-injection in user hooks).
+4. **SQLite WAL under concurrent writers** — the logger already
+   enables WAL, but we never exercised multiple concurrent runs
+   against the same DB. Add a test that opens two orchestrators
+   sharing one DB path and drives them in parallel. Assert no
+   rows are lost or duplicated.
+
+5. **Command injection in hooks** — the workspace manager shells
+   out via `bash -eu -c <script>`. A hook can reference
+   `$ISSUE_IDENTIFIER` which comes from Linear. If the identifier
+   ever contains shell metacharacters, we have a problem. Audit
+   the hook input surface, add a test that feeds a malicious
+   identifier through the hook, and document the contract.
+
+6. **Log rotation** — JSONL files grow per run. Decide policy:
+   keep per-run file (current), roll by size, archive oldest.
+   Probably a Phase 4 concern — note here and move on unless it's
+   actively biting.
+
+Each is its own commit + `pnpm all` gate. Target one commit per
+risk area so failures are easy to bisect.
 
 ## Open issues / deferred
 
 - `PROGRESS.md` screenshot gallery (Phase 4) — not yet started.
 - Real-agent mode still throws at boot. Needs `tracker/linear.ts`
   (GraphQL client) + `agent/claude-code.ts` (spawn
-  `claude --output-format stream-json`). Blocked on nothing — just
-  not implemented yet.
+  `claude --output-format stream-json`). Not blocked — just
+  unimplemented.
 - No `.env.example` yet. CLAUDE.md references one — create when
   wiring up the real Linear tracker.
-- `Makefile` mentioned in the plan not yet created; low priority
-  since the `pnpm` script surface is sufficient.
+- `Makefile` mentioned in the plan not yet created; the `pnpm`
+  script surface is sufficient.
 - `worktrees/` still contains leftover BEN-\* directories from the
   old Elixir runtime. Safe to ignore (in `.gitignore`).
-- Vitest web-ui component coverage is thin — no jsdom +
-  testing-library. Revisit in Phase 3 or Phase 4.
-- No log search endpoint or UI yet (plan calls for it). Consider in
-  Phase 3 once the scenarios push enough data through the logger.
+- Web-ui component tests still thin. Consider jsdom +
+  testing-library in Phase 3 or Phase 4.
+- No log search endpoint or UI yet (the plan mentions it). A
+  simple `/api/search?q=...` against `log_events.payload LIKE` is
+  enough to start.
 
 ## Decisions log
 
@@ -118,12 +133,15 @@ WAL under concurrent writers, command-injection in user hooks).
 - **2026-04-17** — `pnpm test` uses `--passWithNoTests` during
   bootstrap; gate still fails on real test failures.
 - **2026-04-17** — ESLint allows `_`-prefixed unused args/vars.
-- **2026-04-18** — Tailwind v4 via `@tailwindcss/vite` (no postcss
-  config). React 19. Hash-based routing instead of React Router.
-- **2026-04-18** — Eval suite lives under `src/eval/*.eval.ts` with a
-  separate `vitest.eval.config.ts`. `pnpm all` chains test + eval.
-- **2026-04-18** — `createServer` takes any `EventEmitter`, not the
-  full orchestrator, so live run and replay share one HTTP surface.
-- **2026-04-18** — `crash` scenario added a `throw: true` step field
-  so scenarios can represent genuine mock-agent failures that surface
-  as "failed" orchestrator runs.
+- **2026-04-18** — Tailwind v4 via `@tailwindcss/vite`. React 19.
+  Hash-based routing instead of React Router.
+- **2026-04-18** — Eval suite under `src/eval/*.eval.ts` with its
+  own `vitest.eval.config.ts`. `pnpm all` chains test + eval.
+- **2026-04-18** — `createServer` takes any `EventEmitter`, so live
+  run and replay share the HTTP surface.
+- **2026-04-18** — `crash` scenario introduced `throw: true` step
+  field for mock-agent failures.
+- **2026-04-18** — Prompt files live under `prompts/` with their own
+  `version:` front matter. Inline templates report
+  `promptVersion: "inline"`. The orchestrator renders per turn and
+  persists the rendered text on the turn row.
