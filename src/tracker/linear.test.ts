@@ -139,4 +139,15 @@ describe("LinearTracker", () => {
   it("refuses to update state before fetch has populated the team cache", async () => {
     await expect(tracker.updateIssueState("unknown", "Done")).rejects.toThrow(/no team cached/);
   });
+
+  it("refuses to construct without an apiKey", () => {
+    expect(
+      () =>
+        new LinearTracker({
+          apiKey: "",
+          projectSlug: "x",
+          activeStates: ["Todo"],
+        }),
+    ).toThrow(/LINEAR_API_KEY/);
+  });
 });
