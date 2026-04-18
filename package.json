@@ -13,8 +13,8 @@
     "typecheck": "tsc --noEmit",
     "fmt": "prettier --write .",
     "fmt:check": "prettier --check .",
-    "eval": "vitest run --project eval",
-    "all": "pnpm typecheck && pnpm fmt:check && pnpm lint && pnpm test"
+    "eval": "vitest run --config vitest.eval.config.ts",
+    "all": "pnpm typecheck && pnpm fmt:check && pnpm lint && pnpm test && pnpm eval"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",
