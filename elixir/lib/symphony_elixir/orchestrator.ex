@@ -272,6 +272,10 @@ defmodule SymphonyElixir.Orchestrator do
 
         state
 
+      {:error, :sbx_not_found} ->
+        Logger.error("Sandbox binary 'sbx' not found; set claude_code.sandbox or codex.sandbox to a different value in WORKFLOW.md, or install sbx")
+        state
+
       {:error, {:invalid_workflow_config, message}} ->
         Logger.error("Invalid WORKFLOW.md config: #{message}")
         state
