@@ -5,7 +5,7 @@ The current SQLite schema, extracted from
 quick reference; the TypeScript is the source of truth. When the schema changes,
 update this file in the same PR.
 
-_Last regenerated:_ 2026-04-18
+_Last regenerated:_ 2026-04-19
 _Generated from commit:_ (this one)
 
 ---
@@ -16,18 +16,32 @@ _Generated from commit:_ (this one)
 
 One row per orchestrator run (one attempt against one issue).
 
-| Column             | SQL type         | Notes                                                                                                                                  |
-| ------------------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`               | TEXT PK NOT NULL | UUIDv4.                                                                                                                                |
-| `issue_id`         | TEXT NOT NULL    | Tracker-internal id.                                                                                                                   |
-| `issue_identifier` | TEXT NOT NULL    | Human-readable (e.g. `BEN-42`).                                                                                                        |
-| `issue_title`      | TEXT NULLABLE    |                                                                                                                                        |
-| `status`           | TEXT NOT NULL    | Default `running`. Terminal: `completed`, `failed`, `max_turns`, `cancelled`.                                                          |
-| `started_at`       | TEXT NOT NULL    | ISO-8601 UTC.                                                                                                                          |
-| `finished_at`      | TEXT NULLABLE    | ISO-8601 UTC; `NULL` while `status = running`.                                                                                         |
-| `scenario`         | TEXT NULLABLE    | Mock-mode scenario name.                                                                                                               |
-| `prompt_version`   | TEXT NULLABLE    | From the prompt's front-matter `version:` key; `"inline"` for inline templates; `"unversioned"` for prompt files without front matter. |
-| `prompt_source`    | TEXT NULLABLE    | The path (or `"inline"`) identifying which prompt template was used.                                                                   |
+| Column                  | SQL type         | Notes                                                                                                                                  |
+| ----------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                    | TEXT PK NOT NULL | UUIDv4.                                                                                                                                |
+| `issue_id`              | TEXT NOT NULL    | Tracker-internal id.                                                                                                                   |
+| `issue_identifier`      | TEXT NOT NULL    | Human-readable (e.g. `BEN-42`).                                                                                                        |
+| `issue_title`           | TEXT NULLABLE    |                                                                                                                                        |
+| `status`                | TEXT NOT NULL    | Default `running`. Terminal: `completed`, `failed`, `max_turns`, `cancelled`.                                                          |
+| `started_at`            | TEXT NOT NULL    | ISO-8601 UTC.                                                                                                                          |
+| `finished_at`           | TEXT NULLABLE    | ISO-8601 UTC; `NULL` while `status = running`.                                                                                         |
+| `scenario`              | TEXT NULLABLE    | Mock-mode scenario name.                                                                                                               |
+| `prompt_version`        | TEXT NULLABLE    | From the prompt's front-matter `version:` key; `"inline"` for inline templates; `"unversioned"` for prompt files without front matter. |
+| `prompt_source`         | TEXT NULLABLE    | The path (or `"inline"`) identifying which prompt template was used.                                                                   |
+| `tokens_input`          | INTEGER NULLABLE | Sum of `input_tokens` across all Claude CLI `type: "result"` messages for this run. `NULL` for pre-BEN-32 rows and mock agents.        |
+| `tokens_output`         | INTEGER NULLABLE | Sum of `output_tokens` across result messages.                                                                                         |
+| `tokens_cache_read`     | INTEGER NULLABLE | Sum of `cache_read_input_tokens`.                                                                                                      |
+| `tokens_cache_creation` | INTEGER NULLABLE | Sum of `cache_creation_input_tokens`.                                                                                                  |
+| `total_cost_usd`        | REAL NULLABLE    | Sum of `total_cost_usd` across result messages (Claude CLI's own estimate).                                                            |
+| `auth_status`           | TEXT NULLABLE    | `authenticated` / `unauthenticated` / `unknown`. Derived at run-start from the usage checker's ability to fetch a snapshot.            |
+| `start_five_hour_util`  | REAL NULLABLE    | 5-hour rate-limit utilization at run start (0..1), snapshotted from the Claude OAuth usage endpoint.                                   |
+| `start_seven_day_util`  | REAL NULLABLE    | 7-day rate-limit utilization at run start (0..1).                                                                                      |
+
+Columns below `prompt_source` were added after the first schema was shipped.
+Existing `.symphony/symphony.db` files are migrated on boot via
+`ALTER TABLE runs ADD COLUMN ...` (best effort, idempotent) — see
+`RUN_COLUMN_MIGRATIONS` in
+[`src/persistence/schema.ts`](../../src/persistence/schema.ts).
 
 ### `turns`
 
@@ -78,6 +92,8 @@ Emitted by `SymphonyLogger.logEvent`:
 - `state_transition_error`
 - `error`
 - `run_finished`
+- `run_start_context` (written by `recordRunStartContext` — JSONL + SQL UPDATE)
+- `run_token_usage` (written by `updateRunUsage` — JSONL + SQL UPDATE)
 
 Emitted implicitly via `recordTurn`:
 
@@ -122,7 +138,15 @@ CREATE TABLE IF NOT EXISTS runs (
   finished_at TEXT,
   scenario TEXT,
   prompt_version TEXT,
-  prompt_source TEXT
+  prompt_source TEXT,
+  tokens_input INTEGER,
+  tokens_output INTEGER,
+  tokens_cache_read INTEGER,
+  tokens_cache_creation INTEGER,
+  total_cost_usd REAL,
+  auth_status TEXT,
+  start_five_hour_util REAL,
+  start_seven_day_util REAL
 );
 
 CREATE TABLE IF NOT EXISTS turns (
