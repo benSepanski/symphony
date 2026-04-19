@@ -147,6 +147,16 @@ export class Orchestrator extends EventEmitter {
         promptVersion: this.workflow.promptVersion,
         promptSource: this.workflow.promptSource,
       });
+      this.logger.recordRunStartContext({
+        runId,
+        authStatus: this.usageChecker
+          ? this.lastUsage
+            ? "authenticated"
+            : "unauthenticated"
+          : "unknown",
+        startFiveHourUtil: this.lastUsage?.fiveHour.utilization ?? null,
+        startSevenDayUtil: this.lastUsage?.sevenDay.utilization ?? null,
+      });
       this.emit("runStarted", { runId, issue } satisfies RunStartedEvent);
 
       const ws = await this.workspace.create(issue);
@@ -221,6 +231,19 @@ export class Orchestrator extends EventEmitter {
         }
       }
     } finally {
+      if (runId && session?.getTokenUsage) {
+        const usage = session.getTokenUsage();
+        if (usage) {
+          this.logger.updateRunUsage({
+            runId,
+            tokensInput: usage.inputTokens,
+            tokensOutput: usage.outputTokens,
+            tokensCacheRead: usage.cacheReadInputTokens,
+            tokensCacheCreation: usage.cacheCreationInputTokens,
+            totalCostUsd: usage.totalCostUsd,
+          });
+        }
+      }
       try {
         if (session) await session.stop();
       } catch (err) {

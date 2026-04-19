@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchRun, type ApiEvent, type ApiRunDetail } from "./api.js";
+import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail } from "./api.js";
 import { StatusBadge } from "./Dashboard.js";
 import { useEventStream } from "./useEventStream.js";
 
@@ -59,6 +59,8 @@ export function RunDetail({ runId }: { runId: string }) {
       {(run.status === "failed" || run.status === "cancelled") && (
         <ErrorSurface status={run.status} errorEvent={errorEvent} />
       )}
+
+      <HistoryFacts run={run} />
 
       <section>
         <h3 className="text-sm font-semibold uppercase text-slate-400 mb-2">Turns</h3>
@@ -149,4 +151,73 @@ function safeParse(s: string): unknown {
   } catch {
     return null;
   }
+}
+
+function HistoryFacts({ run }: { run: ApiRun }) {
+  const hasUsage =
+    run.tokensInput !== null ||
+    run.tokensOutput !== null ||
+    run.tokensCacheRead !== null ||
+    run.tokensCacheCreation !== null ||
+    run.totalCostUsd !== null;
+  const hasStartContext =
+    run.authStatus !== null || run.startFiveHourUtil !== null || run.startSevenDayUtil !== null;
+  if (!hasUsage && !hasStartContext) return null;
+
+  return (
+    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
+        <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">Token usage</h3>
+        {hasUsage ? (
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-mono text-slate-300">
+            <dt className="text-slate-500">input</dt>
+            <dd className="tabular-nums">{formatCount(run.tokensInput)}</dd>
+            <dt className="text-slate-500">output</dt>
+            <dd className="tabular-nums">{formatCount(run.tokensOutput)}</dd>
+            <dt className="text-slate-500">cache read</dt>
+            <dd className="tabular-nums">{formatCount(run.tokensCacheRead)}</dd>
+            <dt className="text-slate-500">cache create</dt>
+            <dd className="tabular-nums">{formatCount(run.tokensCacheCreation)}</dd>
+            <dt className="text-slate-500">total cost</dt>
+            <dd className="tabular-nums">{formatCostDetailed(run.totalCostUsd)}</dd>
+          </dl>
+        ) : (
+          <p className="text-xs text-slate-500">No token usage recorded for this run.</p>
+        )}
+      </div>
+      <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
+        <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">Start context</h3>
+        {hasStartContext ? (
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-mono text-slate-300">
+            <dt className="text-slate-500">auth</dt>
+            <dd>{run.authStatus ?? "—"}</dd>
+            <dt className="text-slate-500">5h utilization</dt>
+            <dd className="tabular-nums">{formatPctOrDash(run.startFiveHourUtil)}</dd>
+            <dt className="text-slate-500">7d utilization</dt>
+            <dd className="tabular-nums">{formatPctOrDash(run.startSevenDayUtil)}</dd>
+          </dl>
+        ) : (
+          <p className="text-xs text-slate-500">No start-context snapshot recorded.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function formatCount(n: number | null): string {
+  if (n === null) return "—";
+  return n.toLocaleString();
+}
+
+function formatCostDetailed(usd: number | null): string {
+  if (usd === null || !Number.isFinite(usd)) return "—";
+  if (usd === 0) return "$0";
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(4)}`;
+}
+
+function formatPctOrDash(util: number | null): string {
+  if (util === null || !Number.isFinite(util)) return "—";
+  const pct = util <= 1 ? util * 100 : util;
+  return `${pct.toFixed(0)}%`;
 }

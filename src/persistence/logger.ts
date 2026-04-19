@@ -2,7 +2,7 @@ import { appendFileSync, closeSync, mkdirSync, openSync, rmSync } from "node:fs"
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import Database, { type Database as BetterDb } from "better-sqlite3";
-import { CREATE_TABLES_SQL } from "./schema.js";
+import { CREATE_TABLES_SQL, RUN_COLUMN_MIGRATIONS } from "./schema.js";
 
 export interface LoggerOptions {
   dbPath: string;
@@ -18,6 +18,22 @@ export interface StartRunInput {
   scenario?: string | null;
   promptVersion?: string | null;
   promptSource?: string | null;
+}
+
+export interface RunStartContextInput {
+  runId: string;
+  authStatus: "authenticated" | "unauthenticated" | "unknown";
+  startFiveHourUtil?: number | null;
+  startSevenDayUtil?: number | null;
+}
+
+export interface RunTokenUsageInput {
+  runId: string;
+  tokensInput: number;
+  tokensOutput: number;
+  tokensCacheRead: number;
+  tokensCacheCreation: number;
+  totalCostUsd: number;
 }
 
 export interface RecordTurnInput {
@@ -48,6 +64,14 @@ export interface RunLog {
   scenario: string | null;
   promptVersion: string | null;
   promptSource: string | null;
+  tokensInput: number | null;
+  tokensOutput: number | null;
+  tokensCacheRead: number | null;
+  tokensCacheCreation: number | null;
+  totalCostUsd: number | null;
+  authStatus: string | null;
+  startFiveHourUtil: number | null;
+  startSevenDayUtil: number | null;
 }
 
 export interface TurnLog {
@@ -101,6 +125,19 @@ export class SymphonyLogger {
     this.db = new Database(options.dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.exec(CREATE_TABLES_SQL);
+    this.migrateRunColumns();
+  }
+
+  private migrateRunColumns(): void {
+    const existing = new Set(
+      (this.db.prepare(`PRAGMA table_info(runs)`).all() as Array<{ name: string }>).map(
+        (row) => row.name,
+      ),
+    );
+    for (const col of RUN_COLUMN_MIGRATIONS) {
+      if (existing.has(col.name)) continue;
+      this.db.exec(`ALTER TABLE runs ADD COLUMN ${col.name} ${col.sql}`);
+    }
   }
 
   startRun(input: StartRunInput): string {
@@ -228,10 +265,81 @@ export class SymphonyLogger {
         `SELECT id, issue_id AS issueId, issue_identifier AS issueIdentifier,
                 issue_title AS issueTitle, status, started_at AS startedAt,
                 finished_at AS finishedAt, scenario,
-                prompt_version AS promptVersion, prompt_source AS promptSource
+                prompt_version AS promptVersion, prompt_source AS promptSource,
+                tokens_input AS tokensInput, tokens_output AS tokensOutput,
+                tokens_cache_read AS tokensCacheRead,
+                tokens_cache_creation AS tokensCacheCreation,
+                total_cost_usd AS totalCostUsd,
+                auth_status AS authStatus,
+                start_five_hour_util AS startFiveHourUtil,
+                start_seven_day_util AS startSevenDayUtil
          FROM runs ORDER BY started_at ASC`,
       )
       .all() as RunLog[];
+  }
+
+  recordRunStartContext(input: RunStartContextInput): void {
+    this.db
+      .prepare(
+        `UPDATE runs
+           SET auth_status = ?,
+               start_five_hour_util = ?,
+               start_seven_day_util = ?
+         WHERE id = ?`,
+      )
+      .run(
+        input.authStatus,
+        input.startFiveHourUtil ?? null,
+        input.startSevenDayUtil ?? null,
+        input.runId,
+      );
+    this.appendJsonl(input.runId, {
+      ts: this.isoNow(),
+      run_id: input.runId,
+      turn_id: null,
+      event_type: "run_start_context",
+      issue_id: null,
+      payload: {
+        auth_status: input.authStatus,
+        start_five_hour_util: input.startFiveHourUtil ?? null,
+        start_seven_day_util: input.startSevenDayUtil ?? null,
+      },
+    });
+  }
+
+  updateRunUsage(input: RunTokenUsageInput): void {
+    this.db
+      .prepare(
+        `UPDATE runs
+           SET tokens_input = ?,
+               tokens_output = ?,
+               tokens_cache_read = ?,
+               tokens_cache_creation = ?,
+               total_cost_usd = ?
+         WHERE id = ?`,
+      )
+      .run(
+        input.tokensInput,
+        input.tokensOutput,
+        input.tokensCacheRead,
+        input.tokensCacheCreation,
+        input.totalCostUsd,
+        input.runId,
+      );
+    this.appendJsonl(input.runId, {
+      ts: this.isoNow(),
+      run_id: input.runId,
+      turn_id: null,
+      event_type: "run_token_usage",
+      issue_id: null,
+      payload: {
+        tokens_input: input.tokensInput,
+        tokens_output: input.tokensOutput,
+        tokens_cache_read: input.tokensCacheRead,
+        tokens_cache_creation: input.tokensCacheCreation,
+        total_cost_usd: input.totalCostUsd,
+      },
+    });
   }
 
   listTurns(runId: string): TurnLog[] {

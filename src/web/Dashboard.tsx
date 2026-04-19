@@ -64,6 +64,7 @@ export function Dashboard() {
     <div className="flex flex-col gap-4">
       <StreamIndicator status={streamStatus} />
       <UsageBanner usage={usage} />
+      <HistoryTotals runs={state.runs} />
       <table className="w-full text-sm">
         <thead className="text-left text-slate-400 border-b border-slate-800">
           <tr>
@@ -71,6 +72,8 @@ export function Dashboard() {
             <th className="py-2 pr-4">Title</th>
             <th className="py-2 pr-4">Status</th>
             <th className="py-2 pr-4">Scenario</th>
+            <th className="py-2 pr-4">Tokens</th>
+            <th className="py-2 pr-4">Cost</th>
             <th className="py-2 pr-4">Started</th>
             <th className="py-2 pr-4">Finished</th>
           </tr>
@@ -95,6 +98,15 @@ export function Dashboard() {
                 <StatusBadge status={r.status} />
               </td>
               <td className="py-2 pr-4 text-slate-400">{r.scenario ?? "—"}</td>
+              <td
+                className="py-2 pr-4 text-slate-400 font-mono tabular-nums"
+                title={formatTokenBreakdown(r)}
+              >
+                {formatTokenTotal(r)}
+              </td>
+              <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">
+                {formatCost(r.totalCostUsd)}
+              </td>
               <td className="py-2 pr-4 text-slate-400">{formatTs(r.startedAt)}</td>
               <td className="py-2 pr-4 text-slate-400">
                 {r.finishedAt ? formatTs(r.finishedAt) : "—"}
@@ -154,6 +166,77 @@ function StreamIndicator({ status }: { status: StreamStatus }) {
 function formatTs(ts: string): string {
   const d = new Date(ts);
   return d.toLocaleTimeString();
+}
+
+function sumTokens(r: ApiRun): number {
+  return (
+    (r.tokensInput ?? 0) +
+    (r.tokensOutput ?? 0) +
+    (r.tokensCacheRead ?? 0) +
+    (r.tokensCacheCreation ?? 0)
+  );
+}
+
+function hasUsage(r: ApiRun): boolean {
+  return (
+    r.tokensInput !== null ||
+    r.tokensOutput !== null ||
+    r.tokensCacheRead !== null ||
+    r.tokensCacheCreation !== null ||
+    r.totalCostUsd !== null
+  );
+}
+
+function formatTokenTotal(r: ApiRun): string {
+  if (!hasUsage(r)) return "—";
+  return formatTokenCount(sumTokens(r));
+}
+
+function formatTokenBreakdown(r: ApiRun): string {
+  if (!hasUsage(r)) return "no token usage recorded";
+  return [
+    `input ${formatTokenCount(r.tokensInput ?? 0)}`,
+    `output ${formatTokenCount(r.tokensOutput ?? 0)}`,
+    `cache read ${formatTokenCount(r.tokensCacheRead ?? 0)}`,
+    `cache create ${formatTokenCount(r.tokensCacheCreation ?? 0)}`,
+  ].join(" · ");
+}
+
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function formatCost(usd: number | null): string {
+  if (usd === null || !Number.isFinite(usd)) return "—";
+  if (usd === 0) return "$0";
+  if (usd < 0.01) return "<$0.01";
+  return `$${usd.toFixed(2)}`;
+}
+
+function HistoryTotals({ runs }: { runs: ApiRun[] }) {
+  const withUsage = runs.filter(hasUsage);
+  if (withUsage.length === 0) return null;
+  const totalTokens = withUsage.reduce((acc, r) => acc + sumTokens(r), 0);
+  const totalCost = withUsage.reduce((acc, r) => acc + (r.totalCostUsd ?? 0), 0);
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+      <span>
+        <span className="text-slate-500">runs with token data:</span>{" "}
+        <span className="font-mono text-slate-200">{withUsage.length}</span> /{" "}
+        <span className="font-mono">{runs.length}</span>
+      </span>
+      <span>
+        <span className="text-slate-500">total tokens:</span>{" "}
+        <span className="font-mono text-slate-200">{formatTokenCount(totalTokens)}</span>
+      </span>
+      <span>
+        <span className="text-slate-500">total cost:</span>{" "}
+        <span className="font-mono text-slate-200">{formatCost(totalCost)}</span>
+      </span>
+    </div>
+  );
 }
 
 function UsageBanner({ usage }: { usage: ApiUsage | null }) {

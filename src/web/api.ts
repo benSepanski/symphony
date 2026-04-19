@@ -7,6 +7,14 @@ export interface ApiRun {
   startedAt: string;
   finishedAt: string | null;
   scenario: string | null;
+  tokensInput: number | null;
+  tokensOutput: number | null;
+  tokensCacheRead: number | null;
+  tokensCacheCreation: number | null;
+  totalCostUsd: number | null;
+  authStatus: string | null;
+  startFiveHourUtil: number | null;
+  startSevenDayUtil: number | null;
 }
 
 export interface ApiTurn {

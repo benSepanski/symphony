@@ -411,4 +411,63 @@ describe("Orchestrator", () => {
     await orch.tick();
     expect(rendered[0]).toBe("Ticket BEN-1: Fix bug");
   });
+
+  it("records the starting usage snapshot + auth status on the run row", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const checker = {
+      check: async () => ({
+        fetchedAt: new Date().toISOString(),
+        fiveHour: { utilization: 0.4, resetsAt: "2099-01-01T00:00:00Z" },
+        sevenDay: { utilization: 0.1, resetsAt: "2099-01-07T00:00:00Z" },
+      }),
+    };
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      usageChecker: checker,
+      usageMinIntervalMs: 0,
+    });
+    await orch.tick();
+    const run = logger.listRuns()[0];
+    expect(run.authStatus).toBe("authenticated");
+    expect(run.startFiveHourUtil).toBeCloseTo(0.4);
+    expect(run.startSevenDayUtil).toBeCloseTo(0.1);
+  });
+
+  it("falls back to auth_status=unknown when no usage checker is configured", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const orch = new Orchestrator({ workflow: workflow(), tracker, agent, workspace, logger });
+    await orch.tick();
+    const run = logger.listRuns()[0];
+    expect(run.authStatus).toBe("unknown");
+    expect(run.startFiveHourUtil).toBeNull();
+    expect(run.startSevenDayUtil).toBeNull();
+  });
+
+  it("persists agent token usage on the run row when the session exposes it", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const originalStart = agent.startSession.bind(agent);
+    agent.startSession = async (ctx) => {
+      const session = await originalStart(ctx);
+      (session as { getTokenUsage?: () => unknown }).getTokenUsage = () => ({
+        inputTokens: 200,
+        outputTokens: 80,
+        cacheReadInputTokens: 40,
+        cacheCreationInputTokens: 10,
+        totalCostUsd: 0.05,
+      });
+      return session;
+    };
+    const orch = new Orchestrator({ workflow: workflow(), tracker, agent, workspace, logger });
+    await orch.tick();
+    const run = logger.listRuns()[0];
+    expect(run.tokensInput).toBe(200);
+    expect(run.tokensOutput).toBe(80);
+    expect(run.tokensCacheRead).toBe(40);
+    expect(run.tokensCacheCreation).toBe(10);
+    expect(run.totalCostUsd).toBeCloseTo(0.05);
+  });
 });

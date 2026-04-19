@@ -175,4 +175,43 @@ describe("SymphonyLogger", () => {
     const runId = logger.startRun({ issueId: "x", issueIdentifier: "BEN-X" });
     expect(logger.jsonlPath(runId)).toBe(join(dir, "logs", `${runId}.jsonl`));
   });
+
+  it("defaults history columns to null and persists them via updateRunUsage / start context", () => {
+    const runId = logger.startRun({ issueId: "x", issueIdentifier: "BEN-X" });
+    const before = logger.listRuns()[0];
+    expect(before.tokensInput).toBeNull();
+    expect(before.tokensOutput).toBeNull();
+    expect(before.totalCostUsd).toBeNull();
+    expect(before.authStatus).toBeNull();
+    expect(before.startFiveHourUtil).toBeNull();
+
+    logger.recordRunStartContext({
+      runId,
+      authStatus: "authenticated",
+      startFiveHourUtil: 0.42,
+      startSevenDayUtil: 0.11,
+    });
+    logger.updateRunUsage({
+      runId,
+      tokensInput: 1200,
+      tokensOutput: 340,
+      tokensCacheRead: 500,
+      tokensCacheCreation: 60,
+      totalCostUsd: 0.0123,
+    });
+
+    const after = logger.listRuns()[0];
+    expect(after.tokensInput).toBe(1200);
+    expect(after.tokensOutput).toBe(340);
+    expect(after.tokensCacheRead).toBe(500);
+    expect(after.tokensCacheCreation).toBe(60);
+    expect(after.totalCostUsd).toBeCloseTo(0.0123);
+    expect(after.authStatus).toBe("authenticated");
+    expect(after.startFiveHourUtil).toBeCloseTo(0.42);
+    expect(after.startSevenDayUtil).toBeCloseTo(0.11);
+
+    const jsonlEvents = readJsonl(logger.jsonlPath(runId)).map((e) => e.event_type);
+    expect(jsonlEvents).toContain("run_start_context");
+    expect(jsonlEvents).toContain("run_token_usage");
+  });
 });
