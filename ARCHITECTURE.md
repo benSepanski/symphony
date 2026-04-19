@@ -76,6 +76,7 @@ is described in a dedicated product spec under
 | Workspace    | `src/workspace/`                    | [`docs/product-specs/isolated-runs.md`](docs/product-specs/isolated-runs.md)   | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
 | Orchestrator | `src/orchestrator.ts`, `src/cli.ts` | [`docs/product-specs/orchestrator.md`](docs/product-specs/orchestrator.md)     | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
 | Dashboard    | `src/api/`, `src/web/`              | [`docs/product-specs/live-dashboard.md`](docs/product-specs/live-dashboard.md) | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
+| Usage        | `src/usage/`                        | [`docs/product-specs/usage.md`](docs/product-specs/usage.md)                   | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
 
 ---
 
