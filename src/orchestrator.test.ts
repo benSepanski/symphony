@@ -368,8 +368,10 @@ describe("Orchestrator", () => {
     let calls = 0;
     const checker = {
       check: async () => {
-        const utilization = calls === 0 ? 0 : 1.0;
         calls += 1;
+        // Stay under the cap for the tick-level + pre-spawn checks; trip on the
+        // post-failure force-refresh so the catch block flags the run as rate_limited.
+        const utilization = calls >= 3 ? 1.0 : 0;
         return {
           fetchedAt: new Date().toISOString(),
           fiveHour: { utilization, resetsAt: "2099-01-01T00:00:00Z" },
@@ -391,7 +393,40 @@ describe("Orchestrator", () => {
     expect(run.status).toBe("rate_limited");
     const eventTypes = logger.listEvents(run.id).map((e) => e.eventType);
     expect(eventTypes).toContain("rate_limited");
+    expect(calls).toBeGreaterThanOrEqual(3);
+  });
+
+  it("aborts the spawn (no run row) when rate-limit appears between tick and launch", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    let calls = 0;
+    const checker = {
+      check: async () => {
+        calls += 1;
+        // tick-level refresh sees clean usage; the pre-spawn force-refresh trips.
+        // A "test launch" that would only fail on first contact must not persist
+        // a run row or count against turn metrics.
+        const utilization = calls >= 2 ? 1.0 : 0;
+        return {
+          fetchedAt: new Date().toISOString(),
+          fiveHour: { utilization, resetsAt: "2099-01-01T00:00:00Z" },
+          sevenDay: { utilization: 0, resetsAt: "2099-01-07T00:00:00Z" },
+        };
+      },
+    };
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      usageChecker: checker,
+      usageMinIntervalMs: 0,
+    });
+    await orch.tick();
+    expect(logger.listRuns()).toHaveLength(0);
+    expect(orch.getUsage().rateLimitedWindow).toBe("fiveHour");
     expect(calls).toBeGreaterThanOrEqual(2);
+    expect(existsSync(join(dir, "worktrees", "BEN-1"))).toBe(false);
   });
 
   it("reports orchestrator state: poll interval, queue depth, concurrency, lastTickAt", async () => {
