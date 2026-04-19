@@ -249,7 +249,23 @@ export class Orchestrator extends EventEmitter {
 
   async runIssue(issue: Issue): Promise<void> {
     if (this.claimed.has(issue.id)) return;
+    // Read through locals so the control-flow narrowing here does not leak into
+    // the catch block below, which re-checks this.lastRateLimitWindow after a
+    // failure to flag the run as rate_limited.
+    const cachedRateLimit = this.lastRateLimitWindow;
+    if (cachedRateLimit) return;
     this.claimed.add(issue.id);
+
+    // Re-check usage right before spawning so a rate limit that appeared after the
+    // tick-level cache read does not turn into a "test launch" — a run that exists
+    // in history only because the agent failed on its first call. Such launches
+    // pollute turn counts and per-issue history without representing real work.
+    await this.refreshUsage(true);
+    const freshRateLimit = this.lastRateLimitWindow;
+    if (freshRateLimit) {
+      this.claimed.delete(issue.id);
+      return;
+    }
     let runId: string | null = null;
     let workspaceCreated = false;
     let session: import("./agent/types.js").AgentSession | null = null;
