@@ -7,6 +7,7 @@ import type { WorkspaceManager } from "./workspace/manager.js";
 import type { SymphonyLogger } from "./persistence/logger.js";
 import type { UsageChecker, UsageSnapshot } from "./usage/types.js";
 import { rateLimitedWindow } from "./usage/types.js";
+import type { SelfUpdateResult, SelfUpdater } from "./self-update/types.js";
 
 export interface OrchestratorOptions {
   workflow: ParsedWorkflow;
@@ -17,6 +18,7 @@ export interface OrchestratorOptions {
   scenarioFor?: (issue: Issue) => string | undefined;
   usageChecker?: UsageChecker;
   usageMinIntervalMs?: number;
+  selfUpdater?: SelfUpdater;
 }
 
 export interface UsageUpdatedEvent {
@@ -40,6 +42,14 @@ export interface RunFinishedEvent {
   issue: Issue;
   status: "completed" | "max_turns" | "failed" | "cancelled" | "rate_limited";
   error?: Error;
+}
+
+export interface SelfUpdatedEvent {
+  result: SelfUpdateResult;
+}
+
+export interface SelfUpdateErrorEvent {
+  error: Error;
 }
 
 export type PollingMode = "auto" | "manual";
@@ -71,6 +81,8 @@ export class Orchestrator extends EventEmitter {
   private readonly scenarioFor?: (issue: Issue) => string | undefined;
   private readonly usageChecker?: UsageChecker;
   private readonly usageMinIntervalMs: number;
+  private readonly selfUpdater?: SelfUpdater;
+  private lastSelfUpdate: SelfUpdateResult | null = null;
   private readonly claimed = new Set<string>();
   private pollTimer: NodeJS.Timeout | null = null;
   private shuttingDown = false;
@@ -97,6 +109,7 @@ export class Orchestrator extends EventEmitter {
     this.scenarioFor = options.scenarioFor;
     this.usageChecker = options.usageChecker;
     this.usageMinIntervalMs = options.usageMinIntervalMs ?? 30_000;
+    this.selfUpdater = options.selfUpdater;
     this.pollIntervalMs = options.workflow.config.polling.interval_ms;
     this.maxConcurrentAgents = options.workflow.config.agent.max_concurrent_agents;
     this.maxTurns = options.workflow.config.agent.max_turns;
@@ -105,6 +118,10 @@ export class Orchestrator extends EventEmitter {
 
   getUsage(): UsageUpdatedEvent {
     return { snapshot: this.lastUsage, rateLimitedWindow: this.lastRateLimitWindow };
+  }
+
+  getLastSelfUpdate(): SelfUpdateResult | null {
+    return this.lastSelfUpdate;
   }
 
   getState(): OrchestratorState {
@@ -222,6 +239,7 @@ export class Orchestrator extends EventEmitter {
       this.emit("tick", this.getState());
       return;
     }
+    await this.runSelfUpdate();
     const issues = await this.tracker.fetchCandidateIssues();
     const capacity = this.maxConcurrentAgents - this.claimed.size;
     const available = issues.filter((i) => !this.claimed.has(i.id));
@@ -231,6 +249,18 @@ export class Orchestrator extends EventEmitter {
     this.lastTickAt = Date.now();
     this.emit("tick", this.getState());
     await Promise.all(started);
+  }
+
+  private async runSelfUpdate(): Promise<void> {
+    if (!this.selfUpdater) return;
+    try {
+      const result = await this.selfUpdater.maybeFetch();
+      if (!result) return;
+      this.lastSelfUpdate = result;
+      this.emit("selfUpdated", { result } satisfies SelfUpdatedEvent);
+    } catch (err) {
+      this.emit("selfUpdateError", { error: err as Error } satisfies SelfUpdateErrorEvent);
+    }
   }
 
   private async refreshUsage(force = false): Promise<void> {

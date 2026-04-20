@@ -78,6 +78,7 @@ pins and framework snippets.
 - `src/api/` — Hono server (`/api/runs`, `/api/events` SSE, `/api/search`).
 - `src/web/` — Vite + React + Tailwind dashboard.
 - `src/eval/` — scenario-based regression eval (green as part of `pnpm all`).
+- `src/self-update/` — optional `git fetch origin/main` from the poll loop. See [`docs/design-docs/self-update.md`](docs/design-docs/self-update.md).
 - `fixtures/scenarios/` — YAML-scripted mock runs.
 - `prompts/` — versioned prompt templates referenced from `WORKFLOW.md`.
 

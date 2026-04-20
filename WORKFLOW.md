@@ -49,6 +49,14 @@ mock:
   scenarios_dir: fixtures/scenarios
   assignment: round_robin
   default_scenario: happy-path
+# Opt-in self-update: the orchestrator `git fetch`es the repo at most
+# once per `min_interval_ms` so new worktrees branch off fresh
+# origin/main. See docs/design-docs/self-update.md.
+# self_update:
+#   enabled: true
+#   repo_path: ~/myGithubProjects/symphony
+#   branch: main
+#   min_interval_ms: 600000
 prompt: prompts/harness-v1.md
 ---
 

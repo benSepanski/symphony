@@ -600,4 +600,92 @@ describe("Orchestrator", () => {
     await orch.tick();
     expect(rendered[0]).toBe("Ticket BEN-1: Fix bug");
   });
+
+  it("invokes the self updater at tick start and emits selfUpdated", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const result = {
+      repoPath: "/repo",
+      branch: "main",
+      headBefore: "a",
+      headAfter: "b",
+      changed: true,
+      fetchedAt: "2026-04-20T00:00:00.000Z",
+    };
+    let calls = 0;
+    const selfUpdater = {
+      maybeFetch: async () => {
+        calls += 1;
+        return result;
+      },
+    };
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      selfUpdater,
+    });
+    const events: Array<{ changed: boolean }> = [];
+    orch.on("selfUpdated", (e: { result: { changed: boolean } }) =>
+      events.push({ changed: e.result.changed }),
+    );
+    await orch.tick();
+    expect(calls).toBe(1);
+    expect(events).toEqual([{ changed: true }]);
+    expect(orch.getLastSelfUpdate()).toEqual(result);
+  });
+
+  it("emits selfUpdateError when the updater throws and continues the tick", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    const selfUpdater = {
+      maybeFetch: async () => {
+        throw new Error("git unavailable");
+      },
+    };
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      selfUpdater,
+    });
+    const errors: Error[] = [];
+    orch.on("selfUpdateError", (e: { error: Error }) => errors.push(e.error));
+    await orch.tick();
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe("git unavailable");
+    expect(logger.listRuns()).toHaveLength(1);
+  });
+
+  it("skips the self updater when the orchestrator is rate-limited", async () => {
+    const agent = new MockAgent({ scenarios: [HAPPY], sleep: async () => {} });
+    let selfUpdateCalls = 0;
+    const selfUpdater = {
+      maybeFetch: async () => {
+        selfUpdateCalls += 1;
+        return null;
+      },
+    };
+    const checker = {
+      check: async () => ({
+        fetchedAt: new Date().toISOString(),
+        fiveHour: { utilization: 1.0, resetsAt: "2099-01-01T00:00:00Z" },
+        sevenDay: { utilization: 0, resetsAt: "2099-01-07T00:00:00Z" },
+      }),
+    };
+    const orch = new Orchestrator({
+      workflow: workflow(),
+      tracker,
+      agent,
+      workspace,
+      logger,
+      usageChecker: checker,
+      usageMinIntervalMs: 0,
+      selfUpdater,
+    });
+    await orch.tick();
+    expect(selfUpdateCalls).toBe(0);
+  });
 });
