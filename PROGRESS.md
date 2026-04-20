@@ -119,3 +119,7 @@ moves, roughly in priority order, for a future context:
 - **2026-04-18** — ClaudeCodeAgent spawns `claude --output-format
 stream-json --print` and surfaces assistant / tool_result messages
   as AgentTurns through a promise-resolver queue.
+- **2026-04-20** — Optional `self_update` block on `WorkflowConfigSchema`
+  enables a throttled `git fetch origin/main` from the poll loop.
+  Fetch-only by design (worktrees track agent branches, not `main`).
+  See [`docs/design-docs/self-update.md`](docs/design-docs/self-update.md).
