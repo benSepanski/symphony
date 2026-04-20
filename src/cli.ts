@@ -17,6 +17,8 @@ import { MemoryTracker } from "./tracker/memory.js";
 import type { Issue, Tracker } from "./tracker/types.js";
 import { ClaudeOAuthUsageChecker } from "./usage/claude-oauth.js";
 import type { UsageChecker } from "./usage/types.js";
+import { GitSelfUpdater } from "./self-update/git-updater.js";
+import type { SelfUpdater } from "./self-update/types.js";
 import { WorkspaceManager } from "./workspace/manager.js";
 
 const DEMO_ISSUES: Issue[] = [
@@ -76,6 +78,7 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
   let agent: Agent;
   let modeLabel: string;
   let usageChecker: UsageChecker | undefined;
+  let selfUpdater: SelfUpdater | undefined;
 
   if (isMock) {
     const seedIssues = seedPath ? loadSeedIssues(resolve(seedPath)) : noDemo ? [] : DEMO_ISSUES;
@@ -110,6 +113,20 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
     modeLabel = "real mode (Linear + claude)";
   }
 
+  if (workflow.config.self_update?.enabled) {
+    const cfg = workflow.config.self_update;
+    const repoPath = cfg.repo_path
+      ? cfg.repo_path.startsWith("~") || cfg.repo_path.startsWith("/")
+        ? cfg.repo_path
+        : resolve(cfg.repo_path)
+      : process.cwd();
+    selfUpdater = new GitSelfUpdater({
+      repoPath,
+      branch: cfg.branch,
+      minIntervalMs: cfg.min_interval_ms,
+    });
+  }
+
   const workspaceRoot =
     workflow.config.workspace.root.startsWith("~") || workflow.config.workspace.root.startsWith("/")
       ? workflow.config.workspace.root
@@ -131,10 +148,19 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
     workspace,
     logger,
     usageChecker,
+    selfUpdater,
   });
 
   orchestrator.on("error", (err: Error) => {
     console.error("[orchestrator]", err);
+  });
+  orchestrator.on("selfUpdated", (e: { result: { branch: string; changed: boolean } }) => {
+    console.log(
+      `[self-update] fetched origin/${e.result.branch}${e.result.changed ? " — remote advanced" : " — no change"}`,
+    );
+  });
+  orchestrator.on("selfUpdateError", (e: { error: Error }) => {
+    console.warn("[self-update]", e.error.message);
   });
 
   const app = createServer({

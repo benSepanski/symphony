@@ -169,4 +169,62 @@ prompt: does-not-exist.md
 `;
     expect(() => parseWorkflowString(source, { baseDir: dir })).toThrow(WorkflowParseError);
   });
+
+  it("accepts a self_update block with defaults", () => {
+    const src = `---
+tracker:
+  kind: memory
+  project_slug: "test"
+  active_states: [Todo]
+  terminal_states: [Done]
+polling:
+  interval_ms: 1000
+workspace:
+  root: /tmp
+agent:
+  kind: mock
+self_update:
+  enabled: true
+---
+
+body
+`;
+    const { config } = parseWorkflowString(src);
+    expect(config.self_update).toEqual({
+      enabled: true,
+      branch: "main",
+      min_interval_ms: 600_000,
+    });
+  });
+
+  it("accepts a self_update block with explicit overrides", () => {
+    const src = `---
+tracker:
+  kind: memory
+  project_slug: "test"
+  active_states: [Todo]
+  terminal_states: [Done]
+polling:
+  interval_ms: 1000
+workspace:
+  root: /tmp
+agent:
+  kind: mock
+self_update:
+  enabled: true
+  repo_path: ~/code/symphony
+  branch: develop
+  min_interval_ms: 60000
+---
+
+body
+`;
+    const { config } = parseWorkflowString(src);
+    expect(config.self_update).toEqual({
+      enabled: true,
+      repo_path: "~/code/symphony",
+      branch: "develop",
+      min_interval_ms: 60_000,
+    });
+  });
 });

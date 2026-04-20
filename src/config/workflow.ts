@@ -43,6 +43,14 @@ export const WorkflowConfigSchema = z.object({
       default_scenario: z.string().optional(),
     })
     .optional(),
+  self_update: z
+    .object({
+      enabled: z.boolean().default(false),
+      repo_path: z.string().optional(),
+      branch: z.string().default("main"),
+      min_interval_ms: z.number().int().positive().default(600_000),
+    })
+    .optional(),
   prompt: z.string().optional(),
 });
 
