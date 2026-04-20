@@ -73,6 +73,7 @@ pins and framework snippets.
 - `src/tracker/` — `LinearTracker` + `MemoryTracker`. See [`docs/design-docs/tracker-abstraction.md`](docs/design-docs/tracker-abstraction.md).
 - `src/agent/` — `ClaudeCodeAgent` + `MockAgent`. See [`docs/design-docs/mock-first-development.md`](docs/design-docs/mock-first-development.md).
 - `src/workspace/` — git worktree manager + safety checks on issue identifiers.
+- `src/usage/` — rate limit monitoring via Claude Code OAuth endpoint. See [`docs/product-specs/usage.md`](docs/product-specs/usage.md).
 - `src/orchestrator.ts` — the poll loop, concurrency, state transitions.
 - `src/persistence/` — Drizzle schema + `SymphonyLogger` (dual SQLite + JSONL).
 - `src/api/` — Hono server (`/api/runs`, `/api/events` SSE, `/api/search`).

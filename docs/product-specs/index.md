@@ -19,6 +19,7 @@ Domain boundaries are enumerated in [`../../ARCHITECTURE.md`](../../ARCHITECTURE
 | [`live-dashboard.md`](live-dashboard.md) | `src/api/` + `src/web/`                                    | See [`../QUALITY_SCORE.md`](../QUALITY_SCORE.md) |
 | [`replay.md`](replay.md)                 | `src/replay.ts`                                            | —                                                |
 | [`search.md`](search.md)                 | `src/persistence/logger.ts::search` + `src/web/Search.tsx` | —                                                |
+| [`usage.md`](usage.md)                   | `src/usage/`                                               | —                                                |
 | [`mock-mode.md`](mock-mode.md)           | `src/agent/mock.ts` + `src/tracker/memory.ts`              | —                                                |
 
 ## Template
