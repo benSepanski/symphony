@@ -3,7 +3,12 @@ import { PassThrough } from "node:stream";
 import type { ChildProcess } from "node:child_process";
 import type { SpawnOptions } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
-import { ClaudeCodeAgent, toAgentTurn } from "./claude-code.js";
+import {
+  ClaudeCodeAgent,
+  extractResultUsage,
+  mergeTokenUsage,
+  toAgentTurn,
+} from "./claude-code.js";
 
 class FakeChild extends EventEmitter {
   stdout = new PassThrough();
@@ -73,6 +78,75 @@ describe("toAgentTurn", () => {
   });
 });
 
+describe("extractResultUsage", () => {
+  it("returns null for non-result messages", () => {
+    expect(extractResultUsage({ type: "assistant" })).toBeNull();
+    expect(extractResultUsage(null)).toBeNull();
+  });
+
+  it("extracts all four token counts and cost from a result message", () => {
+    const usage = extractResultUsage({
+      type: "result",
+      usage: {
+        input_tokens: 12,
+        output_tokens: 34,
+        cache_read_input_tokens: 56,
+        cache_creation_input_tokens: 78,
+      },
+      total_cost_usd: 1.23,
+    });
+    expect(usage).toEqual({
+      inputTokens: 12,
+      outputTokens: 34,
+      cacheReadInputTokens: 56,
+      cacheCreationInputTokens: 78,
+      totalCostUsd: 1.23,
+    });
+  });
+
+  it("treats missing counts as zero rather than rejecting the message", () => {
+    const usage = extractResultUsage({
+      type: "result",
+      total_cost_usd: 0.5,
+    });
+    expect(usage).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheCreationInputTokens: 0,
+      totalCostUsd: 0.5,
+    });
+  });
+});
+
+describe("mergeTokenUsage", () => {
+  it("sums every token bucket and cost across result messages", () => {
+    const merged = mergeTokenUsage(
+      {
+        inputTokens: 1,
+        outputTokens: 2,
+        cacheReadInputTokens: 3,
+        cacheCreationInputTokens: 4,
+        totalCostUsd: 0.1,
+      },
+      {
+        inputTokens: 10,
+        outputTokens: 20,
+        cacheReadInputTokens: 30,
+        cacheCreationInputTokens: 40,
+        totalCostUsd: 0.9,
+      },
+    );
+    expect(merged).toEqual({
+      inputTokens: 11,
+      outputTokens: 22,
+      cacheReadInputTokens: 33,
+      cacheCreationInputTokens: 44,
+      totalCostUsd: 1.0,
+    });
+  });
+});
+
 describe("ClaudeCodeAgent", () => {
   it("spawns claude with the configured flags and prompt as argv", async () => {
     const { child, spawn } = fakeSpawn();
@@ -122,6 +196,38 @@ describe("ClaudeCodeAgent", () => {
     expect(a.content).toBe("first");
     expect(b.content).toBe("second");
     expect(session.isDone()).toBe(true);
+  });
+
+  it("exposes accumulated token usage from the stream's result messages", async () => {
+    const { child, spawn } = fakeSpawn();
+    const agent = new ClaudeCodeAgent({ spawn });
+    const session = await agent.startSession({ workdir: "/tmp", prompt: "go" });
+
+    child.pushLine({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "hi" }] },
+    });
+    child.pushLine({
+      type: "result",
+      subtype: "success",
+      usage: {
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_read_input_tokens: 30,
+        cache_creation_input_tokens: 10,
+      },
+      total_cost_usd: 0.0025,
+    });
+    child.close(0);
+    await session.runTurn();
+
+    expect(session.getTokenUsage?.()).toEqual({
+      inputTokens: 100,
+      outputTokens: 50,
+      cacheReadInputTokens: 30,
+      cacheCreationInputTokens: 10,
+      totalCostUsd: 0.0025,
+    });
   });
 
   it("rejects a pending runTurn if claude exits non-zero", async () => {

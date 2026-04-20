@@ -19,6 +19,12 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Checkpoint log (most recent first)
 
+History (BEN-32):
+
+- _this commit_ — Record per-run token usage + start-of-run auth/utilization
+  snapshot on `runs`; surface on dashboard + run detail; backfill existing DBs
+  via `ALTER TABLE ADD COLUMN` on boot.
+
 Real-agent mode:
 
 - `f92eb08` — Pin the LinearTracker empty-apiKey guard in tests.

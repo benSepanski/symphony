@@ -1,7 +1,7 @@
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import type { Agent, AgentSession, AgentStartContext, AgentTurn } from "./types.js";
+import type { Agent, AgentSession, AgentStartContext, AgentTurn, TokenUsage } from "./types.js";
 
 export type SpawnFn = (cmd: string, args: string[], opts: SpawnOptions) => ChildProcess;
 
@@ -55,6 +55,7 @@ class ClaudeCodeAgentSession implements AgentSession {
   private streamClosed = false;
   private exitError: Error | null = null;
   private stderrBuffer = "";
+  private tokenUsage: TokenUsage | null = null;
 
   constructor(private readonly child: ChildProcess) {
     const stdout = child.stdout as Readable | null;
@@ -131,9 +132,15 @@ class ClaudeCodeAgentSession implements AgentSession {
     }
     const turn = toAgentTurn(parsed);
     if (turn) this.deliver(turn);
+    const usage = extractResultUsage(parsed);
+    if (usage) this.tokenUsage = mergeTokenUsage(this.tokenUsage, usage);
     if (isResultMessage(parsed)) {
       this.closeStream();
     }
+  }
+
+  getTokenUsage(): TokenUsage | null {
+    return this.tokenUsage;
   }
 
   private deliver(turn: AgentTurn): void {
@@ -173,6 +180,39 @@ interface StreamMessage {
 
 function isResultMessage(raw: unknown): boolean {
   return typeof raw === "object" && raw !== null && (raw as { type?: string }).type === "result";
+}
+
+export function extractResultUsage(raw: unknown): TokenUsage | null {
+  if (!isResultMessage(raw)) return null;
+  const r = raw as {
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      cache_read_input_tokens?: number;
+      cache_creation_input_tokens?: number;
+    };
+    total_cost_usd?: number;
+  };
+  const u = r.usage;
+  if (!u && r.total_cost_usd === undefined) return null;
+  return {
+    inputTokens: Number(u?.input_tokens ?? 0),
+    outputTokens: Number(u?.output_tokens ?? 0),
+    cacheReadInputTokens: Number(u?.cache_read_input_tokens ?? 0),
+    cacheCreationInputTokens: Number(u?.cache_creation_input_tokens ?? 0),
+    totalCostUsd: Number(r.total_cost_usd ?? 0),
+  };
+}
+
+export function mergeTokenUsage(a: TokenUsage | null, b: TokenUsage): TokenUsage {
+  if (!a) return b;
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheReadInputTokens: a.cacheReadInputTokens + b.cacheReadInputTokens,
+    cacheCreationInputTokens: a.cacheCreationInputTokens + b.cacheCreationInputTokens,
+    totalCostUsd: a.totalCostUsd + b.totalCostUsd,
+  };
 }
 
 export function toAgentTurn(raw: unknown): AgentTurn | null {

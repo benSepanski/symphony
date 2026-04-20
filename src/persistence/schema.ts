@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
 export const runs = sqliteTable("runs", {
   id: text("id").primaryKey(),
@@ -11,6 +11,14 @@ export const runs = sqliteTable("runs", {
   scenario: text("scenario"),
   promptVersion: text("prompt_version"),
   promptSource: text("prompt_source"),
+  tokensInput: integer("tokens_input"),
+  tokensOutput: integer("tokens_output"),
+  tokensCacheRead: integer("tokens_cache_read"),
+  tokensCacheCreation: integer("tokens_cache_creation"),
+  totalCostUsd: real("total_cost_usd"),
+  authStatus: text("auth_status"),
+  startFiveHourUtil: real("start_five_hour_util"),
+  startSevenDayUtil: real("start_seven_day_util"),
 });
 
 export const turns = sqliteTable("turns", {
@@ -50,7 +58,15 @@ CREATE TABLE IF NOT EXISTS runs (
   finished_at TEXT,
   scenario TEXT,
   prompt_version TEXT,
-  prompt_source TEXT
+  prompt_source TEXT,
+  tokens_input INTEGER,
+  tokens_output INTEGER,
+  tokens_cache_read INTEGER,
+  tokens_cache_creation INTEGER,
+  total_cost_usd REAL,
+  auth_status TEXT,
+  start_five_hour_util REAL,
+  start_seven_day_util REAL
 );
 
 CREATE TABLE IF NOT EXISTS turns (
@@ -78,3 +94,17 @@ CREATE TABLE IF NOT EXISTS log_events (
 CREATE INDEX IF NOT EXISTS idx_turns_run_id ON turns(run_id);
 CREATE INDEX IF NOT EXISTS idx_log_events_run_id ON log_events(run_id);
 `;
+
+// Columns added after the first schema was shipped. `runs` rows written before
+// these landed will have NULL in the new columns. Applied best-effort on every
+// boot so upgrades don't require a manual migration step.
+export const RUN_COLUMN_MIGRATIONS: ReadonlyArray<{ name: string; sql: string }> = [
+  { name: "tokens_input", sql: "INTEGER" },
+  { name: "tokens_output", sql: "INTEGER" },
+  { name: "tokens_cache_read", sql: "INTEGER" },
+  { name: "tokens_cache_creation", sql: "INTEGER" },
+  { name: "total_cost_usd", sql: "REAL" },
+  { name: "auth_status", sql: "TEXT" },
+  { name: "start_five_hour_util", sql: "REAL" },
+  { name: "start_seven_day_util", sql: "REAL" },
+];
