@@ -10,7 +10,7 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Gate status
 
-- `pnpm all` — green. 72 unit tests + 5 eval scenarios.
+- `pnpm all` — green. 110 unit tests + 5 eval scenarios.
 - `pnpm dev WORKFLOW.md --mock` — full mock run with live dashboard.
 - `pnpm build:web` — produces `dist/web`, served by Hono at `/`.
 - `symphony replay <run_id>` — replays any recorded run over SSE.
@@ -76,14 +76,9 @@ moves, roughly in priority order, for a future context:
    (empty/live/failed/past), capture screenshots into
    `.github/media/`, and file layout/contrast/keyboard-nav friction
    as it's observed.
-3. **Leftover worktrees cleanup.** `worktrees/BEN-*` are registered
-   git worktrees from the old Elixir runs. Removing them is
-   destructive and would delete `agent/ben-*` branches — decide
-   whether to keep them as archive or drop them all via
-   `git worktree remove && git branch -D`.
-4. **Log rotation.** Deferred Phase 3 item. Revisit if
+3. **Log rotation.** Deferred Phase 3 item. Revisit if
    `.symphony/logs/` grows uncomfortably large in real use.
-5. **Web-ui component tests.** Adding `@testing-library/react` +
+4. **Web-ui component tests.** Adding `@testing-library/react` +
    `jsdom` would let us pin the dashboard + run-detail rendering
    contract. Currently we only assert via the API layer.
 
