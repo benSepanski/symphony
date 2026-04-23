@@ -13,9 +13,12 @@ architecture early so throughput can scale without drift.
 
 ## The layers
 
-Symphony code flows through exactly six layers. Dependencies point **forward
-only**. A module in a later layer may import from any earlier layer; earlier
-layers **must not** import from later layers.
+Symphony code flows through exactly seven layers. Dependencies point
+**forward only**. A module in a later layer may import from any earlier
+layer; earlier layers **must not** import from later layers. This rule is
+enforced automatically by [`src/arch.test.ts`](src/arch.test.ts) — add a
+file, move one, or wire a new import and the test will tell you whether
+the edge is legal.
 
 ```
  ┌───────────────────────────────────────────────────────────────────────┐
@@ -26,17 +29,18 @@ layers **must not** import from later layers.
  │  Providers (cross-cutting: spawn, fetch, Database, clock, randomUUID) │
  └──────────────────────────┬────────────────────────────────────────────┘
                             │
-   Types ─► Config ─► Persistence ─► Service ─► Runtime ─► API/Web
+   Types ─► Config ─► Persistence ─► Service ─► Runtime ─► API/Web ─► Entry
 ```
 
-| Layer           | Purpose                                                           | Example modules                                                                                                                                                  |
-| --------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Types**       | Plain data shapes + zero-dependency interfaces.                   | [`src/agent/types.ts`](src/agent/types.ts), [`src/tracker/types.ts`](src/tracker/types.ts)                                                                       |
-| **Config**      | Parses declarative input (`WORKFLOW.md`, prompt front matter).    | [`src/config/workflow.ts`](src/config/workflow.ts)                                                                                                               |
-| **Persistence** | Owns the schema + dual-write logger (SQLite + JSONL).             | [`src/persistence/schema.ts`](src/persistence/schema.ts), [`src/persistence/logger.ts`](src/persistence/logger.ts)                                               |
-| **Service**     | One-per-capability adapters behind the Types interfaces.          | [`src/tracker/linear.ts`](src/tracker/linear.ts), [`src/agent/claude-code.ts`](src/agent/claude-code.ts), [`src/workspace/manager.ts`](src/workspace/manager.ts) |
-| **Runtime**     | The orchestration kernel: poll loop, retry, cancellation, replay. | [`src/orchestrator.ts`](src/orchestrator.ts), [`src/replay.ts`](src/replay.ts), [`src/cli.ts`](src/cli.ts)                                                       |
-| **API / Web**   | Outside-world surfaces: Hono REST + SSE, React dashboard.         | [`src/api/server.ts`](src/api/server.ts), [`src/web/*`](src/web/)                                                                                                |
+| Layer           | Purpose                                                                                     | Example modules                                                                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Types**       | Plain data shapes + zero-dependency interfaces.                                             | [`src/agent/types.ts`](src/agent/types.ts), [`src/tracker/types.ts`](src/tracker/types.ts)                                                                       |
+| **Config**      | Parses declarative input (`WORKFLOW.md`, prompt front matter).                              | [`src/config/workflow.ts`](src/config/workflow.ts)                                                                                                               |
+| **Persistence** | Owns the schema + dual-write logger (SQLite + JSONL).                                       | [`src/persistence/schema.ts`](src/persistence/schema.ts), [`src/persistence/logger.ts`](src/persistence/logger.ts)                                               |
+| **Service**     | One-per-capability adapters behind the Types interfaces.                                    | [`src/tracker/linear.ts`](src/tracker/linear.ts), [`src/agent/claude-code.ts`](src/agent/claude-code.ts), [`src/workspace/manager.ts`](src/workspace/manager.ts) |
+| **Runtime**     | The orchestration kernel: poll loop, retry, cancellation, replay.                           | [`src/orchestrator.ts`](src/orchestrator.ts), [`src/replay.ts`](src/replay.ts), [`src/index.ts`](src/index.ts), [`src/eval/`](src/eval/)                         |
+| **API / Web**   | Outside-world surfaces: Hono REST + SSE, React dashboard.                                   | [`src/api/server.ts`](src/api/server.ts), [`src/web/*`](src/web/)                                                                                                |
+| **Entry**       | Composition root — wires providers, services, runtime, and the HTTP / UI surfaces together. | [`src/cli.ts`](src/cli.ts)                                                                                                                                       |
 
 ### Providers
 

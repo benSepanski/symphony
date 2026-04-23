@@ -16,10 +16,10 @@ marked _review_ are not yet mechanized; file a tech-debt row to automate them.
 ## Architecture
 
 1. **Layer direction is forward-only.**
-   Enforcement: review + static graph check in
-   `src/orchestrator.test.ts` / `tests/arch.test.ts`. Imports across
-   `Types → Config → Persistence → Service → Runtime → API` only point
-   downstream.
+   Enforcement: automatic via [`src/arch.test.ts`](../../src/arch.test.ts).
+   Imports across `Types → Config → Persistence → Service → Runtime → API/Web → Entry`
+   only point downstream. The composition root (`src/cli.ts`) is the sole
+   Entry-layer file and is the only module permitted to import from API/Web.
 
 2. **Providers through injection only.**
    Enforcement: review. Any `spawn`, `fetch`, `Database`, clock, or RNG
