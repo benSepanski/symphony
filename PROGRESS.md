@@ -19,9 +19,16 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Checkpoint log (most recent first)
 
+Architecture (BEN-27):
+
+- _this commit_ — Automate golden-principle #1 ("Layer direction is forward-only")
+  via [`src/arch.test.ts`](src/arch.test.ts). Adds an explicit **Entry** layer
+  (composition root, `src/cli.ts`) above API/Web so the composition root can
+  legally import the HTTP server. Docs refreshed; tech-debt row resolved.
+
 History (BEN-32):
 
-- _this commit_ — Record per-run token usage + start-of-run auth/utilization
+- _earlier_ — Record per-run token usage + start-of-run auth/utilization
   snapshot on `runs`; surface on dashboard + run detail; backfill existing DBs
   via `ALTER TABLE ADD COLUMN` on boot.
 
