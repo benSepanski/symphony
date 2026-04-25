@@ -59,6 +59,12 @@ High-level:
 - Max turns is a hard ceiling; exceeding it sets status `max_turns`.
 - SIGINT → status `cancelled` (a distinct terminal from `failed`).
 - Every turn's rendered prompt is persisted on its row.
+- A run that finalizes with `max_turns` or `failed` posts a single
+  `## Symphony auto-pause` comment on the issue summarizing the cause
+  and nudging the human to break the work into sub-issues. Failures to
+  post surface as `breakdown_comment_error` events; the run still
+  finishes normally. See
+  [`../design-docs/breakdown-nudge.md`](../design-docs/breakdown-nudge.md).
 
 ## Configuration (WORKFLOW.md)
 
@@ -91,3 +97,7 @@ Documented in the execution model doc. Summary:
 
 - 2026-04-18 — Finalizer pattern: state + workspace cleanup in `finally`.
 - 2026-04-18 — New `cancelled` status for SIGINT drains.
+- 2026-04-25 — Breakdown nudge: `max_turns` / `failed` runs leave a single
+  Linear comment so the human can decide whether to split the work, instead
+  of a silent transition to `Blocked`. See
+  [`../design-docs/breakdown-nudge.md`](../design-docs/breakdown-nudge.md).

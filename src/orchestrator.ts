@@ -302,6 +302,7 @@ export class Orchestrator extends EventEmitter {
     let status: RunFinishedEvent["status"] = "completed";
     let finalState: string | undefined;
     let caughtError: Error | undefined;
+    let turnsTaken = 0;
 
     try {
       const initialPrompt = await this.renderPrompt(issue, 1);
@@ -341,8 +342,6 @@ export class Orchestrator extends EventEmitter {
         issueIdentifier: issue.identifier,
         labels: issue.labels,
       });
-
-      let turnsTaken = 0;
 
       while (!session.isDone()) {
         if (this.shuttingDown) {
@@ -449,6 +448,37 @@ export class Orchestrator extends EventEmitter {
         }
       }
 
+      if (status === "max_turns" || status === "failed") {
+        const body = renderBreakdownComment({
+          status,
+          turnsTaken,
+          maxTurns: this.maxTurns,
+          maxTurnsState: this.maxTurnsState,
+          runId,
+          error: caughtError,
+        });
+        try {
+          await this.tracker.addComment(issue.id, body);
+          if (runId) {
+            this.logger.logEvent({
+              runId,
+              eventType: "breakdown_comment_posted",
+              issueId: issue.id,
+              payload: { status, turnsTaken },
+            });
+          }
+        } catch (err) {
+          if (runId) {
+            this.logger.logEvent({
+              runId,
+              eventType: "breakdown_comment_error",
+              issueId: issue.id,
+              payload: { message: (err as Error).message },
+            });
+          }
+        }
+      }
+
       if (workspaceCreated) {
         try {
           await this.workspace.destroy(issue);
@@ -492,4 +522,41 @@ export class Orchestrator extends EventEmitter {
       attempt,
     });
   }
+}
+
+interface BreakdownContext {
+  status: "max_turns" | "failed";
+  turnsTaken: number;
+  maxTurns: number;
+  maxTurnsState: string;
+  runId: string | null;
+  error: Error | undefined;
+}
+
+function renderBreakdownComment(ctx: BreakdownContext): string {
+  const lines: string[] = ["## Symphony auto-pause"];
+  lines.push("");
+  if (ctx.status === "max_turns") {
+    lines.push(
+      `This run hit the **${ctx.maxTurns}-turn limit** after ${ctx.turnsTaken} turn(s). The harness has transitioned the issue to \`${ctx.maxTurnsState}\`.`,
+    );
+  } else {
+    const reason = ctx.error?.message?.trim();
+    lines.push(
+      `This run **failed** after ${ctx.turnsTaken} turn(s). The harness has transitioned the issue to \`${ctx.maxTurnsState}\`.`,
+    );
+    if (reason) {
+      lines.push("");
+      lines.push(`> ${reason.split("\n")[0].slice(0, 280)}`);
+    }
+  }
+  lines.push("");
+  lines.push(
+    "If the work is sprawling, **break it into smaller sub-issues** and link them back here. Otherwise, fix the underlying blocker (missing doc, fixture, lint, permission), then move the issue back to an active state to retry.",
+  );
+  if (ctx.runId) {
+    lines.push("");
+    lines.push(`Run id: \`${ctx.runId}\``);
+  }
+  return lines.join("\n");
 }

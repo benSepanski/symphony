@@ -286,6 +286,137 @@ describe("Orchestrator", () => {
     expect(logger.listRuns()).toHaveLength(1);
   });
 
+  it("posts a breakdown-nudge comment when a run hits max_turns", async () => {
+    const agent = new MockAgent({
+      scenarios: [NEVER_ENDING],
+      sleep: async () => {},
+    });
+    const orch = new Orchestrator({
+      workflow: workflow({
+        agent: {
+          kind: "mock",
+          max_concurrent_agents: 1,
+          max_turns: 3,
+          max_turns_state: "Blocked",
+        },
+      }),
+      tracker,
+      agent,
+      workspace,
+      logger,
+    });
+
+    await orch.tick();
+
+    const comments = tracker.getComments("i-1");
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatch(/^## Symphony auto-pause/);
+    expect(comments[0]).toMatch(/3-turn limit/);
+    expect(comments[0]).toMatch(/break it into smaller sub-issues/);
+
+    const run = logger.listRuns()[0];
+    const eventTypes = logger.listEvents(run.id).map((e) => e.eventType);
+    expect(eventTypes).toContain("breakdown_comment_posted");
+  });
+
+  it("posts a breakdown-nudge comment when a run fails mid-scenario", async () => {
+    const crashing: Scenario = {
+      name: "boom",
+      labels: [],
+      steps: [
+        { role: "assistant", content: "about to crash", delay_ms: 0 },
+        { role: "tool", content: "kaboom", delay_ms: 0, throw: true },
+      ],
+    };
+    const agent = new MockAgent({ scenarios: [crashing], sleep: async () => {} });
+    const orch = new Orchestrator({ workflow: workflow(), tracker, agent, workspace, logger });
+
+    await orch.tick();
+
+    const comments = tracker.getComments("i-1");
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatch(/\*\*failed\*\*/);
+    expect(comments[0]).toMatch(/kaboom/);
+  });
+
+  it("does not post a breakdown comment for cancelled or rate_limited runs", async () => {
+    const long: Scenario = {
+      name: "long",
+      labels: [],
+      steps: Array.from({ length: 20 }, (_, i) => ({
+        role: "assistant" as const,
+        content: `step ${i}`,
+        delay_ms: 0,
+      })),
+    };
+    const agent = new MockAgent({ scenarios: [long], sleep: async () => {} });
+    const orch = new Orchestrator({
+      workflow: workflow({
+        agent: {
+          kind: "mock",
+          max_concurrent_agents: 1,
+          max_turns: 100,
+          max_turns_state: "Blocked",
+        },
+      }),
+      tracker,
+      agent,
+      workspace,
+      logger,
+    });
+
+    let stopped = false;
+    orch.on("turn", () => {
+      if (!stopped) {
+        stopped = true;
+        void orch.stop();
+      }
+    });
+    await orch.tick();
+    await orch.stop();
+
+    const run = logger.listRuns()[0];
+    expect(run.status).toBe("cancelled");
+    expect(tracker.getComments("i-1")).toEqual([]);
+  });
+
+  it("logs a breakdown_comment_error when the tracker addComment throws", async () => {
+    class FailingCommentTracker extends MemoryTracker {
+      override async addComment(): Promise<void> {
+        throw new Error("linear 503");
+      }
+    }
+    const failing = new FailingCommentTracker({
+      activeStates: ["Todo", "In Progress"],
+      issues: [makeIssue()],
+    });
+    const agent = new MockAgent({
+      scenarios: [NEVER_ENDING],
+      sleep: async () => {},
+    });
+    const orch = new Orchestrator({
+      workflow: workflow({
+        agent: {
+          kind: "mock",
+          max_concurrent_agents: 1,
+          max_turns: 2,
+          max_turns_state: "Blocked",
+        },
+      }),
+      tracker: failing,
+      agent,
+      workspace,
+      logger,
+    });
+    await orch.tick();
+
+    const run = logger.listRuns()[0];
+    expect(run.status).toBe("max_turns");
+    const eventTypes = logger.listEvents(run.id).map((e) => e.eventType);
+    expect(eventTypes).toContain("breakdown_comment_error");
+    expect(eventTypes).not.toContain("breakdown_comment_posted");
+  });
+
   it("captures the rendered prompt on each turn with a growing attempt number", async () => {
     const wf = workflow();
     wf.promptTemplate = "Ticket {{ issue.identifier }} attempt {{ attempt }}";
