@@ -19,9 +19,18 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Checkpoint log (most recent first)
 
+Break down tasks (BEN-22):
+
+- _this commit_ — Orchestrator posts a `## Symphony auto-pause` Linear
+  comment whenever a run finalizes with `max_turns` or `failed`, summarizing
+  the cause and nudging the human to break the work into sub-issues. The
+  comment is best-effort and surfaces as a `breakdown_comment_posted` /
+  `breakdown_comment_error` event. See
+  [`docs/design-docs/breakdown-nudge.md`](docs/design-docs/breakdown-nudge.md).
+
 History (BEN-32):
 
-- _this commit_ — Record per-run token usage + start-of-run auth/utilization
+- `e9708ce` — Record per-run token usage + start-of-run auth/utilization
   snapshot on `runs`; surface on dashboard + run detail; backfill existing DBs
   via `ALTER TABLE ADD COLUMN` on boot.
 

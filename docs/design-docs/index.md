@@ -38,6 +38,7 @@ note is still in force.
 | [`mock-first-development.md`](mock-first-development.md) | active | Mock mode is a first-class mode, not a fixture.                                       |
 | [`event-schema-evolution.md`](event-schema-evolution.md) | active | Adding event types is additive; removing them is a migration.                         |
 | [`self-update.md`](self-update.md)                       | active | Opt-in `git fetch origin/main` from the poll loop, throttled, fetch-only.             |
+| [`breakdown-nudge.md`](breakdown-nudge.md)               | active | Why `max_turns`/`failed` runs leave a Linear comment before pausing.                  |
 | [`threat-model.md`](threat-model.md)                     | active | Who we defend against and what is out of scope.                                       |
 
 ---
