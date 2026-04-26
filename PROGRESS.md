@@ -19,6 +19,15 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Checkpoint log (most recent first)
 
+Spec check (BEN-19):
+
+- _this commit_ — Add `prompts/harness-v2.md` with a "Spec check" preflight
+  that detects under-specified tickets, posts a Workpad comment, and
+  transitions to `Blocked` before any code change. `WORKFLOW.md` now points
+  at v2; `harness-v1.md` stays for transcript provenance. New design note
+  `docs/design-docs/spec-check.md`; pinning test asserts `WORKFLOW.md`
+  loads `harness-v2` and renders the new section.
+
 History (BEN-32):
 
 - _this commit_ — Record per-run token usage + start-of-run auth/utilization

@@ -1,8 +1,10 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Liquid } from "liquidjs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkflowParseError, parseWorkflowString } from "./workflow.js";
+import { WorkflowParseError, parseWorkflow, parseWorkflowString } from "./workflow.js";
 
 const VALID_FRONT_MATTER = `---
 tracker:
@@ -195,6 +197,30 @@ body
       branch: "main",
       min_interval_ms: 600_000,
     });
+  });
+
+  it("loads prompts/harness-v2.md from the project's WORKFLOW.md", async () => {
+    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const result = parseWorkflow(join(repoRoot, "WORKFLOW.md"));
+    expect(result.promptVersion).toBe("harness-v2");
+    expect(result.promptSource).toBe("prompts/harness-v2.md");
+
+    const liquid = new Liquid();
+    const rendered = await liquid.parseAndRender(result.promptTemplate, {
+      issue: {
+        identifier: "BEN-99",
+        title: "Demo issue",
+        state: "Todo",
+        labels: [],
+        url: "https://linear.app/x/BEN-99",
+        description: "Add a button.",
+      },
+      attempt: 1,
+    });
+    // Spec-check guidance must reach the model on every render — under-spec
+    // detection is the entire point of harness-v2 (see design-docs/spec-check.md).
+    expect(rendered).toContain("Spec check");
+    expect(rendered).toContain("Transition the ticket to `Blocked`");
   });
 
   it("accepts a self_update block with explicit overrides", () => {
