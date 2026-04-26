@@ -56,6 +56,14 @@ and converts each accepted message into an `AgentTurn` via
 - `stderrBuffer` is capped at 8 KiB.
 - Exit code ≠ 0 surfaces as an `exitError` that `runTurn()` rejects with.
 
+### Token usage accounting
+
+`getTokenUsage()` prefers the cumulative `result.usage` (which also carries
+`total_cost_usd`). When the CLI is killed before emitting `result` — the
+common case for `max_turns`, SIGTERM-on-shutdown, and crashes — it falls
+back to per-call `assistant.message.usage` summed across turns. Cost is
+`0` in the fallback path because per-call cost is not reported.
+
 ## Mock agent: scenarios
 
 `MockAgent` picks a scenario per session and plays back its `steps`. Selection:

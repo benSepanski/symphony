@@ -5,6 +5,7 @@ import type { SpawnOptions } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 import {
   ClaudeCodeAgent,
+  extractAssistantUsage,
   extractResultUsage,
   mergeTokenUsage,
   toAgentTurn,
@@ -119,6 +120,39 @@ describe("extractResultUsage", () => {
   });
 });
 
+describe("extractAssistantUsage", () => {
+  it("returns null for non-assistant messages", () => {
+    expect(extractAssistantUsage({ type: "result", usage: { input_tokens: 1 } })).toBeNull();
+    expect(extractAssistantUsage({ type: "user" })).toBeNull();
+    expect(extractAssistantUsage(null)).toBeNull();
+  });
+
+  it("returns null when assistant message has no usage block", () => {
+    expect(extractAssistantUsage({ type: "assistant", message: {} })).toBeNull();
+  });
+
+  it("extracts per-call token counts and reports zero cost", () => {
+    const usage = extractAssistantUsage({
+      type: "assistant",
+      message: {
+        usage: {
+          input_tokens: 4,
+          output_tokens: 11,
+          cache_read_input_tokens: 2,
+          cache_creation_input_tokens: 7,
+        },
+      },
+    });
+    expect(usage).toEqual({
+      inputTokens: 4,
+      outputTokens: 11,
+      cacheReadInputTokens: 2,
+      cacheCreationInputTokens: 7,
+      totalCostUsd: 0,
+    });
+  });
+});
+
 describe("mergeTokenUsage", () => {
   it("sums every token bucket and cost across result messages", () => {
     const merged = mergeTokenUsage(
@@ -227,6 +261,91 @@ describe("ClaudeCodeAgent", () => {
       cacheReadInputTokens: 30,
       cacheCreationInputTokens: 10,
       totalCostUsd: 0.0025,
+    });
+  });
+
+  it("falls back to summed assistant usage when the stream closes without a result message", async () => {
+    const { child, spawn } = fakeSpawn();
+    const agent = new ClaudeCodeAgent({ spawn });
+    const session = await agent.startSession({ workdir: "/tmp", prompt: "go" });
+
+    child.pushLine({
+      type: "assistant",
+      message: {
+        content: [{ type: "text", text: "first" }],
+        usage: {
+          input_tokens: 100,
+          output_tokens: 20,
+          cache_read_input_tokens: 5,
+          cache_creation_input_tokens: 1,
+        },
+      },
+    });
+    child.pushLine({
+      type: "assistant",
+      message: {
+        content: [{ type: "text", text: "second" }],
+        usage: {
+          input_tokens: 200,
+          output_tokens: 40,
+          cache_read_input_tokens: 10,
+          cache_creation_input_tokens: 2,
+        },
+      },
+    });
+    // Close without a `result` message — what happens when the orchestrator
+    // SIGTERMs on max_turns.
+    child.close(0);
+
+    await session.runTurn();
+    await session.runTurn();
+
+    expect(session.getTokenUsage?.()).toEqual({
+      inputTokens: 300,
+      outputTokens: 60,
+      cacheReadInputTokens: 15,
+      cacheCreationInputTokens: 3,
+      totalCostUsd: 0,
+    });
+  });
+
+  it("prefers result.usage over accumulated assistant usage when both are present", async () => {
+    const { child, spawn } = fakeSpawn();
+    const agent = new ClaudeCodeAgent({ spawn });
+    const session = await agent.startSession({ workdir: "/tmp", prompt: "go" });
+
+    child.pushLine({
+      type: "assistant",
+      message: {
+        content: [{ type: "text", text: "hi" }],
+        usage: {
+          input_tokens: 100,
+          output_tokens: 20,
+          cache_read_input_tokens: 5,
+          cache_creation_input_tokens: 1,
+        },
+      },
+    });
+    child.pushLine({
+      type: "result",
+      subtype: "success",
+      usage: {
+        input_tokens: 100,
+        output_tokens: 20,
+        cache_read_input_tokens: 5,
+        cache_creation_input_tokens: 1,
+      },
+      total_cost_usd: 0.0042,
+    });
+    child.close(0);
+    await session.runTurn();
+
+    expect(session.getTokenUsage?.()).toEqual({
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadInputTokens: 5,
+      cacheCreationInputTokens: 1,
+      totalCostUsd: 0.0042,
     });
   });
 

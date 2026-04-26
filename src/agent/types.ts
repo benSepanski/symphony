@@ -25,8 +25,11 @@ export interface AgentSession {
   isDone(): boolean;
   stop(): Promise<void>;
   /**
-   * Totals parsed from the agent's final `result` messages. Returns `null` when
-   * the agent did not surface any usage data (e.g. the mock agent).
+   * Cumulative token usage for the session. Prefers the CLI's `result.usage`
+   * (cumulative + cost), and falls back to summed per-call usage from
+   * `assistant` messages when the CLI was killed before emitting `result`
+   * (e.g. max_turns). Cost is `0` in the fallback path. Returns `null` when no
+   * usage data was surfaced at all (e.g. the mock agent).
    */
   getTokenUsage?(): TokenUsage | null;
 }
