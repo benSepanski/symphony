@@ -55,7 +55,12 @@ class ClaudeCodeAgentSession implements AgentSession {
   private streamClosed = false;
   private exitError: Error | null = null;
   private stderrBuffer = "";
-  private tokenUsage: TokenUsage | null = null;
+  // `result.usage` is the authoritative cumulative total but is only emitted
+  // when the CLI exits cleanly. Runs that hit `max_turns` (or any SIGTERM)
+  // never see it, so we also accumulate per-call usage from `assistant`
+  // messages and fall back to that. See BEN-30.
+  private resultUsage: TokenUsage | null = null;
+  private assistantUsage: TokenUsage | null = null;
 
   constructor(private readonly child: ChildProcess) {
     const stdout = child.stdout as Readable | null;
@@ -132,15 +137,17 @@ class ClaudeCodeAgentSession implements AgentSession {
     }
     const turn = toAgentTurn(parsed);
     if (turn) this.deliver(turn);
-    const usage = extractResultUsage(parsed);
-    if (usage) this.tokenUsage = mergeTokenUsage(this.tokenUsage, usage);
+    const result = extractResultUsage(parsed);
+    if (result) this.resultUsage = mergeTokenUsage(this.resultUsage, result);
+    const perCall = extractAssistantUsage(parsed);
+    if (perCall) this.assistantUsage = mergeTokenUsage(this.assistantUsage, perCall);
     if (isResultMessage(parsed)) {
       this.closeStream();
     }
   }
 
   getTokenUsage(): TokenUsage | null {
-    return this.tokenUsage;
+    return this.resultUsage ?? this.assistantUsage;
   }
 
   private deliver(turn: AgentTurn): void {
@@ -201,6 +208,31 @@ export function extractResultUsage(raw: unknown): TokenUsage | null {
     cacheReadInputTokens: Number(u?.cache_read_input_tokens ?? 0),
     cacheCreationInputTokens: Number(u?.cache_creation_input_tokens ?? 0),
     totalCostUsd: Number(r.total_cost_usd ?? 0),
+  };
+}
+
+// Per-call usage carried on every `assistant` message. Cost is not reported
+// here — only `result.usage` includes `total_cost_usd`. Used as a fallback
+// when the CLI is killed before emitting `result` (e.g. max_turns).
+export function extractAssistantUsage(raw: unknown): TokenUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const msg = raw as { type?: string; message?: { usage?: unknown } };
+  if (msg.type !== "assistant") return null;
+  const u = msg.message?.usage as
+    | {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_read_input_tokens?: number;
+        cache_creation_input_tokens?: number;
+      }
+    | undefined;
+  if (!u) return null;
+  return {
+    inputTokens: Number(u.input_tokens ?? 0),
+    outputTokens: Number(u.output_tokens ?? 0),
+    cacheReadInputTokens: Number(u.cache_read_input_tokens ?? 0),
+    cacheCreationInputTokens: Number(u.cache_creation_input_tokens ?? 0),
+    totalCostUsd: 0,
   };
 }
 

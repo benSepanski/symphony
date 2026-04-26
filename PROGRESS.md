@@ -19,6 +19,16 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Checkpoint log (most recent first)
 
+Bug fixes:
+
+- _this commit_ (BEN-30) — `ClaudeCodeAgent` now extracts per-call usage from
+  `assistant.message.usage` and falls back to it when the CLI is killed
+  before emitting `result` (max_turns, SIGTERM, crashes). Previously every
+  run that hit `max_turns` recorded NULL tokens; with `max_turns: 5` in
+  WORKFLOW.md that was nearly every run. Cost stays `0` in the fallback
+  path since per-call cost is not reported. See
+  `docs/product-specs/agent.md` "Token usage accounting".
+
 History (BEN-32):
 
 - _this commit_ — Record per-run token usage + start-of-run auth/utilization
