@@ -57,7 +57,7 @@ mock:
 #   repo_path: ~/myGithubProjects/symphony
 #   branch: main
 #   min_interval_ms: 600000
-prompt: prompts/harness-v1.md
+prompt: prompts/harness-v2.md
 ---
 
 The full prompt template lives in `prompts/harness-v1.md`. This

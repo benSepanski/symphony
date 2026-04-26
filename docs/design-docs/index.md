@@ -27,18 +27,19 @@ note is still in force.
 
 ## Runtime mechanics
 
-| Doc                                                      | Status | One-liner                                                                             |
-| -------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------- |
-| [`execution-model.md`](execution-model.md)               | active | Poll → claim → workspace → session → turns → transition → destroy — with error paths. |
-| [`tracker-abstraction.md`](tracker-abstraction.md)       | active | Why `Tracker` is one small interface with two implementations.                        |
-| [`workspace-isolation.md`](workspace-isolation.md)       | active | Git worktree + hook scripts + identifier allow-list.                                  |
-| [`prompt-versioning.md`](prompt-versioning.md)           | active | Prompt files + front-matter `version:` + rendered-per-turn persistence.               |
-| [`event-log-as-memory.md`](event-log-as-memory.md)       | active | SQLite + JSONL as the only source of truth for run state.                             |
-| [`replay-as-a-mirror.md`](replay-as-a-mirror.md)         | active | Why the HTTP server accepts any `EventEmitter`.                                       |
-| [`mock-first-development.md`](mock-first-development.md) | active | Mock mode is a first-class mode, not a fixture.                                       |
-| [`event-schema-evolution.md`](event-schema-evolution.md) | active | Adding event types is additive; removing them is a migration.                         |
-| [`self-update.md`](self-update.md)                       | active | Opt-in `git fetch origin/main` from the poll loop, throttled, fetch-only.             |
-| [`threat-model.md`](threat-model.md)                     | active | Who we defend against and what is out of scope.                                       |
+| Doc                                                      | Status | One-liner                                                                               |
+| -------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------- |
+| [`execution-model.md`](execution-model.md)               | active | Poll → claim → workspace → session → turns → transition → destroy — with error paths.   |
+| [`tracker-abstraction.md`](tracker-abstraction.md)       | active | Why `Tracker` is one small interface with two implementations.                          |
+| [`workspace-isolation.md`](workspace-isolation.md)       | active | Git worktree + hook scripts + identifier allow-list.                                    |
+| [`prompt-versioning.md`](prompt-versioning.md)           | active | Prompt files + front-matter `version:` + rendered-per-turn persistence.                 |
+| [`spec-check.md`](spec-check.md)                         | active | Preflight in the agent prompt: `Blocked` + Workpad question on under-specified tickets. |
+| [`event-log-as-memory.md`](event-log-as-memory.md)       | active | SQLite + JSONL as the only source of truth for run state.                               |
+| [`replay-as-a-mirror.md`](replay-as-a-mirror.md)         | active | Why the HTTP server accepts any `EventEmitter`.                                         |
+| [`mock-first-development.md`](mock-first-development.md) | active | Mock mode is a first-class mode, not a fixture.                                         |
+| [`event-schema-evolution.md`](event-schema-evolution.md) | active | Adding event types is additive; removing them is a migration.                           |
+| [`self-update.md`](self-update.md)                       | active | Opt-in `git fetch origin/main` from the poll loop, throttled, fetch-only.               |
+| [`threat-model.md`](threat-model.md)                     | active | Who we defend against and what is out of scope.                                         |
 
 ---
 
