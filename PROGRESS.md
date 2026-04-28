@@ -19,11 +19,17 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Checkpoint log (most recent first)
 
+History (BEN-38):
+
+- _this commit_ — Dedupe `src/web/api.ts` fetch boilerplate behind a private
+  `requestJson<T>` helper; cover the helper + `patchSettings` + `requestManualTick`
+  error paths with a new `src/web/api.test.ts` (130 unit tests, was 119).
+
 History (BEN-32):
 
-- _this commit_ — Record per-run token usage + start-of-run auth/utilization
-  snapshot on `runs`; surface on dashboard + run detail; backfill existing DBs
-  via `ALTER TABLE ADD COLUMN` on boot.
+- Record per-run token usage + start-of-run auth/utilization snapshot on `runs`;
+  surface on dashboard + run detail; backfill existing DBs via
+  `ALTER TABLE ADD COLUMN` on boot.
 
 Real-agent mode:
 
