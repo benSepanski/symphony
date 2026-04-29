@@ -65,7 +65,7 @@ it's duplicated.
 
 ## Business domains
 
-Symphony has five long-lived domains. Each is owned by a single directory and
+Symphony has six long-lived domains. Each is owned by a single directory and
 is described in a dedicated product spec under
 [`docs/product-specs/`](docs/product-specs/).
 

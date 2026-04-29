@@ -10,7 +10,7 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Gate status
 
-- `pnpm all` — green. 110 unit tests + 5 eval scenarios.
+- `pnpm all` — green. 119 unit tests + 5 eval scenarios.
 - `pnpm dev WORKFLOW.md --mock` — full mock run with live dashboard.
 - `pnpm build:web` — produces `dist/web`, served by Hono at `/`.
 - `symphony replay <run_id>` — replays any recorded run over SSE.
@@ -18,6 +18,13 @@ for a live smoke test against Linear with a real `claude` CLI.
   ClaudeCodeAgent and fails fast if `LINEAR_API_KEY` is missing.
 
 ## Checkpoint log (most recent first)
+
+Doc gardening (BEN-43):
+
+- _this commit_ — Sync PROGRESS.md gate count with current `pnpm test`
+  (110 → 119) and fix `ARCHITECTURE.md`'s "five long-lived domains" prose
+  to "six" (the table grew a Usage row when `b7af017` shipped — the prose
+  wasn't updated).
 
 History (BEN-32):
 
