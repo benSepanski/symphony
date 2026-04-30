@@ -128,38 +128,53 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
         </tr>
       </thead>
       <tbody>
-        {runs.map((r) => (
-          <tr
-            key={r.id}
-            className="border-b border-slate-900 hover:bg-slate-900/60 cursor-pointer"
-            onClick={() => {
-              window.location.hash = `#/runs/${r.id}`;
-            }}
-          >
-            <td className="py-2 pr-4 font-mono">{r.issueIdentifier}</td>
-            <td className="py-2 pr-4 text-slate-200 max-w-xs truncate" title={r.issueTitle ?? "—"}>
-              {r.issueTitle ?? "—"}
-            </td>
-            <td className="py-2 pr-4">
-              <StatusBadge status={r.status} />
-            </td>
-            <td className="py-2 pr-4 text-slate-400">{r.scenario ?? "—"}</td>
-            <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">{r.turnCount}</td>
-            <td
-              className="py-2 pr-4 text-slate-400 font-mono tabular-nums"
-              title={formatTokenBreakdown(r)}
+        {runs.map((r) => {
+          const open = () => {
+            window.location.hash = `#/runs/${r.id}`;
+          };
+          return (
+            <tr
+              key={r.id}
+              role="link"
+              tabIndex={0}
+              aria-label={`Open run ${r.issueIdentifier}${r.issueTitle ? `: ${r.issueTitle}` : ""}`}
+              className="border-b border-slate-900 hover:bg-slate-900/60 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset"
+              onClick={open}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  open();
+                }
+              }}
             >
-              {formatTokenTotal(r)}
-            </td>
-            <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">
-              {formatCost(r.totalCostUsd)}
-            </td>
-            <td className="py-2 pr-4 text-slate-400">{formatTs(r.startedAt)}</td>
-            <td className="py-2 pr-4 text-slate-400">
-              {r.finishedAt ? formatTs(r.finishedAt) : "—"}
-            </td>
-          </tr>
-        ))}
+              <td className="py-2 pr-4 font-mono">{r.issueIdentifier}</td>
+              <td
+                className="py-2 pr-4 text-slate-200 max-w-xs truncate"
+                title={r.issueTitle ?? "—"}
+              >
+                {r.issueTitle ?? "—"}
+              </td>
+              <td className="py-2 pr-4">
+                <StatusBadge status={r.status} />
+              </td>
+              <td className="py-2 pr-4 text-slate-400">{r.scenario ?? "—"}</td>
+              <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">{r.turnCount}</td>
+              <td
+                className="py-2 pr-4 text-slate-400 font-mono tabular-nums"
+                title={formatTokenBreakdown(r)}
+              >
+                {formatTokenTotal(r)}
+              </td>
+              <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">
+                {formatCost(r.totalCostUsd)}
+              </td>
+              <td className="py-2 pr-4 text-slate-400">{formatTs(r.startedAt)}</td>
+              <td className="py-2 pr-4 text-slate-400">
+                {r.finishedAt ? formatTs(r.finishedAt) : "—"}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

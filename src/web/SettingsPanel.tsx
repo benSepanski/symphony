@@ -110,7 +110,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
             step={500}
             value={currentDraft.pollIntervalMs}
             onChange={(e) => setDraft({ ...currentDraft, pollIntervalMs: e.target.value })}
-            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           />
         </Field>
         <Field label="Max concurrent agents">
@@ -120,7 +120,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
             step={1}
             value={currentDraft.maxConcurrentAgents}
             onChange={(e) => setDraft({ ...currentDraft, maxConcurrentAgents: e.target.value })}
-            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           />
         </Field>
         <Field label="Max turns">
@@ -130,7 +130,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
             step={1}
             value={currentDraft.maxTurns}
             onChange={(e) => setDraft({ ...currentDraft, maxTurns: e.target.value })}
-            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           />
         </Field>
         <Field label="Max turns state" hint="Tracker state applied when an agent hits max_turns.">
@@ -138,7 +138,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
             type="text"
             value={currentDraft.maxTurnsState}
             onChange={(e) => setDraft({ ...currentDraft, maxTurnsState: e.target.value })}
-            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           />
         </Field>
 
@@ -146,7 +146,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
           <button
             type="submit"
             disabled={!dirty || saveState.tag === "saving"}
-            className="rounded bg-cyan-500/20 px-3 py-1 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded bg-cyan-500/20 px-3 py-1 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saveState.tag === "saving" ? "Saving…" : "Save changes"}
           </button>
@@ -154,7 +154,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
             type="button"
             disabled={!dirty || saveState.tag === "saving"}
             onClick={() => setDraft(toDraft(settings))}
-            className="text-xs text-slate-400 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded text-xs text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Reset
           </button>
@@ -205,7 +205,7 @@ function ModeToggle({
           type="button"
           disabled={disabled || mode === m}
           onClick={() => onChange(m)}
-          className={`rounded px-2 py-0.5 ${
+          className={`rounded px-2 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
             mode === m ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400 hover:text-slate-200"
           } disabled:cursor-not-allowed`}
         >
@@ -219,7 +219,7 @@ function ModeToggle({
 function WorkflowReadOnly({ workflow }: { workflow: ApiWorkflowSummary }) {
   return (
     <details className="mt-4 rounded border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-300">
-      <summary className="cursor-pointer text-slate-400 hover:text-slate-200">
+      <summary className="cursor-pointer rounded text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
         Other workflow fields (read-only)
       </summary>
       <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2">

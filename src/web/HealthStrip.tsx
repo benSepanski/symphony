@@ -72,7 +72,7 @@ export function HealthStrip({ state, usage, streamStatus }: Props) {
               type="button"
               onClick={onRefresh}
               disabled={refresh.tag === "running"}
-              className={`rounded px-2 py-0.5 font-medium ${
+              className={`rounded px-2 py-0.5 font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
                 state.pollingMode === "manual"
                   ? "bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
                   : "bg-slate-800/60 text-slate-300 hover:bg-slate-700/60"

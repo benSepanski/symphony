@@ -50,12 +50,12 @@ export function Search({ query }: { query: string }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Search turn content and event payloads…"
-          className="flex-1 rounded border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-600"
+          className="flex-1 rounded border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-600 focus-visible:ring-2 focus-visible:ring-cyan-500"
           autoFocus
         />
         <button
           type="submit"
-          className="rounded bg-cyan-600 hover:bg-cyan-500 px-3 py-2 text-sm font-medium text-white"
+          className="rounded bg-cyan-600 hover:bg-cyan-500 px-3 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
         >
           Search
         </button>
@@ -84,7 +84,10 @@ function SearchResults({ query, matches }: { query: string; matches: ApiSearchMa
           key={`${m.runId}:${m.matchKind}:${m.turnNumber ?? m.eventType ?? i}`}
           className="rounded border border-slate-800 bg-slate-900/60 p-3"
         >
-          <a href={`#/runs/${m.runId}`} className="flex flex-wrap items-baseline gap-2 text-sm">
+          <a
+            href={`#/runs/${m.runId}`}
+            className="flex flex-wrap items-baseline gap-2 text-sm rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+          >
             <span className="font-mono text-cyan-400">{m.issueIdentifier}</span>
             {m.issueTitle && (
               <span className="text-slate-300 truncate" title={m.issueTitle}>

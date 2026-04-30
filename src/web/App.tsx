@@ -33,19 +33,26 @@ export function App() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-800 px-6 py-4 flex items-center gap-4">
-        <a href="#/" className="text-lg font-semibold tracking-tight hover:text-cyan-400">
+        <a
+          href="#/"
+          className="text-lg font-semibold tracking-tight hover:text-cyan-400 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+        >
           Symphony
         </a>
         <nav className="flex items-center gap-3 text-sm text-slate-400">
           <a
             href="#/"
-            className={route.view === "dashboard" ? "text-slate-100" : "hover:text-slate-200"}
+            className={`rounded px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+              route.view === "dashboard" ? "text-slate-100" : "hover:text-slate-200"
+            }`}
           >
             runs
           </a>
           <a
             href="#/search"
-            className={route.view === "search" ? "text-slate-100" : "hover:text-slate-200"}
+            className={`rounded px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+              route.view === "search" ? "text-slate-100" : "hover:text-slate-200"
+            }`}
           >
             search
           </a>

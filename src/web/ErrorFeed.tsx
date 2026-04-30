@@ -33,7 +33,7 @@ export function ErrorFeed({ events, runs }: Props) {
             <li key={e.id}>
               <a
                 href={`#/runs/${e.runId}`}
-                className="flex items-center gap-3 py-2 text-xs hover:bg-slate-900/60 -mx-2 px-2 rounded"
+                className="flex items-center gap-3 py-2 text-xs hover:bg-slate-900/60 -mx-2 px-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
               >
                 <span className="text-slate-500 font-mono tabular-nums w-20 shrink-0">
                   {formatTime(e.ts)}
