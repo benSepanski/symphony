@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { requestManualTick, type ApiOrchestratorState, type ApiUsage } from "./api.js";
 import type { StreamStatus } from "./useEventStream.js";
-import { formatPct } from "./shared.js";
+import { formatPct, formatTimezoneLabel } from "./shared.js";
 
 interface Props {
   state: ApiOrchestratorState | null;
@@ -43,6 +43,7 @@ export function HealthStrip({ state, usage, streamStatus }: Props) {
         : "disconnected";
 
   const rateLimited = usage?.rateLimitedWindow ?? null;
+  const tzLabel = formatTimezoneLabel();
 
   return (
     <div className="flex flex-col gap-3">
@@ -96,6 +97,11 @@ export function HealthStrip({ state, usage, streamStatus }: Props) {
             {formatPct(usage.snapshot.fiveHour.utilization)}{" "}
             <span className="text-slate-500">· 7d</span>{" "}
             {formatPct(usage.snapshot.sevenDay.utilization)}
+          </span>
+        )}
+        {tzLabel && (
+          <span className="text-slate-500" title="Timezone for displayed timestamps">
+            tz <span className="text-slate-300">{tzLabel}</span>
           </span>
         )}
       </div>

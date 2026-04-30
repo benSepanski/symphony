@@ -16,7 +16,7 @@ import { HealthStrip } from "./HealthStrip.js";
 import { MetricsPanel } from "./MetricsPanel.js";
 import { ErrorFeed } from "./ErrorFeed.js";
 import { SettingsPanel } from "./SettingsPanel.js";
-import { StatusBadge, formatTs } from "./shared.js";
+import { StatusBadge, formatRunTs, formatRunTsTitle } from "./shared.js";
 
 export { StatusBadge } from "./shared.js";
 
@@ -154,9 +154,14 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
             <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">
               {formatCost(r.totalCostUsd)}
             </td>
-            <td className="py-2 pr-4 text-slate-400">{formatTs(r.startedAt)}</td>
-            <td className="py-2 pr-4 text-slate-400">
-              {r.finishedAt ? formatTs(r.finishedAt) : "—"}
+            <td className="py-2 pr-4 text-slate-400" title={formatRunTsTitle(r.startedAt)}>
+              {formatRunTs(r.startedAt)}
+            </td>
+            <td
+              className="py-2 pr-4 text-slate-400"
+              title={r.finishedAt ? formatRunTsTitle(r.finishedAt) : undefined}
+            >
+              {r.finishedAt ? formatRunTs(r.finishedAt) : "—"}
             </td>
           </tr>
         ))}

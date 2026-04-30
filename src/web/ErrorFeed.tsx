@@ -1,4 +1,5 @@
 import type { ApiEvent, ApiRun } from "./api.js";
+import { formatRunTs, formatRunTsTitle } from "./shared.js";
 
 interface Props {
   events: ApiEvent[];
@@ -35,8 +36,11 @@ export function ErrorFeed({ events, runs }: Props) {
                 href={`#/runs/${e.runId}`}
                 className="flex items-center gap-3 py-2 text-xs hover:bg-slate-900/60 -mx-2 px-2 rounded"
               >
-                <span className="text-slate-500 font-mono tabular-nums w-20 shrink-0">
-                  {formatTime(e.ts)}
+                <span
+                  className="text-slate-500 font-mono tabular-nums w-28 shrink-0"
+                  title={formatRunTsTitle(e.ts)}
+                >
+                  {formatRunTs(e.ts)}
                 </span>
                 <span className="font-mono text-slate-300 w-24 shrink-0 truncate">
                   {run?.issueIdentifier ?? "—"}
@@ -54,10 +58,6 @@ export function ErrorFeed({ events, runs }: Props) {
       </ul>
     </section>
   );
-}
-
-function formatTime(ts: string): string {
-  return new Date(ts).toLocaleTimeString();
 }
 
 function summarize(e: ApiEvent): string {

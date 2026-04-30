@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail } from "./api.js";
 import { StatusBadge } from "./Dashboard.js";
+import { formatRunTs, formatRunTsTitle } from "./shared.js";
 import { useEventStream } from "./useEventStream.js";
 
 type LoadState =
@@ -50,8 +51,14 @@ export function RunDetail({ runId }: { runId: string }) {
         </div>
         {run.issueTitle && <p className="mt-1 text-slate-300">{run.issueTitle}</p>}
         <p className="mt-1 text-xs text-slate-500">
-          Started {new Date(run.startedAt).toLocaleTimeString()}
-          {run.finishedAt && <> · finished {new Date(run.finishedAt).toLocaleTimeString()}</>}
+          Started <span title={formatRunTsTitle(run.startedAt)}>{formatRunTs(run.startedAt)}</span>
+          {run.finishedAt && (
+            <>
+              {" "}
+              · finished{" "}
+              <span title={formatRunTsTitle(run.finishedAt)}>{formatRunTs(run.finishedAt)}</span>
+            </>
+          )}
           {run.scenario && <> · scenario {run.scenario}</>}
         </p>
       </section>
@@ -102,7 +109,9 @@ export function RunDetail({ runId }: { runId: string }) {
         <ul className="text-xs font-mono text-slate-400 space-y-0.5">
           {events.map((e) => (
             <li key={e.id}>
-              <span className="text-slate-500">{new Date(e.ts).toLocaleTimeString()}</span>{" "}
+              <span className="text-slate-500" title={formatRunTsTitle(e.ts)}>
+                {formatRunTs(e.ts)}
+              </span>{" "}
               <span className="text-cyan-400">{e.eventType}</span>
               {e.payload && <span className="text-slate-500"> {e.payload}</span>}
             </li>
