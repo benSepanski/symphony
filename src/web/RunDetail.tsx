@@ -79,15 +79,19 @@ export function RunDetail({ runId }: { runId: string }) {
                 )}
               </div>
               <pre className="mt-2 whitespace-pre-wrap text-sm text-slate-200">{t.content}</pre>
-              {t.toolCalls && (
-                <pre className="mt-2 text-xs text-slate-500 overflow-x-auto">{t.toolCalls}</pre>
-              )}
+              {t.toolCalls && <ToolCalls raw={t.toolCalls} />}
               {t.renderedPrompt && (
-                <details className="mt-2 text-xs text-slate-400">
-                  <summary className="cursor-pointer hover:text-slate-200">
-                    prompt the model saw
+                <details
+                  open
+                  className="mt-3 rounded border border-slate-800/80 bg-slate-950/40 p-2 text-xs text-slate-400"
+                >
+                  <summary className="cursor-pointer rounded font-medium text-slate-300 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+                    <span aria-hidden="true" className="mr-1 text-slate-500">
+                      ⓘ
+                    </span>
+                    Rendered prompt the model saw
                   </summary>
-                  <pre className="mt-1 whitespace-pre-wrap text-slate-500 border-l border-slate-800 pl-3">
+                  <pre className="mt-2 whitespace-pre-wrap text-slate-500 border-l border-slate-800 pl-3">
                     {t.renderedPrompt}
                   </pre>
                 </details>
@@ -151,6 +155,24 @@ function safeParse(s: string): unknown {
   } catch {
     return null;
   }
+}
+
+function ToolCalls({ raw }: { raw: string }) {
+  const parsed = safeParse(raw);
+  const pretty = parsed === null ? raw : JSON.stringify(parsed, null, 2);
+  return (
+    <details
+      open
+      className="mt-3 rounded border border-slate-800/80 bg-slate-950/40 p-2 text-xs text-slate-300"
+    >
+      <summary className="cursor-pointer rounded font-medium text-slate-300 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+        Tool calls
+      </summary>
+      <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-slate-300">
+        {pretty}
+      </pre>
+    </details>
+  );
 }
 
 function HistoryFacts({ run }: { run: ApiRun }) {

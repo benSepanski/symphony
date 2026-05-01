@@ -34,7 +34,8 @@ export function MetricsPanel({ runs }: Props) {
               key={w}
               type="button"
               onClick={() => setWindow(w)}
-              className={`rounded px-2 py-0.5 ${
+              aria-pressed={window === w}
+              className={`rounded px-2 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
                 window === w ? "bg-slate-700 text-slate-100" : "text-slate-400 hover:text-slate-200"
               }`}
             >
