@@ -87,8 +87,11 @@ engine is configured without filesystem access by default.)
 ### Loopback-only HTTP
 
 [`src/api/server.ts`](../src/api/server.ts) is served on `:4000` with no auth.
-Binding to `0.0.0.0` or putting the dashboard behind a proxy is out of scope.
-Running this on a shared host without a tunnel is unsupported.
+[`src/cli.ts`](../src/cli.ts) defaults `--bind` to `127.0.0.1` for both `run`
+and `replay`, so the dashboard is reachable only from loopback unless the
+operator explicitly opts out (e.g. `--bind 0.0.0.0` behind a tunnel they
+control). Putting the dashboard behind an exposed proxy without auth is out
+of scope. Running this on a shared host without a tunnel is unsupported.
 
 ### No network from the orchestrator itself
 
