@@ -14,10 +14,12 @@ a live run in the dashboard. This is the operator's primary post-mortem tool.
 ## Command
 
 ```bash
-pnpm tsx src/cli.ts replay <runId> [--port 4000] [--speed 5]
+pnpm tsx src/cli.ts replay <runId> [--port 4000] [--bind 127.0.0.1] [--speed 5]
 ```
 
 - `--port` — HTTP port for the dashboard.
+- `--bind` — HTTP bind address. Defaults to `127.0.0.1`; pass `0.0.0.0`
+  to expose on the LAN.
 - `--speed` — playback multiplier (1 = realtime; 5 = five× faster).
 
 ## Invariants

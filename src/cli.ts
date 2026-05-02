@@ -45,6 +45,7 @@ const DEMO_ISSUES: Issue[] = [
 interface BootOptions {
   workflowPath: string;
   port: number;
+  bind: string;
   mock: boolean;
   noDemo: boolean;
   seedPath?: string;
@@ -66,7 +67,14 @@ function loadSeedIssues(path: string): Issue[] {
   return SeedFileSchema.parse(raw).issues;
 }
 
-async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions): Promise<void> {
+async function boot({
+  workflowPath,
+  port,
+  bind,
+  mock,
+  noDemo,
+  seedPath,
+}: BootOptions): Promise<void> {
   const workflow = parseWorkflow(workflowPath);
   const isMock = mock || workflow.config.agent.kind === "mock";
 
@@ -202,10 +210,10 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
       },
     }),
   });
-  const server = serve({ fetch: app.fetch, port });
+  const server = serve({ fetch: app.fetch, port, hostname: bind });
 
   orchestrator.start();
-  console.log(`symphony listening on http://localhost:${port} (${modeLabel})`);
+  console.log(`symphony listening on http://${bind}:${port} (${modeLabel})`);
 
   const shutdown = async () => {
     console.log("\nshutting down");
@@ -218,7 +226,12 @@ async function boot({ workflowPath, port, mock, noDemo, seedPath }: BootOptions)
   process.once("SIGTERM", shutdown);
 }
 
-async function replay(opts: { runId: string; port: number; speed: number }): Promise<void> {
+async function replay(opts: {
+  runId: string;
+  port: number;
+  bind: string;
+  speed: number;
+}): Promise<void> {
   const dbPath = resolve(".symphony/symphony.db");
   const logsDir = resolve(".symphony/logs");
   const logger = new SymphonyLogger({ dbPath, logsDir });
@@ -230,8 +243,8 @@ async function replay(opts: { runId: string; port: number; speed: number }): Pro
   });
 
   const app = createServer({ events, logger });
-  const server = serve({ fetch: app.fetch, port: opts.port });
-  console.log(`symphony replay serving http://localhost:${opts.port} (speed ${opts.speed}x)`);
+  const server = serve({ fetch: app.fetch, port: opts.port, hostname: opts.bind });
+  console.log(`symphony replay serving http://${opts.bind}:${opts.port} (speed ${opts.speed}x)`);
 
   try {
     await run();
@@ -262,17 +275,29 @@ program
   .command("run", { isDefault: true })
   .argument("<workflow>", "path to WORKFLOW.md")
   .option("-p, --port <port>", "HTTP server port", "4000")
+  .option(
+    "--bind <host>",
+    "HTTP server bind address; defaults to loopback. Pass 0.0.0.0 to expose on the LAN.",
+    "127.0.0.1",
+  )
   .option("--mock", "use mock agent instead of real agent")
   .option("--no-demo", "skip seeding the built-in mock-mode demo issues")
   .option("--seed <path>", "YAML file with a demo issues list (see fixtures/seed.example.yaml)")
   .action(
     async (
       workflowPath: string,
-      opts: { port: string; mock?: boolean; demo?: boolean; seed?: string },
+      opts: {
+        port: string;
+        bind: string;
+        mock?: boolean;
+        demo?: boolean;
+        seed?: string;
+      },
     ) => {
       await boot({
         workflowPath,
         port: Number(opts.port),
+        bind: opts.bind,
         mock: Boolean(opts.mock),
         noDemo: opts.demo === false,
         seedPath: opts.seed,
@@ -323,11 +348,17 @@ program
   .command("replay")
   .argument("<runId>", "id of a previously recorded run from .symphony/symphony.db")
   .option("-p, --port <port>", "HTTP server port", "4000")
+  .option(
+    "--bind <host>",
+    "HTTP server bind address; defaults to loopback. Pass 0.0.0.0 to expose on the LAN.",
+    "127.0.0.1",
+  )
   .option("--speed <factor>", "playback speed multiplier (1 = realtime)", "5")
-  .action(async (runId: string, opts: { port: string; speed: string }) => {
+  .action(async (runId: string, opts: { port: string; bind: string; speed: string }) => {
     await replay({
       runId,
       port: Number(opts.port),
+      bind: opts.bind,
       speed: Number(opts.speed),
     });
   });

@@ -2,7 +2,7 @@
 
 _Status:_ active
 _Created:_ 2026-04-18
-_Last reviewed:_ 2026-04-18
+_Last reviewed:_ 2026-05-02
 
 Long-form discussion of what Symphony defends against, what it doesn't, and
 why. The short summary lives in [`../SECURITY.md`](../SECURITY.md); read that
@@ -42,13 +42,13 @@ first.
 
 ## Mitigations
 
-| Goal | Mitigation                                                                                                                                                                                                                  | Covered by                                 |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| 1    | Workspace is a git worktree; `before_remove` hook tears it down.                                                                                                                                                            | `WorkspaceManager` tests.                  |
-| 2    | `assertSafeIdentifier` rejects non-`[A-Za-z0-9_-]` identifiers.                                                                                                                                                             | `workspace/manager.test.ts`.               |
-| 3    | Claude stdout is line-buffered via `readline`; `toAgentTurn` drops unparseable JSON; stderr is capped at 8 KiB.                                                                                                             | `src/agent/claude-code.ts`.                |
-| 4    | `LINEAR_API_KEY` is read in `cli.ts`, passed directly to the HTTP header, and never logged. The rendered-prompt path has no access to `process.env`.                                                                        | review (no test yet — filed in tech-debt). |
-| 5    | `serve({ fetch, port })` binds to all interfaces by default on Hono's node adapter, but our documentation (and README) specify `localhost`-only use. If this becomes a concrete risk, we'll bind to `127.0.0.1` explicitly. | README warning.                            |
+| Goal | Mitigation                                                                                                                                                                                    | Covered by                                     |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 1    | Workspace is a git worktree; `before_remove` hook tears it down.                                                                                                                              | `WorkspaceManager` tests.                      |
+| 2    | `assertSafeIdentifier` rejects non-`[A-Za-z0-9_-]` identifiers.                                                                                                                               | `workspace/manager.test.ts`.                   |
+| 3    | Claude stdout is line-buffered via `readline`; `toAgentTurn` drops unparseable JSON; stderr is capped at 8 KiB.                                                                               | `src/agent/claude-code.ts`.                    |
+| 4    | `LINEAR_API_KEY` is read in `cli.ts`, passed directly to the HTTP header, and never logged. The rendered-prompt path has no access to `process.env`.                                          | review (no test yet — filed in tech-debt).     |
+| 5    | `cli.ts` passes `hostname` to `serve({ fetch, port })`, defaulting `--bind` to `127.0.0.1` for both `run` and `replay`; LAN exposure requires the operator to opt in (e.g. `--bind 0.0.0.0`). | `src/cli.ts`; [`SECURITY.md`](../SECURITY.md). |
 
 ## Attacker playbook (what we assume they try)
 
@@ -69,8 +69,6 @@ first.
 
 ## Open gaps
 
-- No explicit `serve` bind address — tracked in
-  [`../exec-plans/tech-debt-tracker.md`](../exec-plans/tech-debt-tracker.md).
 - No eval that confirms `LINEAR_API_KEY` is absent from the DB + JSONL —
   tracked in tech-debt.
 - No kill-switch if the agent decides to `git push --force` to an upstream
