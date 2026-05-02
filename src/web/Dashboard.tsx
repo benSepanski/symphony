@@ -113,70 +113,57 @@ function EmptyState() {
 
 function RunsTable({ runs }: { runs: ApiRun[] }) {
   return (
-    <table className="w-full text-sm">
-      <thead className="text-left text-slate-400 border-b border-slate-800">
-        <tr>
-          <th className="py-2 pr-4">Issue</th>
-          <th className="py-2 pr-4">Title</th>
-          <th className="py-2 pr-4">Status</th>
-          <th className="py-2 pr-4">Scenario</th>
-          <th className="py-2 pr-4">Turns</th>
-          <th className="py-2 pr-4">Tokens</th>
-          <th className="py-2 pr-4">Cost</th>
-          <th className="py-2 pr-4">Started</th>
-          <th className="py-2 pr-4">Finished</th>
-        </tr>
-      </thead>
-      <tbody>
-        {runs.map((r) => {
-          const open = () => {
-            window.location.hash = `#/runs/${r.id}`;
-          };
-          return (
-            <tr
-              key={r.id}
-              role="link"
-              tabIndex={0}
+    <section aria-labelledby="runs-heading" className="text-sm">
+      <h2 id="runs-heading" className="sr-only">
+        Runs
+      </h2>
+      <div
+        role="presentation"
+        className="grid grid-cols-[6rem_minmax(0,1fr)_5rem_8rem_4rem_5rem_5rem_minmax(8rem,max-content)_minmax(8rem,max-content)] gap-x-4 px-2 py-2 text-left text-slate-400 border-b border-slate-800"
+      >
+        <span>Issue</span>
+        <span>Title</span>
+        <span>Status</span>
+        <span>Scenario</span>
+        <span>Turns</span>
+        <span>Tokens</span>
+        <span>Cost</span>
+        <span>Started</span>
+        <span>Finished</span>
+      </div>
+      <ul className="divide-y divide-slate-900/60">
+        {runs.map((r) => (
+          <li key={r.id}>
+            <a
+              href={`#/runs/${r.id}`}
               aria-label={`Open run ${r.issueIdentifier}${r.issueTitle ? `: ${r.issueTitle}` : ""}`}
-              className="border-b border-slate-900 hover:bg-slate-900/60 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset"
-              onClick={open}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  open();
-                }
-              }}
+              className="grid grid-cols-[6rem_minmax(0,1fr)_5rem_8rem_4rem_5rem_5rem_minmax(8rem,max-content)_minmax(8rem,max-content)] gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset"
             >
-              <td className="py-2 pr-4 font-mono">{r.issueIdentifier}</td>
-              <td
-                className="py-2 pr-4 text-slate-200 max-w-xs truncate"
-                title={r.issueTitle ?? "—"}
-              >
+              <span className="font-mono">{r.issueIdentifier}</span>
+              <span className="text-slate-200 truncate" title={r.issueTitle ?? "—"}>
                 {r.issueTitle ?? "—"}
-              </td>
-              <td className="py-2 pr-4">
+              </span>
+              <span>
                 <StatusBadge status={r.status} />
-              </td>
-              <td className="py-2 pr-4 text-slate-400">{r.scenario ?? "—"}</td>
-              <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">{r.turnCount}</td>
-              <td
-                className="py-2 pr-4 text-slate-400 font-mono tabular-nums"
+              </span>
+              <span className="text-slate-400 truncate">{r.scenario ?? "—"}</span>
+              <span className="text-slate-400 font-mono tabular-nums">{r.turnCount}</span>
+              <span
+                className="text-slate-400 font-mono tabular-nums"
                 title={formatTokenBreakdown(r)}
               >
                 {formatTokenTotal(r)}
-              </td>
-              <td className="py-2 pr-4 text-slate-400 font-mono tabular-nums">
+              </span>
+              <span className="text-slate-400 font-mono tabular-nums">
                 {formatCost(r.totalCostUsd)}
-              </td>
-              <td className="py-2 pr-4 text-slate-400">{formatTs(r.startedAt)}</td>
-              <td className="py-2 pr-4 text-slate-400">
-                {r.finishedAt ? formatTs(r.finishedAt) : "—"}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+              </span>
+              <span className="text-slate-400">{formatTs(r.startedAt)}</span>
+              <span className="text-slate-400">{r.finishedAt ? formatTs(r.finishedAt) : "—"}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
