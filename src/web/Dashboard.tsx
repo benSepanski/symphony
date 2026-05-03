@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   fetchHealth,
   fetchRecentEvents,
+  fetchRun,
   fetchRuns,
   fetchSettings,
   type ApiEvent,
@@ -11,6 +12,7 @@ import {
   type ApiUsage,
   type ApiWorkflowSummary,
 } from "./api.js";
+import { applyRunFinishedEvent, applyTurnEvent, hasRun, replaceRun } from "./dashboardEvents.js";
 import { useEventStream } from "./useEventStream.js";
 import { HealthStrip } from "./HealthStrip.js";
 import { MetricsPanel } from "./MetricsPanel.js";
@@ -46,9 +48,47 @@ export function Dashboard() {
         setSettings(data as ApiOrchestratorSettings);
         return;
       }
-      const [freshRuns, freshEvents] = await Promise.all([fetchRuns(), fetchRecentEvents()]);
-      setRuns(freshRuns);
-      setEvents(freshEvents.events);
+      const payload = data as { runId?: string; status?: string } | null;
+      const runId = payload?.runId;
+      if (name === "turn" && runId) {
+        let needsFullRefetch = false;
+        setRuns((prev) => {
+          if (!hasRun(prev, runId)) {
+            needsFullRefetch = true;
+            return prev;
+          }
+          return applyTurnEvent(prev, runId).next;
+        });
+        if (needsFullRefetch) {
+          const fresh = await fetchRuns();
+          setRuns(fresh);
+        }
+        return;
+      }
+      if (name === "runFinished" && runId) {
+        const finishedAt = new Date().toISOString();
+        const status = typeof payload?.status === "string" ? payload.status : "completed";
+        setRuns((prev) =>
+          hasRun(prev, runId) ? applyRunFinishedEvent(prev, runId, status, finishedAt).next : prev,
+        );
+        try {
+          const detail = await fetchRun(runId);
+          setRuns((prev) =>
+            hasRun(prev, runId) ? replaceRun(prev, detail.run) : [detail.run, ...prev],
+          );
+        } catch {
+          const fresh = await fetchRuns();
+          setRuns(fresh);
+        }
+        const recent = await fetchRecentEvents();
+        setEvents(recent.events);
+        return;
+      }
+      if (name === "runStarted" && runId) {
+        const fresh = await fetchRuns();
+        setRuns(fresh);
+        return;
+      }
     },
   );
 
