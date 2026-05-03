@@ -18,12 +18,18 @@ what the agents are doing.
 
 | Hash         | Component                               | Purpose                                        |
 | ------------ | --------------------------------------- | ---------------------------------------------- |
-| `#/`         | [`Dashboard`](../src/web/Dashboard.tsx) | Live run list + status breakdown.              |
+| `#/`         | [`Dashboard`](../src/web/Dashboard.tsx) | Live run list, filter pills, sortable columns. |
 | `#/run/<id>` | [`RunDetail`](../src/web/RunDetail.tsx) | Per-turn transcript, rendered prompt, events.  |
 | `#/search`   | [`Search`](../src/web/Search.tsx)       | Full-text search across turn content + events. |
 
 Add a route by adding a branch in `App.tsx`'s switch and a single component
 file. Don't install a router.
+
+The dashboard accepts a query string after the route:
+`#/?status=failed,running&q=BEN-30&sort=cost&dir=asc`. Parse/serialize logic
+lives in [`src/web/dashboardFilters.ts`](../src/web/dashboardFilters.ts) and
+is unit-tested. Filters round-trip through the URL so views are reload-stable
+and shareable.
 
 ## Data sources
 

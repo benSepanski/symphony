@@ -4,7 +4,7 @@ import { RunDetail } from "./RunDetail.js";
 import { Search } from "./Search.js";
 
 type Route =
-  | { view: "dashboard" }
+  | { view: "dashboard"; search: string }
   | { view: "run"; runId: string }
   | { view: "search"; query: string };
 
@@ -18,7 +18,8 @@ function parseHash(): Route {
       h === "search" ? "" : (new URLSearchParams(h.slice("search?".length)).get("q") ?? "");
     return { view: "search", query };
   }
-  return { view: "dashboard" };
+  const qIdx = h.indexOf("?");
+  return { view: "dashboard", search: qIdx === -1 ? "" : h.slice(qIdx) };
 }
 
 export function App() {
@@ -62,7 +63,7 @@ export function App() {
         )}
       </header>
       <main className="px-6 py-6">
-        {route.view === "dashboard" && <Dashboard />}
+        {route.view === "dashboard" && <Dashboard search={route.search} />}
         {route.view === "run" && <RunDetail runId={route.runId} />}
         {route.view === "search" && <Search query={route.query} />}
       </main>

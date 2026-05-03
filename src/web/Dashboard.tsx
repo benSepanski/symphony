@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   fetchHealth,
   fetchRecentEvents,
@@ -17,12 +17,22 @@ import { MetricsPanel } from "./MetricsPanel.js";
 import { ErrorFeed } from "./ErrorFeed.js";
 import { SettingsPanel } from "./SettingsPanel.js";
 import { StatusBadge, formatTs } from "./shared.js";
+import {
+  applyFilters,
+  parseFilters,
+  RUN_STATUSES,
+  serializeFilters,
+  toggleSort,
+  toggleStatus,
+  type DashboardFilters,
+  type SortKey,
+} from "./dashboardFilters.js";
 
 export { StatusBadge } from "./shared.js";
 
 type LoadState = { tag: "loading" } | { tag: "ready" } | { tag: "error"; message: string };
 
-export function Dashboard() {
+export function Dashboard({ search }: { search: string }) {
   const [load, setLoad] = useState<LoadState>({ tag: "loading" });
   const [runs, setRuns] = useState<ApiRun[]>([]);
   const [usage, setUsage] = useState<ApiUsage | null>(null);
@@ -79,6 +89,13 @@ export function Dashboard() {
     };
   }, []);
 
+  const filters = useMemo(() => parseFilters(search), [search]);
+  const updateFilters = (next: DashboardFilters) => {
+    const qs = serializeFilters(next);
+    window.location.hash = qs ? `#/${qs}` : "#/";
+  };
+  const visibleRuns = useMemo(() => applyFilters(runs, filters), [runs, filters]);
+
   if (load.tag === "loading") return <p className="text-slate-400">loading…</p>;
   if (load.tag === "error") return <p className="text-rose-400">error: {load.message}</p>;
 
@@ -93,7 +110,83 @@ export function Dashboard() {
       <MetricsPanel runs={runs} />
       <ErrorFeed events={events} runs={runs} />
       <HistoryTotals runs={runs} />
-      {runs.length === 0 ? <EmptyState /> : <RunsTable runs={runs} />}
+      {runs.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <>
+          <FilterBar
+            filters={filters}
+            total={runs.length}
+            visible={visibleRuns.length}
+            onChange={updateFilters}
+          />
+          {visibleRuns.length === 0 ? (
+            <NoMatches onClear={() => updateFilters({ ...filters, statuses: [], text: "" })} />
+          ) : (
+            <RunsTable runs={visibleRuns} filters={filters} onSort={updateFilters} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function FilterBar({
+  filters,
+  total,
+  visible,
+  onChange,
+}: {
+  filters: DashboardFilters;
+  total: number;
+  visible: number;
+  onChange: (next: DashboardFilters) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {RUN_STATUSES.map((status) => {
+          const active = filters.statuses.includes(status);
+          return (
+            <button
+              key={status}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(toggleStatus(filters, status))}
+              className={`rounded px-2 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+                active ? "ring-1 ring-inset ring-cyan-400" : "opacity-70 hover:opacity-100"
+              }`}
+            >
+              <StatusBadge status={status} />
+            </button>
+          );
+        })}
+        <input
+          value={filters.text}
+          onChange={(e) => onChange({ ...filters, text: e.target.value })}
+          placeholder="filter by issue id or title…"
+          className="ml-auto flex-1 min-w-[12rem] max-w-sm rounded border border-slate-800 bg-slate-900 px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-cyan-600 focus-visible:ring-2 focus-visible:ring-cyan-500"
+        />
+      </div>
+      <p className="text-xs text-slate-500">
+        showing <span className="font-mono text-slate-300">{visible}</span> of{" "}
+        <span className="font-mono">{total}</span> runs
+      </p>
+    </div>
+  );
+}
+
+function NoMatches({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-400">
+      No runs match the current filters.{" "}
+      <button
+        type="button"
+        onClick={onClear}
+        className="text-cyan-400 hover:text-cyan-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
+      >
+        Clear filters
+      </button>
     </div>
   );
 }
@@ -111,7 +204,15 @@ function EmptyState() {
   );
 }
 
-function RunsTable({ runs }: { runs: ApiRun[] }) {
+function RunsTable({
+  runs,
+  filters,
+  onSort,
+}: {
+  runs: ApiRun[];
+  filters: DashboardFilters;
+  onSort: (next: DashboardFilters) => void;
+}) {
   return (
     <table className="w-full text-sm">
       <thead className="text-left text-slate-400 border-b border-slate-800">
@@ -120,11 +221,11 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
           <th className="py-2 pr-4">Title</th>
           <th className="py-2 pr-4">Status</th>
           <th className="py-2 pr-4">Scenario</th>
-          <th className="py-2 pr-4">Turns</th>
-          <th className="py-2 pr-4">Tokens</th>
-          <th className="py-2 pr-4">Cost</th>
-          <th className="py-2 pr-4">Started</th>
-          <th className="py-2 pr-4">Finished</th>
+          <SortableHeader label="Turns" sortKey="turns" filters={filters} onSort={onSort} />
+          <SortableHeader label="Tokens" sortKey="tokens" filters={filters} onSort={onSort} />
+          <SortableHeader label="Cost" sortKey="cost" filters={filters} onSort={onSort} />
+          <SortableHeader label="Started" sortKey="startedAt" filters={filters} onSort={onSort} />
+          <SortableHeader label="Finished" sortKey="finishedAt" filters={filters} onSort={onSort} />
         </tr>
       </thead>
       <tbody>
@@ -177,6 +278,36 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
         })}
       </tbody>
     </table>
+  );
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  filters,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  filters: DashboardFilters;
+  onSort: (next: DashboardFilters) => void;
+}) {
+  const active = filters.sort.key === sortKey;
+  const indicator = active ? (filters.sort.dir === "asc" ? " ↑" : " ↓") : "";
+  const ariaSort = active ? (filters.sort.dir === "asc" ? "ascending" : "descending") : "none";
+  return (
+    <th className="py-2 pr-4" aria-sort={ariaSort}>
+      <button
+        type="button"
+        onClick={() => onSort(toggleSort(filters, sortKey))}
+        className={`-mx-1 px-1 rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+          active ? "text-slate-100" : "hover:text-slate-200"
+        }`}
+      >
+        {label}
+        <span aria-hidden="true">{indicator}</span>
+      </button>
+    </th>
   );
 }
 
