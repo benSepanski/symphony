@@ -36,6 +36,23 @@ file. Don't install a router.
 All fetches live in [`src/web/api.ts`](../src/web/api.ts). Never call `fetch`
 from a component.
 
+### SSE → state updates
+
+The dashboard does **not** refetch `/api/runs` on every `turn` event. The
+in-memory runs list is patched from the SSE payload via the pure helpers in
+[`dashboardEvents.ts`](../src/web/dashboardEvents.ts):
+
+- `turn` → `applyTurnEvent` increments `turnCount` on the matching row.
+- `runFinished` → `applyRunFinishedEvent` stamps `status` + `finishedAt`
+  immediately, then a single `GET /api/runs/:id` (`replaceRun`) fills in
+  authoritative token totals + cost.
+- `runStarted` → falls back to `GET /api/runs` (rare event, payload is
+  `Issue`-shaped not `ApiRun`-shaped).
+- A `turn` event for an unknown `runId` (stale tab, missed `runStarted`)
+  falls back to a full `GET /api/runs`.
+
+This keeps a live run from triggering a full table refetch per turn.
+
 ## Conventions
 
 - **Accessibility first.** Every interactive element is a real `<button>` or
