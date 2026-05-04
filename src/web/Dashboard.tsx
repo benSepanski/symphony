@@ -17,6 +17,11 @@ import { MetricsPanel } from "./MetricsPanel.js";
 import { ErrorFeed } from "./ErrorFeed.js";
 import { SettingsPanel } from "./SettingsPanel.js";
 import { StatusBadge, formatTs } from "./shared.js";
+import { dashboardFaviconColor, dashboardTitle } from "./documentTitle.js";
+import { useDocumentChrome } from "./useDocumentChrome.js";
+
+// 30s keeps the recent-failure escalation honest without churning the DOM.
+const TITLE_REFRESH_INTERVAL_MS = 30_000;
 
 export { StatusBadge } from "./shared.js";
 
@@ -30,6 +35,14 @@ export function Dashboard() {
   const [events, setEvents] = useState<ApiEvent[]>([]);
   const [settings, setSettings] = useState<ApiOrchestratorSettings | null>(null);
   const [workflow, setWorkflow] = useState<ApiWorkflowSummary | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), TITLE_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useDocumentChrome(dashboardTitle(runs, now), dashboardFaviconColor(runs, now));
 
   const streamStatus = useEventStream(
     ["runStarted", "turn", "runFinished", "usageUpdated", "tick", "settingsUpdated"],

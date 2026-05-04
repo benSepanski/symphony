@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { searchRuns, type ApiSearchMatch } from "./api.js";
 import { StatusBadge } from "./Dashboard.js";
+import { APP_NAME } from "./documentTitle.js";
+import { useDocumentChrome } from "./useDocumentChrome.js";
 
 export function Search({ query }: { query: string }) {
+  useDocumentChrome(query ? `${query} · search · ${APP_NAME}` : `search · ${APP_NAME}`, "neutral");
   const [input, setInput] = useState(query);
   const [state, setState] = useState<
     | { tag: "idle" }

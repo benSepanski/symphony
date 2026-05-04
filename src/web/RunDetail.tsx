@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail } from "./api.js";
 import { StatusBadge } from "./Dashboard.js";
 import { useEventStream } from "./useEventStream.js";
+import { APP_NAME, runDetailTitle, runFaviconColor } from "./documentTitle.js";
+import { useDocumentChrome } from "./useDocumentChrome.js";
 
 type LoadState =
   | { tag: "loading" }
@@ -10,6 +12,12 @@ type LoadState =
 
 export function RunDetail({ runId }: { runId: string }) {
   const [state, setState] = useState<LoadState>({ tag: "loading" });
+
+  const titleRun = state.tag === "ready" ? state.detail.run : null;
+  useDocumentChrome(
+    titleRun ? runDetailTitle(titleRun) : APP_NAME,
+    titleRun ? runFaviconColor(titleRun) : "neutral",
+  );
 
   useEventStream(["turn", "runFinished"], async () => {
     try {

@@ -48,6 +48,24 @@ from a component.
 - **Monospace for identifiers.** Issue IDs, run IDs, timestamps use
   `font-mono`.
 
+## Tab title + favicon
+
+Each top-level route owns its tab title via
+[`useDocumentChrome`](../src/web/useDocumentChrome.ts), backed by pure helpers
+in [`documentTitle.ts`](../src/web/documentTitle.ts):
+
+| Route       | Title pattern                                | Favicon     |
+| ----------- | -------------------------------------------- | ----------- |
+| `Dashboard` | `● N running · Symphony` / `Symphony`        | neutral "S" |
+| `Dashboard` | `✖ <issue> <status> · Symphony` (within 5 m) | red "S"     |
+| `RunDetail` | `<issue> · <status> · Symphony`              | per-status  |
+| `Search`    | `<query> · search · Symphony`                | neutral "S" |
+
+Failures (`failed` / `rate_limited`) escalate the dashboard tab title for
+`RECENT_FAILURE_WINDOW_MS` (5 min) past the run's `finishedAt`. Dashboard
+re-derives `now` on a 30 s `setInterval` so escalations expire on their own
+without an SSE event.
+
 ## Styling conventions
 
 - Status colors are sourced once from `Dashboard.tsx` and reused; don't duplicate
