@@ -200,7 +200,7 @@ function TurnCard({ turn }: { turn: ApiTurn }) {
           </span>
         )}
       </div>
-      <pre className="mt-2 whitespace-pre-wrap text-sm text-slate-200">
+      <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-200">
         {showCollapsed && summary ? summary.head : turn.content}
       </pre>
       {collapsible && (
@@ -227,7 +227,7 @@ function TurnCard({ turn }: { turn: ApiTurn }) {
             </span>
             Rendered prompt the model saw
           </summary>
-          <pre className="mt-2 whitespace-pre-wrap text-slate-500 border-l border-slate-800 pl-3">
+          <pre className="mt-2 whitespace-pre-wrap break-words text-slate-500 border-l border-slate-800 pl-3">
             {turn.renderedPrompt}
           </pre>
         </details>
