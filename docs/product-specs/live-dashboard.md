@@ -10,18 +10,18 @@ Frontend: [`src/web/`](../../src/web/). Backend: [`src/api/server.ts`](../../src
 ## Users
 
 - **Operator** — watches live runs; diagnoses stuck issues.
-- **Reviewer** — opens `#/run/<id>` after a PR lands; reads the transcript
+- **Reviewer** — opens `#/runs/<id>` after a PR lands; reads the transcript
   before approving.
 - **Agent loops** (future) — could `curl /api/search` or `/api/runs/:id` to
   reason about prior work.
 
 ## Routes
 
-| Hash         | Component                                      | Purpose                                     |
-| ------------ | ---------------------------------------------- | ------------------------------------------- |
-| `#/`         | [`Dashboard.tsx`](../../src/web/Dashboard.tsx) | List of all runs + live indicator.          |
-| `#/run/<id>` | [`RunDetail.tsx`](../../src/web/RunDetail.tsx) | Turn transcript + events + rendered prompt. |
-| `#/search`   | [`Search.tsx`](../../src/web/Search.tsx)       | Text search across turn content + events.   |
+| Hash          | Component                                      | Purpose                                     |
+| ------------- | ---------------------------------------------- | ------------------------------------------- |
+| `#/`          | [`Dashboard.tsx`](../../src/web/Dashboard.tsx) | List of all runs + live indicator.          |
+| `#/runs/<id>` | [`RunDetail.tsx`](../../src/web/RunDetail.tsx) | Turn transcript + events + rendered prompt. |
+| `#/search`    | [`Search.tsx`](../../src/web/Search.tsx)       | Text search across turn content + events.   |
 
 ## HTTP surface
 

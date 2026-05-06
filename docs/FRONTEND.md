@@ -16,11 +16,11 @@ what the agents are doing.
 
 ## Routes
 
-| Hash         | Component                               | Purpose                                        |
-| ------------ | --------------------------------------- | ---------------------------------------------- |
-| `#/`         | [`Dashboard`](../src/web/Dashboard.tsx) | Live run list + status breakdown.              |
-| `#/run/<id>` | [`RunDetail`](../src/web/RunDetail.tsx) | Per-turn transcript, rendered prompt, events.  |
-| `#/search`   | [`Search`](../src/web/Search.tsx)       | Full-text search across turn content + events. |
+| Hash          | Component                               | Purpose                                        |
+| ------------- | --------------------------------------- | ---------------------------------------------- |
+| `#/`          | [`Dashboard`](../src/web/Dashboard.tsx) | Live run list + status breakdown.              |
+| `#/runs/<id>` | [`RunDetail`](../src/web/RunDetail.tsx) | Per-turn transcript, rendered prompt, events.  |
+| `#/search`    | [`Search`](../src/web/Search.tsx)       | Full-text search across turn content + events. |
 
 Add a route by adding a branch in `App.tsx`'s switch and a single component
 file. Don't install a router.
