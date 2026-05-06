@@ -20,8 +20,6 @@ import { ErrorFeed } from "./ErrorFeed.js";
 import { SettingsPanel } from "./SettingsPanel.js";
 import { StatusBadge, formatTs } from "./shared.js";
 
-export { StatusBadge } from "./shared.js";
-
 type LoadState = { tag: "loading" } | { tag: "ready" } | { tag: "error"; message: string };
 
 export function Dashboard() {

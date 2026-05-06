@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { searchRuns, type ApiSearchMatch } from "./api.js";
-import { StatusBadge } from "./Dashboard.js";
+import { StatusBadge } from "./shared.js";
 
 export function Search({ query }: { query: string }) {
   const [input, setInput] = useState(query);
