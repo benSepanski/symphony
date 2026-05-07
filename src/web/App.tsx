@@ -32,17 +32,17 @@ export function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-slate-800 px-6 py-4 flex items-center gap-4">
+      <header className="border-b border-slate-800 px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <a
           href="#/"
           className="text-lg font-semibold tracking-tight hover:text-cyan-400 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
         >
           Symphony
         </a>
-        <nav className="flex items-center gap-3 text-sm text-slate-400">
+        <nav className="flex items-center gap-1 text-sm text-slate-400">
           <a
             href="#/"
-            className={`rounded px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+            className={`rounded px-2 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
               route.view === "dashboard" ? "text-slate-100" : "hover:text-slate-200"
             }`}
           >
@@ -50,7 +50,7 @@ export function App() {
           </a>
           <a
             href="#/search"
-            className={`rounded px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+            className={`rounded px-2 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
               route.view === "search" ? "text-slate-100" : "hover:text-slate-200"
             }`}
           >
@@ -58,10 +58,12 @@ export function App() {
           </a>
         </nav>
         {route.view === "run" && (
-          <span className="text-sm text-slate-500">run {route.runId.slice(0, 8)}…</span>
+          <span className="min-w-0 max-w-full truncate text-sm text-slate-500">
+            run {route.runId.slice(0, 8)}…
+          </span>
         )}
       </header>
-      <main className="px-6 py-6">
+      <main className="px-4 py-4 sm:px-6 sm:py-6">
         {route.view === "dashboard" && <Dashboard />}
         {route.view === "run" && <RunDetail runId={route.runId} />}
         {route.view === "search" && <Search query={route.query} />}
