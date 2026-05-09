@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { ApiEvent, ApiRun } from "./api.js";
+import { fullPayload, shouldExpand, summarize } from "./errorFeedUtils.js";
 
 interface Props {
   events: ApiEvent[];
@@ -29,52 +31,68 @@ export function ErrorFeed({ events, runs }: Props) {
             text: e.eventType,
             cls: "bg-slate-500/10 text-slate-300",
           };
-          return (
-            <li key={e.id}>
-              <a
-                href={`#/runs/${e.runId}`}
-                className="flex items-center gap-3 py-2 text-xs hover:bg-slate-900/60 -mx-2 px-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-              >
-                <span className="text-slate-500 font-mono tabular-nums w-20 shrink-0">
-                  {formatTime(e.ts)}
-                </span>
-                <span className="font-mono text-slate-300 w-24 shrink-0 truncate">
-                  {run?.issueIdentifier ?? "—"}
-                </span>
-                <span
-                  className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium shrink-0 ${label.cls}`}
-                >
-                  {label.text}
-                </span>
-                <span className="text-slate-400 truncate">{summarize(e)}</span>
-              </a>
-            </li>
-          );
+          return <ErrorRow key={e.id} event={e} run={run} label={label} />;
         })}
       </ul>
     </section>
   );
 }
 
-function formatTime(ts: string): string {
-  return new Date(ts).toLocaleTimeString();
+interface RowProps {
+  event: ApiEvent;
+  run: ApiRun | undefined;
+  label: { text: string; cls: string };
 }
 
-function summarize(e: ApiEvent): string {
-  if (!e.payload) return "";
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(e.payload);
-  } catch {
-    return e.payload.slice(0, 120);
-  }
-  if (parsed && typeof parsed === "object") {
-    const o = parsed as Record<string, unknown>;
-    if (typeof o.message === "string") return o.message;
-    if (typeof o.window === "string") {
-      const win = o.window === "fiveHour" ? "5-hour" : o.window === "sevenDay" ? "7-day" : o.window;
-      return `${win} window${o.resetsAt ? ` · resets ${new Date(String(o.resetsAt)).toLocaleString()}` : ""}`;
-    }
-  }
-  return JSON.stringify(parsed).slice(0, 120);
+function ErrorRow({ event, run, label }: RowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const summary = summarize(event);
+  const canExpand = shouldExpand(summary);
+  const detail = canExpand ? fullPayload(event) : "";
+
+  return (
+    <li>
+      <div className="flex items-center gap-3 py-2 text-xs hover:bg-slate-900/60 -mx-2 px-2 rounded">
+        <a
+          href={`#/runs/${event.runId}`}
+          className="flex items-center gap-3 flex-1 min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
+        >
+          <span className="text-slate-500 font-mono tabular-nums w-20 shrink-0">
+            {formatTime(event.ts)}
+          </span>
+          <span className="font-mono text-slate-300 w-24 shrink-0 truncate">
+            {run?.issueIdentifier ?? "—"}
+          </span>
+          <span
+            className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium shrink-0 ${label.cls}`}
+          >
+            {label.text}
+          </span>
+          <span className="text-slate-400 truncate flex-1 min-w-0" title={summary || undefined}>
+            {summary}
+          </span>
+        </a>
+        {canExpand && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={expanded ? "Collapse error payload" : "Expand error payload"}
+            className="shrink-0 rounded px-1 text-slate-400 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+          >
+            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+          </button>
+        )}
+      </div>
+      {canExpand && expanded && (
+        <pre className="mt-1 mb-2 ml-2 whitespace-pre-wrap break-words border-l border-slate-800 pl-3 text-xs text-slate-400">
+          {detail}
+        </pre>
+      )}
+    </li>
+  );
+}
+
+function formatTime(ts: string): string {
+  return new Date(ts).toLocaleTimeString();
 }
