@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CopyButton } from "./CopyButton.js";
 import { Dashboard } from "./Dashboard.js";
 import { RunDetail } from "./RunDetail.js";
 import { Search } from "./Search.js";
@@ -58,8 +59,9 @@ export function App() {
           </a>
         </nav>
         {route.view === "run" && (
-          <span className="min-w-0 max-w-full truncate text-sm text-slate-500">
-            run {route.runId.slice(0, 8)}…
+          <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-sm text-slate-500">
+            <span className="truncate font-mono">run {route.runId.slice(0, 8)}…</span>
+            <CopyButton value={route.runId} label={`Copy full run id ${route.runId}`} />
           </span>
         )}
       </header>

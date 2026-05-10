@@ -16,6 +16,7 @@ import { applyRunFinishedEvent, applyTurnEvent, hasRun, replaceRun } from "./das
 import { useEventStream } from "./useEventStream.js";
 import { HealthStrip } from "./HealthStrip.js";
 import { MetricsPanel } from "./MetricsPanel.js";
+import { CopyButton } from "./CopyButton.js";
 import { ErrorFeed } from "./ErrorFeed.js";
 import { SettingsPanel } from "./SettingsPanel.js";
 import { StatusBadge, formatTs } from "./shared.js";
@@ -183,7 +184,13 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
                 aria-label={`Open run ${r.issueIdentifier}${r.issueTitle ? `: ${r.issueTitle}` : ""}`}
                 className="grid grid-cols-[6rem_minmax(0,1fr)_5rem_8rem_4rem_5rem_5rem_minmax(8rem,max-content)_minmax(8rem,max-content)] gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset"
               >
-                <span className="font-mono">{r.issueIdentifier}</span>
+                <span className="font-mono inline-flex items-center gap-1 min-w-0">
+                  <span className="truncate">{r.issueIdentifier}</span>
+                  <CopyButton
+                    value={r.issueIdentifier}
+                    label={`Copy issue identifier ${r.issueIdentifier}`}
+                  />
+                </span>
                 <span className="text-slate-200 truncate" title={r.issueTitle ?? "—"}>
                   {r.issueTitle ?? "—"}
                 </span>

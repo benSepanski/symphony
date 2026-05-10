@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
+import { CopyButton } from "./CopyButton.js";
 import { StatusBadge } from "./Dashboard.js";
 import { useEventStream } from "./useEventStream.js";
 import {
@@ -55,9 +56,20 @@ export function RunDetail({ runId }: { runId: string }) {
   return (
     <div className="space-y-6">
       <section>
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-lg font-semibold font-mono">{run.issueIdentifier}</h2>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-lg font-semibold font-mono">{run.issueIdentifier}</h2>
+            <CopyButton
+              value={run.issueIdentifier}
+              label={`Copy issue identifier ${run.issueIdentifier}`}
+              size="md"
+            />
+          </div>
           <StatusBadge status={run.status} />
+          <div className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+            <span className="font-mono">run {run.id.slice(0, 8)}…</span>
+            <CopyButton value={run.id} label={`Copy full run id ${run.id}`} />
+          </div>
         </div>
         {run.issueTitle && <p className="mt-1 text-slate-300">{run.issueTitle}</p>}
         <p className="mt-1 text-xs text-slate-500">

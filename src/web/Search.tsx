@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { searchRuns, type ApiSearchMatch } from "./api.js";
+import { CopyButton } from "./CopyButton.js";
 import { StatusBadge } from "./shared.js";
 import {
   EMPTY_FILTERS,
@@ -190,21 +191,27 @@ function SearchResults({
               key={`${m.runId}:${m.matchKind}:${m.turnNumber ?? m.eventType ?? i}`}
               className="rounded border border-slate-800 bg-slate-900/60 p-3"
             >
-              <a
-                href={`#/runs/${m.runId}`}
-                className="flex flex-wrap items-baseline gap-2 text-sm rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-              >
-                <span className="font-mono text-cyan-400">{m.issueIdentifier}</span>
-                {m.issueTitle && (
-                  <span className="text-slate-300 truncate" title={m.issueTitle}>
-                    {m.issueTitle}
+              <div className="flex flex-wrap items-baseline gap-2 text-sm">
+                <a
+                  href={`#/runs/${m.runId}`}
+                  className="flex flex-wrap items-baseline gap-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                >
+                  <span className="font-mono text-cyan-400">{m.issueIdentifier}</span>
+                  {m.issueTitle && (
+                    <span className="text-slate-300 truncate" title={m.issueTitle}>
+                      {m.issueTitle}
+                    </span>
+                  )}
+                  <StatusBadge status={m.status} />
+                  <span className="text-xs text-slate-500">
+                    {m.matchKind === "turn" ? `turn #${m.turnNumber}` : `event ${m.eventType}`}
                   </span>
-                )}
-                <StatusBadge status={m.status} />
-                <span className="text-xs text-slate-500">
-                  {m.matchKind === "turn" ? `turn #${m.turnNumber}` : `event ${m.eventType}`}
-                </span>
-              </a>
+                </a>
+                <CopyButton
+                  value={m.issueIdentifier}
+                  label={`Copy issue identifier ${m.issueIdentifier}`}
+                />
+              </div>
               <Highlighted text={m.snippet} query={query} />
             </li>
           ))}

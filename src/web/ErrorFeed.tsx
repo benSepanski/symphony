@@ -1,4 +1,5 @@
 import type { ApiEvent, ApiRun } from "./api.js";
+import { CopyButton } from "./CopyButton.js";
 
 interface Props {
   events: ApiEvent[];
@@ -38,8 +39,14 @@ export function ErrorFeed({ events, runs }: Props) {
                 <span className="text-slate-500 font-mono tabular-nums w-20 shrink-0">
                   {formatTime(e.ts)}
                 </span>
-                <span className="font-mono text-slate-300 w-24 shrink-0 truncate">
-                  {run?.issueIdentifier ?? "—"}
+                <span className="font-mono text-slate-300 w-28 shrink-0 inline-flex items-center gap-1 min-w-0">
+                  <span className="truncate">{run?.issueIdentifier ?? "—"}</span>
+                  {run?.issueIdentifier && (
+                    <CopyButton
+                      value={run.issueIdentifier}
+                      label={`Copy issue identifier ${run.issueIdentifier}`}
+                    />
+                  )}
                 </span>
                 <span
                   className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium shrink-0 ${label.cls}`}
