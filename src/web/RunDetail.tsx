@@ -217,10 +217,7 @@ function TurnCard({ turn }: { turn: ApiTurn }) {
       )}
       {turn.toolCalls && <ToolCalls raw={turn.toolCalls} />}
       {turn.renderedPrompt && (
-        <details
-          open
-          className="mt-3 rounded border border-slate-800/80 bg-slate-950/40 p-2 text-xs text-slate-400"
-        >
+        <details className="mt-3 rounded border border-slate-800/80 bg-slate-950/40 p-2 text-xs text-slate-400">
           <summary className="cursor-pointer rounded font-medium text-slate-300 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
             <span aria-hidden="true" className="mr-1 text-slate-500">
               ⓘ
