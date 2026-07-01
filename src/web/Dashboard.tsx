@@ -18,6 +18,7 @@ import { HealthStrip } from "./HealthStrip.js";
 import { MetricsPanel } from "./MetricsPanel.js";
 import { ErrorFeed } from "./ErrorFeed.js";
 import { SettingsPanel } from "./SettingsPanel.js";
+import { RUNS_TABLE_GRID_COLS } from "./runsTable.js";
 import { StatusBadge, formatTs } from "./shared.js";
 
 export { StatusBadge } from "./shared.js";
@@ -163,7 +164,7 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
         </h2>
         <div
           role="presentation"
-          className="grid grid-cols-[6rem_minmax(0,1fr)_5rem_8rem_4rem_5rem_5rem_minmax(8rem,max-content)_minmax(8rem,max-content)] gap-x-4 px-2 py-2 text-left text-slate-400 border-b border-slate-800"
+          className={`grid ${RUNS_TABLE_GRID_COLS} gap-x-4 px-2 py-2 text-left text-slate-400 border-b border-slate-800`}
         >
           <span>Issue</span>
           <span>Title</span>
@@ -181,7 +182,7 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
               <a
                 href={`#/runs/${r.id}`}
                 aria-label={`Open run ${r.issueIdentifier}${r.issueTitle ? `: ${r.issueTitle}` : ""}`}
-                className="grid grid-cols-[6rem_minmax(0,1fr)_5rem_8rem_4rem_5rem_5rem_minmax(8rem,max-content)_minmax(8rem,max-content)] gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset"
+                className={`grid ${RUNS_TABLE_GRID_COLS} gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset`}
               >
                 <span className="font-mono">{r.issueIdentifier}</span>
                 <span className="text-slate-200 truncate" title={r.issueTitle ?? "—"}>
