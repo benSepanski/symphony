@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { ApiEvent } from "./api.js";
+import type { ApiEvent, ApiRun } from "./api.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
   TOOL_LINE_THRESHOLD,
   collapsedSummary,
   findErrorEvents,
+  hasStartContextSnapshot,
+  hasTokenUsage,
   shouldCollapseTurn,
   stepCursor,
   turnLineCount,
@@ -99,6 +101,61 @@ describe("findErrorEvents", () => {
   });
   it("returns empty when none match", () => {
     expect(findErrorEvents([ev(1, "tick")])).toEqual([]);
+  });
+});
+
+function makeRun(overrides: Partial<ApiRun> = {}): ApiRun {
+  return {
+    id: "r1",
+    issueId: "BEN-1",
+    issueIdentifier: "BEN-1",
+    issueTitle: null,
+    status: "done",
+    startedAt: "2026-06-01T00:00:00.000Z",
+    finishedAt: null,
+    scenario: null,
+    turnCount: 0,
+    tokensInput: null,
+    tokensOutput: null,
+    tokensCacheRead: null,
+    tokensCacheCreation: null,
+    totalCostUsd: null,
+    authStatus: null,
+    startFiveHourUtil: null,
+    startSevenDayUtil: null,
+    ...overrides,
+  };
+}
+
+describe("hasTokenUsage", () => {
+  it("is false when every token/cost field is null", () => {
+    expect(hasTokenUsage(makeRun())).toBe(false);
+  });
+  it("is true when any single token/cost field is populated", () => {
+    expect(hasTokenUsage(makeRun({ tokensInput: 0 }))).toBe(true);
+    expect(hasTokenUsage(makeRun({ tokensOutput: 42 }))).toBe(true);
+    expect(hasTokenUsage(makeRun({ tokensCacheRead: 7 }))).toBe(true);
+    expect(hasTokenUsage(makeRun({ tokensCacheCreation: 3 }))).toBe(true);
+    expect(hasTokenUsage(makeRun({ totalCostUsd: 0.01 }))).toBe(true);
+  });
+});
+
+describe("hasStartContextSnapshot", () => {
+  it("is false when auth is unknown and utilization is missing", () => {
+    expect(hasStartContextSnapshot(makeRun({ authStatus: "unknown" }))).toBe(false);
+  });
+  it("is false when every field is null", () => {
+    expect(hasStartContextSnapshot(makeRun())).toBe(false);
+  });
+  it("is true for a real auth status", () => {
+    expect(hasStartContextSnapshot(makeRun({ authStatus: "authenticated" }))).toBe(true);
+    expect(hasStartContextSnapshot(makeRun({ authStatus: "unauthenticated" }))).toBe(true);
+  });
+  it("is true when either utilization is populated even if auth is unknown", () => {
+    expect(
+      hasStartContextSnapshot(makeRun({ authStatus: "unknown", startFiveHourUtil: 0.2 })),
+    ).toBe(true);
+    expect(hasStartContextSnapshot(makeRun({ startSevenDayUtil: 0.5 }))).toBe(true);
   });
 });
 
