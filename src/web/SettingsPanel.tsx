@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ApiOrchestratorSettings, ApiPollingMode, ApiWorkflowSummary } from "./api.js";
 import { patchSettings } from "./api.js";
+import { formatSettingsSnapshot, settingsPanelInitialOpen } from "./settingsPanelUtils.js";
 
 interface Props {
   settings: ApiOrchestratorSettings | null;
@@ -17,6 +18,9 @@ type SaveState =
 export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) {
   const [draft, setDraft] = useState<Draft | null>(() => (settings ? toDraft(settings) : null));
   const [saveState, setSaveState] = useState<SaveState>({ tag: "idle" });
+  const [open, setOpen] = useState<boolean>(() =>
+    settings && draft ? settingsPanelInitialOpen(isDirty(draft, settings), "idle") : false,
+  );
 
   useEffect(() => {
     if (settings) setDraft(toDraft(settings));
@@ -27,6 +31,12 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
     settings?.maxTurnsState,
     settings?.pollingMode,
   ]);
+
+  const dirtyForEffect = settings && draft ? isDirty(draft, settings) : false;
+  const errored = saveState.tag === "error";
+  useEffect(() => {
+    if (dirtyForEffect || errored) setOpen(true);
+  }, [dirtyForEffect, errored]);
 
   if (!settings || !draft) {
     return (
@@ -41,6 +51,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
 
   const currentDraft = draft;
   const dirty = isDirty(currentDraft, settings);
+  const snapshot = formatSettingsSnapshot(settings);
 
   async function apply(patch: Partial<ApiOrchestratorSettings>) {
     setSaveState({ tag: "saving" });
@@ -86,86 +97,113 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
   }
 
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-      <header className="flex items-center justify-between mb-3">
-        <div>
-          <h2 className="text-sm font-medium text-slate-200">Workflow settings</h2>
-          <p className="text-xs text-slate-500">
-            Runtime-editable overrides of the values parsed from <code>WORKFLOW.md</code>. Changes
-            apply immediately and do not persist across restarts.
-          </p>
-        </div>
-        <ModeToggle
-          mode={settings.pollingMode}
-          disabled={saveState.tag === "saving"}
-          onChange={(mode) => void apply({ pollingMode: mode })}
-        />
-      </header>
-
-      <form onSubmit={save} className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Field label="Poll interval (ms)" hint="Minimum 1000. Timer restarts on save.">
-          <input
-            type="number"
-            min={1000}
-            step={500}
-            value={currentDraft.pollIntervalMs}
-            onChange={(e) => setDraft({ ...currentDraft, pollIntervalMs: e.target.value })}
-            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-          />
-        </Field>
-        <Field label="Max concurrent agents">
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={currentDraft.maxConcurrentAgents}
-            onChange={(e) => setDraft({ ...currentDraft, maxConcurrentAgents: e.target.value })}
-            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-          />
-        </Field>
-        <Field label="Max turns">
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={currentDraft.maxTurns}
-            onChange={(e) => setDraft({ ...currentDraft, maxTurns: e.target.value })}
-            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-          />
-        </Field>
-        <Field label="Max turns state" hint="Tracker state applied when an agent hits max_turns.">
-          <input
-            type="text"
-            value={currentDraft.maxTurnsState}
-            onChange={(e) => setDraft({ ...currentDraft, maxTurnsState: e.target.value })}
-            className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-          />
-        </Field>
-
-        <div className="md:col-span-2 flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={!dirty || saveState.tag === "saving"}
-            className="rounded bg-cyan-500/20 px-3 py-1 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
+    <section className="rounded-lg border border-slate-800 bg-slate-900/40">
+      <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="group">
+        <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 rounded-lg p-4 text-sm text-slate-300 hover:bg-slate-900/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+          <span
+            aria-hidden="true"
+            className="text-slate-500 transition-transform group-open:rotate-90"
           >
-            {saveState.tag === "saving" ? "Saving…" : "Save changes"}
-          </button>
-          <button
-            type="button"
-            disabled={!dirty || saveState.tag === "saving"}
-            onClick={() => setDraft(toDraft(settings))}
-            className="rounded text-xs text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Reset
-          </button>
-          {saveState.tag === "saved" && <span className="text-xs text-emerald-300">Saved.</span>}
-          {saveState.tag === "error" && (
-            <span className="text-xs text-rose-300">{saveState.message}</span>
+            ▸
+          </span>
+          <h2 className="font-medium text-slate-200">Workflow settings</h2>
+          <span className="text-slate-500">·</span>
+          <span className="text-xs text-slate-400">{snapshot}</span>
+          {dirty && (
+            <span className="ml-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-300">
+              unsaved
+            </span>
           )}
-        </div>
-      </form>
+          {saveState.tag === "error" && (
+            <span className="ml-1 rounded bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-300">
+              error
+            </span>
+          )}
+        </summary>
+        <div className="px-4 pb-4">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <p className="text-xs text-slate-500 max-w-prose">
+              Runtime-editable overrides of the values parsed from <code>WORKFLOW.md</code>. Changes
+              apply immediately and do not persist across restarts.
+            </p>
+            <ModeToggle
+              mode={settings.pollingMode}
+              disabled={saveState.tag === "saving"}
+              onChange={(mode) => void apply({ pollingMode: mode })}
+            />
+          </div>
 
-      {workflow && <WorkflowReadOnly workflow={workflow} />}
+          <form onSubmit={save} className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Field label="Poll interval (ms)" hint="Minimum 1000. Timer restarts on save.">
+              <input
+                type="number"
+                min={1000}
+                step={500}
+                value={currentDraft.pollIntervalMs}
+                onChange={(e) => setDraft({ ...currentDraft, pollIntervalMs: e.target.value })}
+                className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+              />
+            </Field>
+            <Field label="Max concurrent agents">
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={currentDraft.maxConcurrentAgents}
+                onChange={(e) => setDraft({ ...currentDraft, maxConcurrentAgents: e.target.value })}
+                className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+              />
+            </Field>
+            <Field label="Max turns">
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={currentDraft.maxTurns}
+                onChange={(e) => setDraft({ ...currentDraft, maxTurns: e.target.value })}
+                className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+              />
+            </Field>
+            <Field
+              label="Max turns state"
+              hint="Tracker state applied when an agent hits max_turns."
+            >
+              <input
+                type="text"
+                value={currentDraft.maxTurnsState}
+                onChange={(e) => setDraft({ ...currentDraft, maxTurnsState: e.target.value })}
+                className="w-full rounded border border-slate-700 bg-slate-950/60 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+              />
+            </Field>
+
+            <div className="md:col-span-2 flex items-center gap-3">
+              <button
+                type="submit"
+                disabled={!dirty || saveState.tag === "saving"}
+                className="rounded bg-cyan-500/20 px-3 py-1 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {saveState.tag === "saving" ? "Saving…" : "Save changes"}
+              </button>
+              <button
+                type="button"
+                disabled={!dirty || saveState.tag === "saving"}
+                onClick={() => setDraft(toDraft(settings))}
+                className="rounded text-xs text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Reset
+              </button>
+              {saveState.tag === "saved" && (
+                <span className="text-xs text-emerald-300">Saved.</span>
+              )}
+              {saveState.tag === "error" && (
+                <span className="text-xs text-rose-300">{saveState.message}</span>
+              )}
+            </div>
+          </form>
+
+          {workflow && <WorkflowReadOnly workflow={workflow} />}
+        </div>
+      </details>
     </section>
   );
 }
