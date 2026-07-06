@@ -3,6 +3,7 @@ import { searchRuns, type ApiSearchMatch } from "./api.js";
 import { StatusBadge } from "./shared.js";
 import {
   EMPTY_FILTERS,
+  SUGGESTED_QUERIES,
   type MatchKind,
   type SearchFilters,
   availableStatuses,
@@ -71,6 +72,12 @@ export function Search({ query: initialQuery }: { query: string }) {
     window.location.hash = trimmed ? `#/search?q=${encodeURIComponent(trimmed)}` : "#/search";
   };
 
+  const runSuggestion = (q: string) => {
+    setInput(q);
+    setActiveQuery(q);
+    window.location.hash = `#/search?q=${encodeURIComponent(q)}`;
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <form
@@ -96,10 +103,25 @@ export function Search({ query: initialQuery }: { query: string }) {
       </form>
 
       {state.tag === "idle" && (
-        <p className="text-sm text-slate-400">
-          Type a phrase that might appear in a turn's content or an event payload. Results update as
-          you type — searches are case-insensitive substring matches.
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-400">
+            Type a phrase that might appear in a turn's content or an event payload. Results update
+            as you type — searches are case-insensitive substring matches.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-500">try:</span>
+            {SUGGESTED_QUERIES.map((q) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => runSuggestion(q)}
+                className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 font-mono text-slate-300 hover:border-cyan-600 hover:text-cyan-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
       {state.tag === "loading" && <p className="text-slate-400 text-sm">searching…</p>}
       {state.tag === "error" && <p className="text-rose-400 text-sm">{state.message}</p>}
