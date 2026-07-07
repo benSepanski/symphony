@@ -1,4 +1,4 @@
-import type { ApiEvent } from "./api.js";
+import type { ApiEvent, ApiRun } from "./api.js";
 
 export const ASSISTANT_LINE_THRESHOLD = 12;
 export const TOOL_LINE_THRESHOLD = 1;
@@ -39,4 +39,19 @@ export function stepCursor(total: number, current: number, dir: 1 | -1): number 
 
 export function eventDomId(eventId: number): string {
   return `event-${eventId}`;
+}
+
+export function hasTokenUsage(run: ApiRun): boolean {
+  return (
+    run.tokensInput !== null ||
+    run.tokensOutput !== null ||
+    run.tokensCacheRead !== null ||
+    run.tokensCacheCreation !== null ||
+    run.totalCostUsd !== null
+  );
+}
+
+export function hasStartContextSnapshot(run: ApiRun): boolean {
+  const authKnown = run.authStatus !== null && run.authStatus !== "unknown";
+  return authKnown || run.startFiveHourUtil !== null || run.startSevenDayUtil !== null;
 }

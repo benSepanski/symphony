@@ -7,6 +7,8 @@ import {
   collapsedSummary,
   eventDomId,
   findErrorEvents,
+  hasStartContextSnapshot,
+  hasTokenUsage,
   shouldCollapseTurn,
   stepCursor,
   turnLineCount,
@@ -319,21 +321,15 @@ function ToolCalls({ raw }: { raw: string }) {
 }
 
 function HistoryFacts({ run }: { run: ApiRun }) {
-  const hasUsage =
-    run.tokensInput !== null ||
-    run.tokensOutput !== null ||
-    run.tokensCacheRead !== null ||
-    run.tokensCacheCreation !== null ||
-    run.totalCostUsd !== null;
-  const hasStartContext =
-    run.authStatus !== null || run.startFiveHourUtil !== null || run.startSevenDayUtil !== null;
-  if (!hasUsage && !hasStartContext) return null;
+  const showUsage = hasTokenUsage(run);
+  const showStartContext = hasStartContextSnapshot(run);
+  if (!showUsage && !showStartContext) return null;
 
   return (
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
-        <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">Token usage</h3>
-        {hasUsage ? (
+      {showUsage && (
+        <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
+          <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">Token usage</h3>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-mono text-slate-300">
             <dt className="text-slate-500">input</dt>
             <dd className="tabular-nums">{formatCount(run.tokensInput)}</dd>
@@ -346,13 +342,11 @@ function HistoryFacts({ run }: { run: ApiRun }) {
             <dt className="text-slate-500">total cost</dt>
             <dd className="tabular-nums">{formatCostDetailed(run.totalCostUsd)}</dd>
           </dl>
-        ) : (
-          <p className="text-xs text-slate-500">No token usage recorded for this run.</p>
-        )}
-      </div>
-      <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
-        <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">Start context</h3>
-        {hasStartContext ? (
+        </div>
+      )}
+      {showStartContext && (
+        <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
+          <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">Start context</h3>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-mono text-slate-300">
             <dt className="text-slate-500">auth</dt>
             <dd>{run.authStatus ?? "—"}</dd>
@@ -361,10 +355,8 @@ function HistoryFacts({ run }: { run: ApiRun }) {
             <dt className="text-slate-500">7d utilization</dt>
             <dd className="tabular-nums">{formatPctOrDash(run.startSevenDayUtil)}</dd>
           </dl>
-        ) : (
-          <p className="text-xs text-slate-500">No start-context snapshot recorded.</p>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   );
 }
