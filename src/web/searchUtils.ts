@@ -19,6 +19,15 @@ export const EMPTY_FILTERS: SearchFilters = {
   statuses: new Set<string>(),
 };
 
+export const SUGGESTED_QUERIES: readonly string[] = [
+  "pnpm test",
+  "state_transition",
+  "workspace_created",
+  "Human Review",
+  "rate_limit",
+  "error",
+];
+
 export function summarizeMatches(matches: ReadonlyArray<ApiSearchMatch>): SearchSummary {
   const runs = new Set<string>();
   let turns = 0;

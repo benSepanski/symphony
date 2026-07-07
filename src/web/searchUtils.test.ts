@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ApiSearchMatch } from "./api.js";
 import {
   EMPTY_FILTERS,
+  SUGGESTED_QUERIES,
   availableStatuses,
   filterMatches,
   summarizeMatches,
@@ -97,6 +98,22 @@ describe("filterMatches", () => {
       statuses: new Set(["failed"]),
     });
     expect(out).toEqual([]);
+  });
+});
+
+describe("SUGGESTED_QUERIES", () => {
+  it("exposes 4-6 non-empty example queries", () => {
+    expect(SUGGESTED_QUERIES.length).toBeGreaterThanOrEqual(4);
+    expect(SUGGESTED_QUERIES.length).toBeLessThanOrEqual(6);
+    for (const q of SUGGESTED_QUERIES) {
+      expect(typeof q).toBe("string");
+      expect(q.trim()).toBe(q);
+      expect(q.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("has no duplicates", () => {
+    expect(new Set(SUGGESTED_QUERIES).size).toBe(SUGGESTED_QUERIES.length);
   });
 });
 
