@@ -290,4 +290,11 @@ describe("api/server", () => {
     expect(res.headers.get("content-type")).toMatch(/text\/html/);
     expect(await res.text()).toContain("Symphony");
   });
+
+  it("GET /favicon.ico returns 204 so the browser stops logging 404s", async () => {
+    const app = createServer({ events: orchestrator, logger });
+    const res = await app.request("/favicon.ico");
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe("");
+  });
 });

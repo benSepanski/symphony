@@ -96,6 +96,8 @@ export function createServer({
     app.get("/", (c) => c.html(PLACEHOLDER_HTML));
   }
 
+  app.get("/favicon.ico", (c) => c.body(null, 204));
+
   app.get("/api/runs", (c) => c.json(logger.listRuns()));
 
   app.get("/api/usage", (c) =>
