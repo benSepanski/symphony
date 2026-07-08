@@ -5,7 +5,7 @@ The current SQLite schema, extracted from
 quick reference; the TypeScript is the source of truth. When the schema changes,
 update this file in the same PR.
 
-_Last regenerated:_ 2026-04-19
+_Last regenerated:_ 2026-07-08
 _Generated from commit:_ (this one)
 
 ---
@@ -22,7 +22,7 @@ One row per orchestrator run (one attempt against one issue).
 | `issue_id`              | TEXT NOT NULL    | Tracker-internal id.                                                                                                                   |
 | `issue_identifier`      | TEXT NOT NULL    | Human-readable (e.g. `BEN-42`).                                                                                                        |
 | `issue_title`           | TEXT NULLABLE    |                                                                                                                                        |
-| `status`                | TEXT NOT NULL    | Default `running`. Terminal: `completed`, `failed`, `max_turns`, `cancelled`.                                                          |
+| `status`                | TEXT NOT NULL    | Default `running`. Terminal: `completed`, `failed`, `max_turns`, `cancelled`, `rate_limited`.                                          |
 | `started_at`            | TEXT NOT NULL    | ISO-8601 UTC.                                                                                                                          |
 | `finished_at`           | TEXT NULLABLE    | ISO-8601 UTC; `NULL` while `status = running`.                                                                                         |
 | `scenario`              | TEXT NULLABLE    | Mock-mode scenario name.                                                                                                               |
@@ -91,6 +91,7 @@ Emitted by `SymphonyLogger.logEvent`:
 - `state_transition`
 - `state_transition_error`
 - `error`
+- `rate_limited` (emitted alongside a terminal `rate_limited` run status when the usage checker reports the 5h/7d bucket capped after a session failure)
 - `run_finished`
 - `run_start_context` (written by `recordRunStartContext` — JSONL + SQL UPDATE)
 - `run_token_usage` (written by `updateRunUsage` — JSONL + SQL UPDATE)
