@@ -41,7 +41,7 @@ No step is allowed to be merged without passing `pnpm all` on its own.
   thing that happened: `run_started`, `workspace_created`. Errors use an
   `_error` suffix: `state_transition_error`.
 - New run statuses are lowercase words: `completed`, `failed`, `max_turns`,
-  `cancelled`. Add them to the union in
+  `cancelled`, `rate_limited`. Add them to the union in
   [`src/orchestrator.ts`](../../src/orchestrator.ts) _and_ update
   `SymphonyLogger.finishRun` acceptance + the dashboard status legend.
 
