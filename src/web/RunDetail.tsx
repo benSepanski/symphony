@@ -4,6 +4,7 @@ import { StatusBadge } from "./Dashboard.js";
 import { useEventStream } from "./useEventStream.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
+  classifyRunLoadError,
   collapsedSummary,
   eventDomId,
   findErrorEvents,
@@ -13,12 +14,13 @@ import {
   stepCursor,
   turnLineCount,
   turnLineThreshold,
+  type RunLoadError,
 } from "./runDetailUtils.js";
 
 type LoadState =
   | { tag: "loading" }
   | { tag: "ready"; detail: ApiRunDetail }
-  | { tag: "error"; message: string };
+  | { tag: "error"; error: RunLoadError };
 
 export function RunDetail({ runId }: { runId: string }) {
   const [state, setState] = useState<LoadState>({ tag: "loading" });
@@ -28,7 +30,7 @@ export function RunDetail({ runId }: { runId: string }) {
       const detail = await fetchRun(runId);
       setState({ tag: "ready", detail });
     } catch (err) {
-      setState({ tag: "error", message: (err as Error).message });
+      setState({ tag: "error", error: classifyRunLoadError(err) });
     }
   });
 
@@ -39,7 +41,7 @@ export function RunDetail({ runId }: { runId: string }) {
         const detail = await fetchRun(runId);
         if (!cancelled) setState({ tag: "ready", detail });
       } catch (err) {
-        if (!cancelled) setState({ tag: "error", message: (err as Error).message });
+        if (!cancelled) setState({ tag: "error", error: classifyRunLoadError(err) });
       }
     })();
     return () => {
@@ -48,7 +50,7 @@ export function RunDetail({ runId }: { runId: string }) {
   }, [runId]);
 
   if (state.tag === "loading") return <p className="text-slate-400">loading…</p>;
-  if (state.tag === "error") return <p className="text-rose-400">{state.message}</p>;
+  if (state.tag === "error") return <RunLoadErrorCard runId={runId} error={state.error} />;
 
   const { run, turns, events } = state.detail;
   const errorEvent = events.find((e) => e.eventType === "error");
@@ -258,6 +260,34 @@ function EventsSection({ events }: { events: ApiEvent[] }) {
         })}
       </ul>
     </section>
+  );
+}
+
+function RunLoadErrorCard({ runId, error }: { runId: string; error: RunLoadError }) {
+  const heading = error.kind === "not-found" ? "Run not found" : "Couldn't load run";
+  return (
+    <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
+      <h2 className="text-lg font-medium mb-2">{heading}</h2>
+      <p className="text-slate-400 text-sm">
+        {error.kind === "not-found" ? (
+          <>
+            No run matches <code className="font-mono text-slate-300">{runId}</code>. It may have
+            been pruned from the log, or the link may point to a run that never existed.
+          </>
+        ) : (
+          <>
+            Symphony couldn't load <code className="font-mono text-slate-300">{runId}</code>:{" "}
+            <span className="font-mono">{error.message}</span>
+          </>
+        )}
+      </p>
+      <a
+        href="#/"
+        className="mt-4 inline-block rounded text-sm text-cyan-400 hover:text-cyan-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+      >
+        ← Back to runs
+      </a>
+    </div>
   );
 }
 

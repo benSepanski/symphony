@@ -1,4 +1,4 @@
-import type { ApiEvent, ApiRun } from "./api.js";
+import { HttpError, type ApiEvent, type ApiRun } from "./api.js";
 
 export const ASSISTANT_LINE_THRESHOLD = 12;
 export const TOOL_LINE_THRESHOLD = 1;
@@ -54,4 +54,12 @@ export function hasTokenUsage(run: ApiRun): boolean {
 export function hasStartContextSnapshot(run: ApiRun): boolean {
   const authKnown = run.authStatus !== null && run.authStatus !== "unknown";
   return authKnown || run.startFiveHourUtil !== null || run.startSevenDayUtil !== null;
+}
+
+export type RunLoadError = { kind: "not-found" } | { kind: "generic"; message: string };
+
+export function classifyRunLoadError(err: unknown): RunLoadError {
+  if (err instanceof HttpError && err.status === 404) return { kind: "not-found" };
+  const message = err instanceof Error ? err.message : String(err);
+  return { kind: "generic", message };
 }
