@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { requestManualTick, type ApiOrchestratorState, type ApiUsage } from "./api.js";
 import type { StreamStatus } from "./useEventStream.js";
-import { formatPct } from "./shared.js";
+import { formatInterval, formatPct } from "./shared.js";
 
 interface Props {
   state: ApiOrchestratorState | null;
@@ -122,13 +122,6 @@ function Pill({ label, value }: { label: string; value: string }) {
       <span className="font-mono">{value}</span>
     </span>
   );
-}
-
-function formatInterval(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.round(seconds / 60)}m`;
 }
 
 function formatAge(nowMs: number, whenMs: number): string {
