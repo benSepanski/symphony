@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { ApiEvent, ApiRun } from "./api.js";
+import { HttpError, type ApiEvent, type ApiRun } from "./api.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
   TOOL_LINE_THRESHOLD,
+  classifyRunLoadError,
   collapsedSummary,
   findErrorEvents,
   hasStartContextSnapshot,
@@ -156,6 +157,29 @@ describe("hasStartContextSnapshot", () => {
       hasStartContextSnapshot(makeRun({ authStatus: "unknown", startFiveHourUtil: 0.2 })),
     ).toBe(true);
     expect(hasStartContextSnapshot(makeRun({ startSevenDayUtil: 0.5 }))).toBe(true);
+  });
+});
+
+describe("classifyRunLoadError", () => {
+  it("returns not-found for a 404 HttpError", () => {
+    expect(classifyRunLoadError(new HttpError(404, "/api/runs/x returned 404"))).toEqual({
+      kind: "not-found",
+    });
+  });
+  it("returns generic for a non-404 HttpError, preserving the message", () => {
+    expect(classifyRunLoadError(new HttpError(500, "/api/runs/x returned 500"))).toEqual({
+      kind: "generic",
+      message: "/api/runs/x returned 500",
+    });
+  });
+  it("returns generic for a plain Error (transport failure, no status)", () => {
+    expect(classifyRunLoadError(new Error("network down"))).toEqual({
+      kind: "generic",
+      message: "network down",
+    });
+  });
+  it("stringifies non-Error thrown values", () => {
+    expect(classifyRunLoadError("boom")).toEqual({ kind: "generic", message: "boom" });
   });
 });
 

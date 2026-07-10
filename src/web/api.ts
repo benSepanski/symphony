@@ -52,9 +52,18 @@ export async function fetchRuns(): Promise<ApiRun[]> {
   return (await res.json()) as ApiRun[];
 }
 
+export class HttpError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "HttpError";
+    this.status = status;
+  }
+}
+
 export async function fetchRun(id: string): Promise<ApiRunDetail> {
   const res = await fetch(`/api/runs/${encodeURIComponent(id)}`);
-  if (!res.ok) throw new Error(`/api/runs/${id} returned ${res.status}`);
+  if (!res.ok) throw new HttpError(res.status, `/api/runs/${id} returned ${res.status}`);
   return (await res.json()) as ApiRunDetail;
 }
 
