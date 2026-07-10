@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
-import { StatusBadge } from "./Dashboard.js";
+import { StatusBadge } from "./shared.js";
 import { useEventStream } from "./useEventStream.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
