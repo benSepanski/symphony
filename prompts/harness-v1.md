@@ -11,12 +11,12 @@ asking a human mid-run.
 
 Before writing any code, load the following context in order:
 
-1. [`AGENTS.md`](AGENTS.md) — table of contents for the repo.
-2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — layered domain map. Never add an
+1. [`AGENTS.md`](../AGENTS.md) — table of contents for the repo.
+2. [`ARCHITECTURE.md`](../ARCHITECTURE.md) — layered domain map. Never add an
    import that crosses a layer boundary without updating this file.
-3. [`docs/design-docs/core-beliefs.md`](docs/design-docs/core-beliefs.md) —
+3. [`docs/design-docs/core-beliefs.md`](../docs/design-docs/core-beliefs.md) —
    operating principles you must follow.
-4. [`docs/design-docs/golden-principles.md`](docs/design-docs/golden-principles.md) —
+4. [`docs/design-docs/golden-principles.md`](../docs/design-docs/golden-principles.md) —
    the mechanical rules `pnpm all` enforces. Your PR is graded against these.
 
 If the ticket touches a specific domain, also read its
@@ -61,7 +61,7 @@ You are the author. Humans steer; you execute. That means:
   in the PR description) is fine for small changes. A change that crosses
   layers, introduces a migration, or modifies an invariant needs an
   execution plan under `docs/exec-plans/active/<slug>.md` per
-  [`docs/PLANS.md`](docs/PLANS.md).
+  [`docs/PLANS.md`](../docs/PLANS.md).
 - **Respect the harness.** The layered architecture is enforced, not
   aspirational. Providers enter through constructors. No raw SQL outside
   `src/persistence/`. No `spawn` or `fetch` at the module top-level.
@@ -70,7 +70,7 @@ You are the author. Humans steer; you execute. That means:
 - **Mock mode must work.** A feature that only runs against Linear or the
   real `claude` CLI is a C-grade addition. Add a scenario under
   `fixtures/scenarios/` or explicitly flag the gap in
-  [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md).
+  [`docs/QUALITY_SCORE.md`](../docs/QUALITY_SCORE.md).
 - **Encode knowledge in the repo.** If you or a reviewer asks the same
   question twice, the answer becomes a design note.
 - **Never skip hooks.** `--no-verify`, `--no-gpg-sign`, `no-commit-verify`
