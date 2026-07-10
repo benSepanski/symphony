@@ -34,3 +34,10 @@ export function formatTs(ts: string): string {
   const d = new Date(ts);
   return d.toLocaleTimeString();
 }
+
+export function formatInterval(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.round(seconds / 60)}m`;
+}
