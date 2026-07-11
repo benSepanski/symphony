@@ -41,6 +41,20 @@ export function eventDomId(eventId: number): string {
   return `event-${eventId}`;
 }
 
+export type RenderedPromptView =
+  | { kind: "none" }
+  | { kind: "same" }
+  | { kind: "distinct"; prompt: string };
+
+export function renderedPromptView(
+  current: string | null,
+  previous: string | null,
+): RenderedPromptView {
+  if (!current) return { kind: "none" };
+  if (previous !== null && previous === current) return { kind: "same" };
+  return { kind: "distinct", prompt: current };
+}
+
 export function hasTokenUsage(run: ApiRun): boolean {
   return (
     run.tokensInput !== null ||
