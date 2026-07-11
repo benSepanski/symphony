@@ -10,10 +10,12 @@ import {
   findErrorEvents,
   hasStartContextSnapshot,
   hasTokenUsage,
+  renderedPromptView,
   shouldCollapseTurn,
   stepCursor,
   turnLineCount,
   turnLineThreshold,
+  type RenderedPromptView,
   type RunLoadError,
 } from "./runDetailUtils.js";
 
@@ -175,8 +177,12 @@ function TurnsSection({
         </div>
       </div>
       <ul className="space-y-3">
-        {turns.map((t) => (
-          <TurnCard key={t.id} turn={t} />
+        {turns.map((t, i) => (
+          <TurnCard
+            key={t.id}
+            turn={t}
+            promptView={renderedPromptView(t.renderedPrompt, turns[i - 1]?.renderedPrompt ?? null)}
+          />
         ))}
       </ul>
       <div ref={sentinelRef} aria-hidden="true" className="h-px" />
@@ -184,7 +190,7 @@ function TurnsSection({
   );
 }
 
-function TurnCard({ turn }: { turn: ApiTurn }) {
+function TurnCard({ turn, promptView }: { turn: ApiTurn; promptView: RenderedPromptView }) {
   const threshold = turnLineThreshold(turn.role);
   const collapsible = shouldCollapseTurn(turn.content, threshold);
   const [expanded, setExpanded] = useState(false);
@@ -220,20 +226,30 @@ function TurnCard({ turn }: { turn: ApiTurn }) {
         </button>
       )}
       {turn.toolCalls && <ToolCalls raw={turn.toolCalls} />}
-      {turn.renderedPrompt && (
-        <details className="mt-3 rounded border border-slate-800/80 bg-slate-950/40 p-2 text-xs text-slate-400">
-          <summary className="cursor-pointer rounded font-medium text-slate-300 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
-            <span aria-hidden="true" className="mr-1 text-slate-500">
-              ⓘ
-            </span>
-            Rendered prompt the model saw
-          </summary>
-          <pre className="mt-2 whitespace-pre-wrap break-words text-slate-500 border-l border-slate-800 pl-3">
-            {turn.renderedPrompt}
-          </pre>
-        </details>
-      )}
+      <RenderedPromptBlock view={promptView} />
     </li>
+  );
+}
+
+function RenderedPromptBlock({ view }: { view: RenderedPromptView }) {
+  if (view.kind === "none") return null;
+  if (view.kind === "same") {
+    return (
+      <p className="mt-3 text-xs text-slate-500 italic">Same rendered prompt as previous turn</p>
+    );
+  }
+  return (
+    <details className="mt-3 rounded border border-slate-800/80 bg-slate-950/40 p-2 text-xs text-slate-400">
+      <summary className="cursor-pointer rounded font-medium text-slate-300 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+        <span aria-hidden="true" className="mr-1 text-slate-500">
+          ⓘ
+        </span>
+        Rendered prompt the model saw
+      </summary>
+      <pre className="mt-2 whitespace-pre-wrap break-words text-slate-500 border-l border-slate-800 pl-3">
+        {view.prompt}
+      </pre>
+    </details>
   );
 }
 

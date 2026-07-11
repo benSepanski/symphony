@@ -8,6 +8,7 @@ import {
   findErrorEvents,
   hasStartContextSnapshot,
   hasTokenUsage,
+  renderedPromptView,
   shouldCollapseTurn,
   stepCursor,
   turnLineCount,
@@ -180,6 +181,35 @@ describe("classifyRunLoadError", () => {
   });
   it("stringifies non-Error thrown values", () => {
     expect(classifyRunLoadError("boom")).toEqual({ kind: "generic", message: "boom" });
+  });
+});
+
+describe("renderedPromptView", () => {
+  it("is 'none' when the current prompt is null or empty", () => {
+    expect(renderedPromptView(null, null)).toEqual({ kind: "none" });
+    expect(renderedPromptView(null, "prev")).toEqual({ kind: "none" });
+    expect(renderedPromptView("", "prev")).toEqual({ kind: "none" });
+  });
+  it("is 'distinct' for the first turn (no previous)", () => {
+    expect(renderedPromptView("prompt-a", null)).toEqual({
+      kind: "distinct",
+      prompt: "prompt-a",
+    });
+  });
+  it("is 'distinct' when the previous prompt differs", () => {
+    expect(renderedPromptView("prompt-b", "prompt-a")).toEqual({
+      kind: "distinct",
+      prompt: "prompt-b",
+    });
+  });
+  it("is 'same' when the previous prompt matches exactly", () => {
+    expect(renderedPromptView("prompt-a", "prompt-a")).toEqual({ kind: "same" });
+  });
+  it("treats trailing whitespace as a distinct prompt (no fuzzy match)", () => {
+    expect(renderedPromptView("prompt-a\n", "prompt-a")).toEqual({
+      kind: "distinct",
+      prompt: "prompt-a\n",
+    });
   });
 });
 
