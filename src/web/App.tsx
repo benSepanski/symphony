@@ -1,31 +1,18 @@
 import { useEffect, useState } from "react";
+import { parseHash } from "./appRoute.js";
 import { Dashboard } from "./Dashboard.js";
 import { RunDetail } from "./RunDetail.js";
 import { Search } from "./Search.js";
 
-type Route =
-  | { view: "dashboard" }
-  | { view: "run"; runId: string }
-  | { view: "search"; query: string };
-
-function parseHash(): Route {
-  const h = window.location.hash.replace(/^#\/?/, "");
-  if (h.startsWith("runs/")) {
-    return { view: "run", runId: h.slice("runs/".length) };
-  }
-  if (h === "search" || h.startsWith("search?")) {
-    const query =
-      h === "search" ? "" : (new URLSearchParams(h.slice("search?".length)).get("q") ?? "");
-    return { view: "search", query };
-  }
-  return { view: "dashboard" };
+function currentRoute() {
+  return parseHash(window.location.hash);
 }
 
 export function App() {
-  const [route, setRoute] = useState(parseHash());
+  const [route, setRoute] = useState(currentRoute);
 
   useEffect(() => {
-    const onChange = () => setRoute(parseHash());
+    const onChange = () => setRoute(currentRoute());
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
@@ -67,7 +54,25 @@ export function App() {
         {route.view === "dashboard" && <Dashboard />}
         {route.view === "run" && <RunDetail runId={route.runId} />}
         {route.view === "search" && <Search query={route.query} />}
+        {route.view === "notFound" && <NotFound hash={route.hash} />}
       </main>
+    </div>
+  );
+}
+
+function NotFound({ hash }: { hash: string }) {
+  return (
+    <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
+      <h2 className="text-lg font-medium mb-2">Page not found</h2>
+      <p className="text-slate-400 text-sm">
+        No route matches <code className="font-mono text-slate-300">{hash}</code>.
+      </p>
+      <a
+        href="#/"
+        className="mt-3 inline-block text-sm text-cyan-400 rounded hover:text-cyan-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+      >
+        ← Back to runs
+      </a>
     </div>
   );
 }
