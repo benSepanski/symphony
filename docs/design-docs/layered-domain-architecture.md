@@ -13,11 +13,11 @@ looks like nothing the first nine do.
 
 ## Decision
 
-We apply a six-layer dependency rule inspired by OpenAI's harness engineering
+We apply a seven-layer dependency rule inspired by OpenAI's harness engineering
 post. Within Symphony, a module may only depend "forward" through:
 
 ```
-Types → Config → Persistence → Service → Runtime → API/Web
+Types → Config → Persistence → Service → Runtime → API/Web → Entry
 ```
 
 Plus two sideways concerns:
@@ -47,8 +47,9 @@ Plus two sideways concerns:
 | Config      | Types + `yaml` + `zod`.                         | `src/config/workflow.ts`.                                                        |
 | Persistence | Types + `better-sqlite3` + `drizzle-orm`.       | `src/persistence/schema.ts`, `src/persistence/logger.ts`.                        |
 | Service     | Types + `node:*` via providers + Config shapes. | `src/tracker/linear.ts`, `src/agent/claude-code.ts`, `src/workspace/manager.ts`. |
-| Runtime     | All of the above.                               | `src/orchestrator.ts`, `src/replay.ts`, `src/cli.ts`.                            |
+| Runtime     | All of the above.                               | `src/orchestrator.ts`, `src/replay.ts`, `src/index.ts`, `src/eval/`.             |
 | API / Web   | Runtime + Hono / React.                         | `src/api/*`, `src/web/*`.                                                        |
+| Entry       | Composition root wiring providers → runtime.    | `src/cli.ts`.                                                                    |
 
 ## Providers, explicit
 
@@ -87,6 +88,7 @@ Adding a provider = add the signature above, put it in
 1. `tsc --noEmit` catches most illegal imports because the Types layer is
    zero-runtime. A Service module that tried to import the orchestrator
    would circular-import.
-2. A future `tests/arch.test.ts` will walk the import graph and assert the
-   rule; filed in [`../exec-plans/tech-debt-tracker.md`](../exec-plans/tech-debt-tracker.md).
+2. [`src/arch.test.ts`](../../src/arch.test.ts) walks the import graph and
+   asserts the rule; add a file, move one, or wire a new import and the test
+   tells you whether the edge is legal.
 3. Reviewer checklist on every PR: "any new import crosses a layer?".

@@ -10,7 +10,7 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Gate status
 
-- `pnpm all` — green. 194 unit tests + 5 eval scenarios.
+- `pnpm all` — green. 213 unit tests + 5 eval scenarios.
 - `pnpm dev WORKFLOW.md --mock` — full mock run with live dashboard.
 - `pnpm build:web` — produces `dist/web`, served by Hono at `/`.
 - `symphony replay <run_id>` — replays any recorded run over SSE.

@@ -73,8 +73,9 @@ marked _review_ are not yet mechanized; file a tech-debt row to automate them.
     `docs/QUALITY_SCORE.md`.
 
 13. **Tests are deterministic.**
-    Enforcement: review + `vitest.config.ts` sets `testTimeout`. No real
-    `setTimeout` waits — use the injected `Sleeper`.
+    Enforcement: review + vitest's `testTimeout` (default 5 s; 30 s in
+    `vitest.eval.config.ts`). No real `setTimeout` waits — use the injected
+    `Sleeper`.
 
 14. **Every bug fix ships with a regression.**
     Enforcement: review. The PR description links the test that fails
