@@ -17,13 +17,13 @@ note is still in force.
 
 ## Core beliefs and mechanics
 
-| Doc                                                                | Status   | One-liner                                                                 |
-| ------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------- |
-| [`core-beliefs.md`](core-beliefs.md)                               | active   | The non-negotiable operating principles this repo enforces on agents.     |
-| [`golden-principles.md`](golden-principles.md)                     | active   | The full mechanical rules `pnpm all` + review grade every PR against.     |
-| [`layered-domain-architecture.md`](layered-domain-architecture.md) | active   | Why `Types → Config → Persistence → Service → Runtime → API` is enforced. |
-| [`agent-legibility.md`](agent-legibility.md)                       | active   | Why everything an agent needs must live in-repo, not in chat threads.     |
-| [`doc-gardening.md`](doc-gardening.md)                             | proposed | A recurring eval that flags stale docs + missing cross-links.             |
+| Doc                                                                | Status   | One-liner                                                                             |
+| ------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------- |
+| [`core-beliefs.md`](core-beliefs.md)                               | active   | The non-negotiable operating principles this repo enforces on agents.                 |
+| [`golden-principles.md`](golden-principles.md)                     | active   | The full mechanical rules `pnpm all` + review grade every PR against.                 |
+| [`layered-domain-architecture.md`](layered-domain-architecture.md) | active   | Why `Types → Config → Persistence → Service → Runtime → API/Web → Entry` is enforced. |
+| [`agent-legibility.md`](agent-legibility.md)                       | active   | Why everything an agent needs must live in-repo, not in chat threads.                 |
+| [`doc-gardening.md`](doc-gardening.md)                             | proposed | A recurring eval that flags stale docs + missing cross-links.                         |
 
 ## Runtime mechanics
 

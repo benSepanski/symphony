@@ -118,7 +118,8 @@ somewhere the agent can see. The acceptable places, in priority order:
 
 1. The PR description.
 2. The top of the Linear issue comment thread.
-3. A `TODO(slug):` comment in the code referencing `design-docs/TODOS.md`.
+3. A `TODO(slug):` comment in the code referencing a row in
+   [`exec-plans/tech-debt-tracker.md`](exec-plans/tech-debt-tracker.md).
 
 An agent that starts coding without an ephemeral plan at minimum is operating
 out of harness.
