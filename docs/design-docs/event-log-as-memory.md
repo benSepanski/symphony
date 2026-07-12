@@ -39,7 +39,7 @@ JSONL append hadn't flushed); everything earlier is recoverable.
 runs
   id PK
   issue_id, issue_identifier, issue_title
-  status ∈ {running, completed, failed, max_turns, cancelled}
+  status ∈ {running, completed, failed, max_turns, cancelled, rate_limited}
   started_at, finished_at
   scenario, prompt_version, prompt_source
 

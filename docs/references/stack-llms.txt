@@ -1,11 +1,11 @@
 SYMPHONY STACK — snapshot reference
 ====================================
-Last regenerated: 2026-04-18. Source of truth: package.json + .nvmrc.
+Last regenerated: 2026-07-12. Source of truth: package.json + .nvmrc.
 
 Runtime
 -------
 node: 22.x (pinned in .nvmrc)
-pnpm: 9.15.4 (via corepack)
+pnpm: 10.16.1 (via corepack; see packageManager in package.json)
 typescript: ^5.7.3, strict mode
 
 Runtime dependencies (production)
@@ -14,7 +14,7 @@ Runtime dependencies (production)
 better-sqlite3 ^11.7.0     — synchronous SQLite bindings.
 commander ^13.1.0          — CLI arg parsing.
 drizzle-orm ^0.45.2        — typed schema; we use it only for sqliteTable().
-hono ^4.7.6                — web framework.
+hono ^4.12.21              — web framework.
 liquidjs ^10.21.0          — prompt rendering.
 yaml ^2.7.1                — YAML parser for WORKFLOW.md + scenarios.
 zod ^3.24.2                — input validation at every boundary.
@@ -37,7 +37,7 @@ tailwindcss ^4.2.2         — utility CSS.
 tsx ^4.19.2                — TypeScript runner (dev + scripts).
 typescript-eslint ^8.23.0  — TS lint rules.
 vite ^8.0.8                — dev server + build.
-vitest ^3.0.5              — test runner.
+vitest ^3.2.6              — test runner.
 
 Scripts
 -------
