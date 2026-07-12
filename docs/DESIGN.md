@@ -51,10 +51,12 @@ directory fully reconstructs what the orchestrator did.
 Supported event types (current):
 
 - `run_started`, `run_finished`
+- `run_start_context`, `run_token_usage`
 - `turn_recorded`
 - `workspace_created`, `workspace_destroyed`, `workspace_destroy_error`
 - `session_stop_error`
 - `state_transition`, `state_transition_error`
+- `rate_limited`
 - `error`
 
 Adding an event type is additive and does not require a migration. Removing
