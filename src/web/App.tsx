@@ -29,16 +29,18 @@ export function App() {
         <nav className="flex items-center gap-1 text-sm text-slate-400">
           <a
             href="#/"
+            aria-current={route.view === "dashboard" ? "page" : undefined}
             className={`rounded px-2 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
-              route.view === "dashboard" ? "text-slate-100" : "hover:text-slate-200"
+              route.view === "dashboard" ? "bg-slate-800/60 text-slate-100" : "hover:text-slate-200"
             }`}
           >
             runs
           </a>
           <a
             href="#/search"
+            aria-current={route.view === "search" ? "page" : undefined}
             className={`rounded px-2 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
-              route.view === "search" ? "text-slate-100" : "hover:text-slate-200"
+              route.view === "search" ? "bg-slate-800/60 text-slate-100" : "hover:text-slate-200"
             }`}
           >
             search
