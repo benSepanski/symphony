@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
-import { StatusBadge } from "./shared.js";
+import { StatusBadge, formatTs } from "./shared.js";
 import { useEventStream } from "./useEventStream.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
@@ -67,8 +67,8 @@ export function RunDetail({ runId }: { runId: string }) {
         </div>
         {run.issueTitle && <p className="mt-1 text-slate-300">{run.issueTitle}</p>}
         <p className="mt-1 text-xs text-slate-500">
-          Started {new Date(run.startedAt).toLocaleTimeString()}
-          {run.finishedAt && <> · finished {new Date(run.finishedAt).toLocaleTimeString()}</>}
+          Started {formatTs(run.startedAt)}
+          {run.finishedAt && <> · finished {formatTs(run.finishedAt)}</>}
           {run.scenario && <> · scenario {run.scenario}</>}
         </p>
       </section>
@@ -268,7 +268,7 @@ function EventsSection({ events }: { events: ApiEvent[] }) {
                 isError ? "rounded bg-rose-500/10 px-1 -mx-1 ring-1 ring-rose-500/20" : undefined
               }
             >
-              <span className="text-slate-500">{new Date(e.ts).toLocaleTimeString()}</span>{" "}
+              <span className="text-slate-500">{formatTs(e.ts)}</span>{" "}
               <span className={isError ? "text-rose-300" : "text-cyan-400"}>{e.eventType}</span>
               {e.payload && <span className="text-slate-500"> {e.payload}</span>}
             </li>
