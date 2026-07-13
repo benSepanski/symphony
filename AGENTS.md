@@ -93,8 +93,9 @@ for the full list. The short version:
 1. **Never skip hooks.** `--no-verify`, `--no-gpg-sign`, `no-commit-verify` are
    out. Fix the underlying issue.
 2. **Respect layer boundaries.** Code may only depend forward through
-   `Types → Config → Persistence → Service → Runtime → API/Web`. Providers
-   (`fetch`, `spawn`, `Database`, logger) enter via dependency injection.
+   `Types → Config → Persistence → Service → Runtime → API/Web → Entry`.
+   Providers (`spawn`, `fetch`, `Database`, clock, id, sleep) enter via
+   dependency injection.
 3. **Dual-write every agent event.** SQLite row **and** JSONL line. Future
    agents query one or the other to audit prior work.
 4. **Validate at the boundary.** Parse config (zod), GraphQL (typed), stream
