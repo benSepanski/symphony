@@ -67,11 +67,14 @@ This keeps a live run from triggering a full table refetch per turn.
 
 ## Styling conventions
 
-- Status colors are sourced once from `Dashboard.tsx` and reused; don't duplicate
-  the mapping. A new run status (e.g. `cancelled`) requires updating the map
-  and its unit coverage.
-- Timestamps render as ISO-trimmed text. Agents reading the DOM care about
-  exact strings; don't localize them in-component.
+- Status colors are sourced once from the `STATUS_STYLES` map + `StatusBadge`
+  component in [`shared.tsx`](../src/web/shared.tsx) and reused across
+  Dashboard, RunDetail, MetricsPanel, and Search. Don't duplicate the mapping.
+  A new run status (e.g. `cancelled`) requires updating that map.
+- Timestamps render through the `formatTs` helper in
+  [`shared.tsx`](../src/web/shared.tsx), which delegates to
+  `Date.prototype.toLocaleTimeString`. Use `formatTs` — don't call
+  `toLocaleTimeString` or reformat dates ad-hoc in components.
 
 ## Building
 
