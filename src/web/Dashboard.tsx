@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchHealth,
   fetchRecentEvents,
@@ -13,6 +13,7 @@ import {
   type ApiWorkflowSummary,
 } from "./api.js";
 import { applyRunFinishedEvent, applyTurnEvent, hasRun, replaceRun } from "./dashboardEvents.js";
+import { collectDashboardFailures, type DashboardLoadFailure } from "./dashboardLoadUtils.js";
 import { useEventStream } from "./useEventStream.js";
 import { HealthStrip } from "./HealthStrip.js";
 import { MetricsPanel } from "./MetricsPanel.js";
@@ -21,7 +22,12 @@ import { SettingsPanel } from "./SettingsPanel.js";
 import { RUNS_TABLE_GRID_COLS } from "./runsTable.js";
 import { StatusBadge, formatTs } from "./shared.js";
 
-type LoadState = { tag: "loading" } | { tag: "ready" } | { tag: "error"; message: string };
+type LoadState =
+  | { tag: "loading" }
+  | { tag: "ready" }
+  | { tag: "error"; failures: DashboardLoadFailure[] };
+
+const LOADING_CARD_DELAY_MS = 200;
 
 export function Dashboard() {
   const [load, setLoad] = useState<LoadState>({ tag: "loading" });
@@ -91,35 +97,50 @@ export function Dashboard() {
     },
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [r, health, recent, settingsResp] = await Promise.all([
-          fetchRuns(),
-          fetchHealth(),
-          fetchRecentEvents(),
-          fetchSettings(),
-        ]);
-        if (cancelled) return;
-        setRuns(r);
-        setUsage(health.usage);
-        setState(health.orchestrator);
-        setEvents(recent.events);
-        setSettings(settingsResp.settings);
-        setWorkflow(settingsResp.workflow);
-        setLoad({ tag: "ready" });
-      } catch (err) {
-        if (!cancelled) setLoad({ tag: "error", message: (err as Error).message });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadGen = useRef(0);
+  const loadDashboard = useCallback(async () => {
+    const gen = ++loadGen.current;
+    setLoad({ tag: "loading" });
+    const [runsRes, healthRes, recentRes, settingsRes] = await Promise.allSettled([
+      fetchRuns(),
+      fetchHealth(),
+      fetchRecentEvents(),
+      fetchSettings(),
+    ]);
+    if (gen !== loadGen.current) return;
+    const failures = collectDashboardFailures([
+      { url: "/api/runs", result: runsRes },
+      { url: "/api/health", result: healthRes },
+      { url: "/api/events/recent", result: recentRes },
+      { url: "/api/settings", result: settingsRes },
+    ]);
+    if (failures.length > 0) {
+      setLoad({ tag: "error", failures });
+      return;
+    }
+    if (runsRes.status === "fulfilled") setRuns(runsRes.value);
+    if (healthRes.status === "fulfilled") {
+      setUsage(healthRes.value.usage);
+      setState(healthRes.value.orchestrator);
+    }
+    if (recentRes.status === "fulfilled") setEvents(recentRes.value.events);
+    if (settingsRes.status === "fulfilled") {
+      setSettings(settingsRes.value.settings);
+      setWorkflow(settingsRes.value.workflow);
+    }
+    setLoad({ tag: "ready" });
   }, []);
 
-  if (load.tag === "loading") return <p className="text-slate-400">loading…</p>;
-  if (load.tag === "error") return <p className="text-rose-400">error: {load.message}</p>;
+  useEffect(() => {
+    void loadDashboard();
+    return () => {
+      loadGen.current++;
+    };
+  }, [loadDashboard]);
+
+  if (load.tag === "loading") return <DashboardLoadingCard />;
+  if (load.tag === "error")
+    return <DashboardErrorCard failures={load.failures} onRetry={loadDashboard} />;
 
   return (
     <div className="flex flex-col gap-4">
@@ -146,6 +167,64 @@ function EmptyState() {
         In mock mode, demo issues are seeded at boot (pass <code>--no-demo</code> to skip, or{" "}
         <code>--seed &lt;file.yaml&gt;</code> to supply your own).
       </p>
+    </div>
+  );
+}
+
+function DashboardLoadingCard() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), LOADING_CARD_DELAY_MS);
+    return () => clearTimeout(t);
+  }, []);
+  if (!visible) return <div aria-hidden="true" />;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6"
+    >
+      <h2 className="text-lg font-medium mb-2">Loading dashboard…</h2>
+      <p className="sr-only">Fetching runs, health, recent events, and settings.</p>
+      <div className="space-y-2" aria-hidden="true">
+        <div className="h-3 w-3/4 animate-pulse rounded bg-slate-800" />
+        <div className="h-3 w-1/2 animate-pulse rounded bg-slate-800" />
+        <div className="h-3 w-5/6 animate-pulse rounded bg-slate-800" />
+      </div>
+    </div>
+  );
+}
+
+function DashboardErrorCard({
+  failures,
+  onRetry,
+}: {
+  failures: DashboardLoadFailure[];
+  onRetry: () => void;
+}) {
+  return (
+    <div role="alert" className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
+      <h2 className="text-lg font-medium mb-2">Couldn't load dashboard</h2>
+      <p className="text-slate-400 text-sm">
+        {failures.length === 1
+          ? "One request failed while loading the dashboard."
+          : `${failures.length} requests failed while loading the dashboard.`}
+      </p>
+      <ul className="mt-3 space-y-1 text-xs">
+        {failures.map((f) => (
+          <li key={f.url} className="font-mono text-slate-300">
+            <span className="text-rose-300">{f.url}</span>{" "}
+            <span className="text-slate-400">— {f.message}</span>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-4 rounded border border-cyan-500/50 bg-cyan-500/10 px-3 py-1 text-sm text-cyan-200 hover:bg-cyan-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+      >
+        Try again
+      </button>
     </div>
   );
 }
