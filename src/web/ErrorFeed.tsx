@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ApiEvent, ApiRun } from "./api.js";
 import { fullPayload, shouldExpand, summarize } from "./errorFeedUtils.js";
+import { formatTs } from "./shared.js";
 
 interface Props {
   events: ApiEvent[];
@@ -58,7 +59,7 @@ function ErrorRow({ event, run, label }: RowProps) {
           className="flex items-center gap-3 flex-1 min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
         >
           <span className="text-slate-500 font-mono tabular-nums w-20 shrink-0">
-            {formatTime(event.ts)}
+            {formatTs(event.ts)}
           </span>
           <span className="font-mono text-slate-300 w-24 shrink-0 truncate">
             {run?.issueIdentifier ?? "—"}
@@ -91,8 +92,4 @@ function ErrorRow({ event, run, label }: RowProps) {
       )}
     </li>
   );
-}
-
-function formatTime(ts: string): string {
-  return new Date(ts).toLocaleTimeString();
 }
