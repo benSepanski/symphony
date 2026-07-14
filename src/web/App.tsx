@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { documentTitleForRoute, runHeaderLabel, type RunHeader } from "./appHeader.js";
 import { parseHash } from "./appRoute.js";
 import { Dashboard } from "./Dashboard.js";
 import { RunDetail } from "./RunDetail.js";
@@ -10,12 +11,17 @@ function currentRoute() {
 
 export function App() {
   const [route, setRoute] = useState(currentRoute);
+  const [runHeader, setRunHeader] = useState<RunHeader | null>(null);
 
   useEffect(() => {
     const onChange = () => setRoute(currentRoute());
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
+
+  useEffect(() => {
+    document.title = documentTitleForRoute(route, runHeader);
+  }, [route, runHeader]);
 
   return (
     <div className="min-h-screen">
@@ -46,19 +52,29 @@ export function App() {
             search
           </a>
         </nav>
-        {route.view === "run" && (
-          <span className="min-w-0 max-w-full truncate text-sm text-slate-500">
-            run {route.runId.slice(0, 8)}…
-          </span>
-        )}
+        {route.view === "run" && <RunBreadcrumb runId={route.runId} header={runHeader} />}
       </header>
       <main className="px-4 py-4 sm:px-6 sm:py-6">
         {route.view === "dashboard" && <Dashboard />}
-        {route.view === "run" && <RunDetail runId={route.runId} />}
+        {route.view === "run" && <RunDetail runId={route.runId} onHeaderResolved={setRunHeader} />}
         {route.view === "search" && <Search query={route.query} />}
         {route.view === "notFound" && <NotFound hash={route.hash} />}
       </main>
     </div>
+  );
+}
+
+function RunBreadcrumb({ runId, header }: { runId: string; header: RunHeader | null }) {
+  const label = runHeaderLabel(runId, header);
+  if (label.kind === "identifier") {
+    return (
+      <span className="min-w-0 max-w-full truncate text-sm text-slate-500">
+        run <span className="font-mono text-slate-300">{label.identifier}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="min-w-0 max-w-full truncate text-sm text-slate-500">run {label.slice}…</span>
   );
 }
 

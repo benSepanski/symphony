@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { RunHeader } from "./appHeader.js";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
 import { StatusBadge, formatTs } from "./shared.js";
 import { useEventStream } from "./useEventStream.js";
@@ -24,13 +25,20 @@ type LoadState =
   | { tag: "ready"; detail: ApiRunDetail }
   | { tag: "error"; error: RunLoadError };
 
-export function RunDetail({ runId }: { runId: string }) {
+export function RunDetail({
+  runId,
+  onHeaderResolved,
+}: {
+  runId: string;
+  onHeaderResolved?: (header: RunHeader) => void;
+}) {
   const [state, setState] = useState<LoadState>({ tag: "loading" });
 
   useEventStream(["turn", "runFinished"], async () => {
     try {
       const detail = await fetchRun(runId);
       setState({ tag: "ready", detail });
+      onHeaderResolved?.({ runId, issueIdentifier: detail.run.issueIdentifier });
     } catch (err) {
       setState({ tag: "error", error: classifyRunLoadError(err) });
     }
@@ -41,7 +49,9 @@ export function RunDetail({ runId }: { runId: string }) {
     (async () => {
       try {
         const detail = await fetchRun(runId);
-        if (!cancelled) setState({ tag: "ready", detail });
+        if (cancelled) return;
+        setState({ tag: "ready", detail });
+        onHeaderResolved?.({ runId, issueIdentifier: detail.run.issueIdentifier });
       } catch (err) {
         if (!cancelled) setState({ tag: "error", error: classifyRunLoadError(err) });
       }
@@ -49,7 +59,7 @@ export function RunDetail({ runId }: { runId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [runId]);
+  }, [runId, onHeaderResolved]);
 
   if (state.tag === "loading") return <p className="text-slate-400">loading…</p>;
   if (state.tag === "error") return <RunLoadErrorCard runId={runId} error={state.error} />;
