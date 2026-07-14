@@ -19,7 +19,7 @@ import { HealthStrip } from "./HealthStrip.js";
 import { MetricsPanel } from "./MetricsPanel.js";
 import { ErrorFeed } from "./ErrorFeed.js";
 import { SettingsPanel } from "./SettingsPanel.js";
-import { RUNS_TABLE_GRID_COLS } from "./runsTable.js";
+import { RUNS_TABLE_COLUMNS, RUNS_TABLE_GRID_COLS } from "./runsTable.js";
 import { StatusBadge, formatTs } from "./shared.js";
 
 type LoadState =
@@ -232,7 +232,8 @@ function DashboardErrorCard({
 function RunsTable({ runs }: { runs: ApiRun[] }) {
   return (
     <div className="-mx-4 overflow-x-auto sm:mx-0">
-      <section
+      <div
+        role="table"
         aria-labelledby="runs-heading"
         className="min-w-[56rem] px-4 text-sm sm:min-w-0 sm:px-0"
       >
@@ -240,56 +241,80 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
           Runs
         </h2>
         <div
-          role="presentation"
+          role="row"
           className={`grid ${RUNS_TABLE_GRID_COLS} gap-x-4 px-2 py-2 text-left text-slate-400 border-b border-slate-800`}
         >
-          <span>Issue</span>
-          <span>Title</span>
-          <span>Status</span>
-          <span>Scenario</span>
-          <span>Turns</span>
-          <span>Tokens</span>
-          <span>Cost</span>
-          <span>Started</span>
-          <span>Finished</span>
+          {RUNS_TABLE_COLUMNS.map((col) => (
+            <span key={col.key} role="columnheader" id={col.headerId}>
+              {col.label}
+            </span>
+          ))}
         </div>
-        <ul className="divide-y divide-slate-900/60">
+        <ul role="rowgroup" className="divide-y divide-slate-900/60">
           {runs.map((r) => (
-            <li key={r.id}>
-              <a
-                href={`#/runs/${r.id}`}
-                aria-label={`Open run ${r.issueIdentifier}${r.issueTitle ? `: ${r.issueTitle}` : ""}`}
-                className={`grid ${RUNS_TABLE_GRID_COLS} gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset`}
-              >
-                <span className="font-mono">{r.issueIdentifier}</span>
-                <span className="text-slate-200 truncate" title={r.issueTitle ?? "—"}>
-                  {r.issueTitle ?? "—"}
-                </span>
-                <span>
-                  <StatusBadge status={r.status} />
-                </span>
-                <span className="text-slate-400 truncate">{r.scenario ?? "—"}</span>
-                <span className="text-slate-400 font-mono tabular-nums">{r.turnCount}</span>
-                <span
-                  className="text-slate-400 font-mono tabular-nums"
-                  title={formatTokenBreakdown(r)}
+            <li
+              key={r.id}
+              role="row"
+              className={`relative grid ${RUNS_TABLE_GRID_COLS} gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset`}
+            >
+              <span role="cell" aria-labelledby="col-issue" className="font-mono">
+                <a
+                  href={`#/runs/${r.id}`}
+                  aria-label={rowAriaLabel(r)}
+                  className="absolute inset-0 focus:outline-none"
                 >
-                  {formatTokenTotal(r)}
-                </span>
-                <span className="text-slate-400 font-mono tabular-nums">
-                  {formatCost(r.totalCostUsd)}
-                </span>
-                <span className="text-slate-400">{formatTs(r.startedAt)}</span>
-                <span className="text-slate-400">
-                  {r.finishedAt ? formatTs(r.finishedAt) : "—"}
-                </span>
-              </a>
+                  <span className="sr-only">Open</span>
+                </a>
+                {r.issueIdentifier}
+              </span>
+              <span role="cell" aria-labelledby="col-title" className="text-slate-200 truncate">
+                {r.issueTitle ?? "—"}
+              </span>
+              <span role="cell" aria-labelledby="col-status">
+                <StatusBadge status={r.status} />
+              </span>
+              <span role="cell" aria-labelledby="col-scenario" className="text-slate-400 truncate">
+                {r.scenario ?? "—"}
+              </span>
+              <span
+                role="cell"
+                aria-labelledby="col-turns"
+                className="text-slate-400 font-mono tabular-nums"
+              >
+                {r.turnCount}
+              </span>
+              <span
+                role="cell"
+                aria-labelledby="col-tokens"
+                className="text-slate-400 font-mono tabular-nums"
+              >
+                {formatTokenTotal(r)}
+                <span className="sr-only"> ({formatTokenBreakdown(r)})</span>
+              </span>
+              <span
+                role="cell"
+                aria-labelledby="col-cost"
+                className="text-slate-400 font-mono tabular-nums"
+              >
+                {formatCost(r.totalCostUsd)}
+              </span>
+              <span role="cell" aria-labelledby="col-started" className="text-slate-400">
+                {formatTs(r.startedAt)}
+              </span>
+              <span role="cell" aria-labelledby="col-finished" className="text-slate-400">
+                {r.finishedAt ? formatTs(r.finishedAt) : "—"}
+              </span>
             </li>
           ))}
         </ul>
-      </section>
+      </div>
     </div>
   );
+}
+
+function rowAriaLabel(r: ApiRun): string {
+  const title = r.issueTitle ? `: ${r.issueTitle}` : "";
+  return `Open run ${r.issueIdentifier}${title} · ${r.status}`;
 }
 
 function sumTokens(r: ApiRun): number {
