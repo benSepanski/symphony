@@ -46,12 +46,6 @@ export interface ApiRunDetail {
   events: ApiEvent[];
 }
 
-export async function fetchRuns(): Promise<ApiRun[]> {
-  const res = await fetch("/api/runs");
-  if (!res.ok) throw new Error(`/api/runs returned ${res.status}`);
-  return (await res.json()) as ApiRun[];
-}
-
 export class HttpError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
@@ -61,10 +55,18 @@ export class HttpError extends Error {
   }
 }
 
-export async function fetchRun(id: string): Promise<ApiRunDetail> {
-  const res = await fetch(`/api/runs/${encodeURIComponent(id)}`);
-  if (!res.ok) throw new HttpError(res.status, `/api/runs/${id} returned ${res.status}`);
-  return (await res.json()) as ApiRunDetail;
+async function getJson<T>(path: string): Promise<T> {
+  const res = await fetch(path);
+  if (!res.ok) throw new HttpError(res.status, `${path} returned ${res.status}`);
+  return (await res.json()) as T;
+}
+
+export function fetchRuns(): Promise<ApiRun[]> {
+  return getJson<ApiRun[]>("/api/runs");
+}
+
+export function fetchRun(id: string): Promise<ApiRunDetail> {
+  return getJson<ApiRunDetail>(`/api/runs/${encodeURIComponent(id)}`);
 }
 
 export interface ApiSearchMatch {
@@ -83,10 +85,8 @@ export interface ApiSearchResult {
   matches: ApiSearchMatch[];
 }
 
-export async function searchRuns(q: string): Promise<ApiSearchResult> {
-  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-  if (!res.ok) throw new Error(`/api/search returned ${res.status}`);
-  return (await res.json()) as ApiSearchResult;
+export function searchRuns(q: string): Promise<ApiSearchResult> {
+  return getJson<ApiSearchResult>(`/api/search?q=${encodeURIComponent(q)}`);
 }
 
 export interface ApiUsageWindow {
@@ -105,10 +105,8 @@ export interface ApiUsage {
   rateLimitedWindow: "fiveHour" | "sevenDay" | null;
 }
 
-export async function fetchUsage(): Promise<ApiUsage> {
-  const res = await fetch("/api/usage");
-  if (!res.ok) throw new Error(`/api/usage returned ${res.status}`);
-  return (await res.json()) as ApiUsage;
+export function fetchUsage(): Promise<ApiUsage> {
+  return getJson<ApiUsage>("/api/usage");
 }
 
 export type ApiPollingMode = "auto" | "manual";
@@ -151,10 +149,8 @@ export interface ApiSettingsResponse {
   workflow: ApiWorkflowSummary | null;
 }
 
-export async function fetchSettings(): Promise<ApiSettingsResponse> {
-  const res = await fetch("/api/settings");
-  if (!res.ok) throw new Error(`/api/settings returned ${res.status}`);
-  return (await res.json()) as ApiSettingsResponse;
+export function fetchSettings(): Promise<ApiSettingsResponse> {
+  return getJson<ApiSettingsResponse>("/api/settings");
 }
 
 export async function patchSettings(
@@ -188,24 +184,17 @@ export interface ApiHealth {
   usage: ApiUsage;
 }
 
-export async function fetchHealth(): Promise<ApiHealth> {
-  const res = await fetch("/api/health");
-  if (!res.ok) throw new Error(`/api/health returned ${res.status}`);
-  return (await res.json()) as ApiHealth;
+export function fetchHealth(): Promise<ApiHealth> {
+  return getJson<ApiHealth>("/api/health");
 }
 
 export interface ApiRecentEventsResponse {
   events: ApiEvent[];
 }
 
-export async function fetchRecentEvents(
-  types?: string[],
-  limit = 50,
-): Promise<ApiRecentEventsResponse> {
+export function fetchRecentEvents(types?: string[], limit = 50): Promise<ApiRecentEventsResponse> {
   const params = new URLSearchParams();
   if (types && types.length > 0) params.set("types", types.join(","));
   params.set("limit", String(limit));
-  const res = await fetch(`/api/events/recent?${params.toString()}`);
-  if (!res.ok) throw new Error(`/api/events/recent returned ${res.status}`);
-  return (await res.json()) as ApiRecentEventsResponse;
+  return getJson<ApiRecentEventsResponse>(`/api/events/recent?${params.toString()}`);
 }
