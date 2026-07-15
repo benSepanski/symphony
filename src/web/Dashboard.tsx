@@ -19,7 +19,18 @@ import { HealthStrip } from "./HealthStrip.js";
 import { MetricsPanel } from "./MetricsPanel.js";
 import { ErrorFeed } from "./ErrorFeed.js";
 import { SettingsPanel } from "./SettingsPanel.js";
-import { RUNS_TABLE_COLUMNS, RUNS_TABLE_GRID_COLS } from "./runsTable.js";
+import {
+  RUNS_TABLE_COLUMNS,
+  RUNS_TABLE_GRID_COLS,
+  formatCost,
+  formatRunMetaLine,
+  formatTokenBreakdown,
+  formatTokenCount,
+  formatTokenTotal,
+  hasUsage,
+  runCardAriaLabel,
+  sumTokens,
+} from "./runsTable.js";
 import { StatusBadge, formatTs } from "./shared.js";
 
 type LoadState =
@@ -231,137 +242,131 @@ function DashboardErrorCard({
 
 function RunsTable({ runs }: { runs: ApiRun[] }) {
   return (
-    <div className="-mx-4 overflow-x-auto sm:mx-0">
-      <div
-        role="table"
-        aria-labelledby="runs-heading"
-        className="min-w-[56rem] px-4 text-sm sm:min-w-0 sm:px-0"
-      >
-        <h2 id="runs-heading" className="sr-only">
+    <>
+      <section aria-labelledby="runs-heading-mobile" className="sm:hidden">
+        <h2 id="runs-heading-mobile" className="sr-only">
           Runs
         </h2>
-        <div
-          role="row"
-          className={`grid ${RUNS_TABLE_GRID_COLS} gap-x-4 px-2 py-2 text-left text-slate-400 border-b border-slate-800`}
-        >
-          {RUNS_TABLE_COLUMNS.map((col) => (
-            <span key={col.key} role="columnheader" id={col.headerId}>
-              {col.label}
-            </span>
-          ))}
-        </div>
-        <ul role="rowgroup" className="divide-y divide-slate-900/60">
+        <ul className="flex flex-col gap-2">
           {runs.map((r) => (
-            <li
-              key={r.id}
-              role="row"
-              className={`relative grid ${RUNS_TABLE_GRID_COLS} gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset`}
-            >
-              <span role="cell" aria-labelledby="col-issue" className="font-mono">
-                <a
-                  href={`#/runs/${r.id}`}
-                  aria-label={rowAriaLabel(r)}
-                  className="absolute inset-0 focus:outline-none"
-                >
-                  <span className="sr-only">Open</span>
-                </a>
-                {r.issueIdentifier}
-              </span>
-              <span role="cell" aria-labelledby="col-title" className="text-slate-200 truncate">
-                {r.issueTitle ?? "—"}
-              </span>
-              <span role="cell" aria-labelledby="col-status">
-                <StatusBadge status={r.status} />
-              </span>
-              <span role="cell" aria-labelledby="col-scenario" className="text-slate-400 truncate">
-                {r.scenario ?? "—"}
-              </span>
-              <span
-                role="cell"
-                aria-labelledby="col-turns"
-                className="text-slate-400 font-mono tabular-nums"
-              >
-                {r.turnCount}
-              </span>
-              <span
-                role="cell"
-                aria-labelledby="col-tokens"
-                className="text-slate-400 font-mono tabular-nums"
-              >
-                {formatTokenTotal(r)}
-                <span className="sr-only"> ({formatTokenBreakdown(r)})</span>
-              </span>
-              <span
-                role="cell"
-                aria-labelledby="col-cost"
-                className="text-slate-400 font-mono tabular-nums"
-              >
-                {formatCost(r.totalCostUsd)}
-              </span>
-              <span role="cell" aria-labelledby="col-started" className="text-slate-400">
-                {formatTs(r.startedAt)}
-              </span>
-              <span role="cell" aria-labelledby="col-finished" className="text-slate-400">
-                {r.finishedAt ? formatTs(r.finishedAt) : "—"}
-              </span>
-            </li>
+            <RunCard key={r.id} run={r} />
           ))}
         </ul>
+      </section>
+      <div className="-mx-4 hidden overflow-x-auto sm:mx-0 sm:block">
+        <div
+          role="table"
+          aria-labelledby="runs-heading"
+          className="min-w-[56rem] px-4 text-sm sm:min-w-0 sm:px-0"
+        >
+          <h2 id="runs-heading" className="sr-only">
+            Runs
+          </h2>
+          <div
+            role="row"
+            className={`grid ${RUNS_TABLE_GRID_COLS} gap-x-4 px-2 py-2 text-left text-slate-400 border-b border-slate-800`}
+          >
+            {RUNS_TABLE_COLUMNS.map((col) => (
+              <span key={col.key} role="columnheader" id={col.headerId}>
+                {col.label}
+              </span>
+            ))}
+          </div>
+          <ul role="rowgroup" className="divide-y divide-slate-900/60">
+            {runs.map((r) => (
+              <li
+                key={r.id}
+                role="row"
+                className={`relative grid ${RUNS_TABLE_GRID_COLS} gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset`}
+              >
+                <span role="cell" aria-labelledby="col-issue" className="font-mono">
+                  <a
+                    href={`#/runs/${r.id}`}
+                    aria-label={runCardAriaLabel(r)}
+                    className="absolute inset-0 focus:outline-none"
+                  >
+                    <span className="sr-only">Open</span>
+                  </a>
+                  {r.issueIdentifier}
+                </span>
+                <span role="cell" aria-labelledby="col-title" className="text-slate-200 truncate">
+                  {r.issueTitle ?? "—"}
+                </span>
+                <span role="cell" aria-labelledby="col-status">
+                  <StatusBadge status={r.status} />
+                </span>
+                <span
+                  role="cell"
+                  aria-labelledby="col-scenario"
+                  className="text-slate-400 truncate"
+                >
+                  {r.scenario ?? "—"}
+                </span>
+                <span
+                  role="cell"
+                  aria-labelledby="col-turns"
+                  className="text-slate-400 font-mono tabular-nums"
+                >
+                  {r.turnCount}
+                </span>
+                <span
+                  role="cell"
+                  aria-labelledby="col-tokens"
+                  className="text-slate-400 font-mono tabular-nums"
+                >
+                  {formatTokenTotal(r)}
+                  <span className="sr-only"> ({formatTokenBreakdown(r)})</span>
+                </span>
+                <span
+                  role="cell"
+                  aria-labelledby="col-cost"
+                  className="text-slate-400 font-mono tabular-nums"
+                >
+                  {formatCost(r.totalCostUsd)}
+                </span>
+                <span role="cell" aria-labelledby="col-started" className="text-slate-400">
+                  {formatTs(r.startedAt)}
+                </span>
+                <span role="cell" aria-labelledby="col-finished" className="text-slate-400">
+                  {r.finishedAt ? formatTs(r.finishedAt) : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-function rowAriaLabel(r: ApiRun): string {
-  const title = r.issueTitle ? `: ${r.issueTitle}` : "";
-  return `Open run ${r.issueIdentifier}${title} · ${r.status}`;
-}
-
-function sumTokens(r: ApiRun): number {
+function RunCard({ run: r }: { run: ApiRun }) {
+  const metaLine = formatRunMetaLine(r);
   return (
-    (r.tokensInput ?? 0) +
-    (r.tokensOutput ?? 0) +
-    (r.tokensCacheRead ?? 0) +
-    (r.tokensCacheCreation ?? 0)
+    <li className="relative rounded-lg border border-slate-800 bg-slate-900/60 p-3 hover:bg-slate-900 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset">
+      <a
+        href={`#/runs/${r.id}`}
+        aria-label={runCardAriaLabel(r)}
+        className="absolute inset-0 focus:outline-none"
+      >
+        <span className="sr-only">Open</span>
+      </a>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-slate-200">{r.issueIdentifier}</span>
+        <StatusBadge status={r.status} />
+      </div>
+      <p className="mt-1 line-clamp-2 text-sm text-slate-200">{r.issueTitle ?? "—"}</p>
+      {metaLine && (
+        <p className="mt-1 font-mono text-xs tabular-nums text-slate-400">
+          {metaLine}
+          <span className="sr-only"> ({formatTokenBreakdown(r)})</span>
+        </p>
+      )}
+      <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
+        <span>Started {formatTs(r.startedAt)}</span>
+        <span>{r.finishedAt ? `Finished ${formatTs(r.finishedAt)}` : "—"}</span>
+      </div>
+    </li>
   );
-}
-
-function hasUsage(r: ApiRun): boolean {
-  return (
-    r.tokensInput !== null ||
-    r.tokensOutput !== null ||
-    r.tokensCacheRead !== null ||
-    r.tokensCacheCreation !== null ||
-    r.totalCostUsd !== null
-  );
-}
-
-function formatTokenTotal(r: ApiRun): string {
-  if (!hasUsage(r)) return "—";
-  return formatTokenCount(sumTokens(r));
-}
-
-function formatTokenBreakdown(r: ApiRun): string {
-  if (!hasUsage(r)) return "no token usage recorded";
-  return [
-    `input ${formatTokenCount(r.tokensInput ?? 0)}`,
-    `output ${formatTokenCount(r.tokensOutput ?? 0)}`,
-    `cache read ${formatTokenCount(r.tokensCacheRead ?? 0)}`,
-    `cache create ${formatTokenCount(r.tokensCacheCreation ?? 0)}`,
-  ].join(" · ");
-}
-
-function formatTokenCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
-
-function formatCost(usd: number | null): string {
-  if (usd === null || !Number.isFinite(usd)) return "—";
-  if (usd === 0) return "$0";
-  if (usd < 0.01) return "<$0.01";
-  return `$${usd.toFixed(2)}`;
 }
 
 function HistoryTotals({ runs }: { runs: ApiRun[] }) {
