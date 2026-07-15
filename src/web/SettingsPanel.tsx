@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import type { ApiOrchestratorSettings, ApiPollingMode, ApiWorkflowSummary } from "./api.js";
 import { patchSettings } from "./api.js";
 import {
+  countDirtyFields,
   formatSettingsSnapshot,
   settingsPanelInitialOpen,
   validateDraft,
   type SettingsDraft,
   type SettingsField,
 } from "./settingsPanelUtils.js";
+
+const RESET_CONFIRM_MS = 3000;
 
 interface Props {
   settings: ApiOrchestratorSettings | null;
@@ -43,6 +46,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
     settings ? toDraft(settings) : null,
   );
   const [saveState, setSaveState] = useState<SaveState>({ tag: "idle" });
+  const [resetConfirm, setResetConfirm] = useState<boolean>(false);
   const [open, setOpen] = useState<boolean>(() =>
     settings && draft ? settingsPanelInitialOpen(isDirty(draft, settings), "idle") : false,
   );
@@ -63,6 +67,16 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
     if (dirtyForEffect || errored) setOpen(true);
   }, [dirtyForEffect, errored]);
 
+  useEffect(() => {
+    if (!dirtyForEffect) setResetConfirm(false);
+  }, [dirtyForEffect]);
+
+  useEffect(() => {
+    if (!resetConfirm) return;
+    const timer = window.setTimeout(() => setResetConfirm(false), RESET_CONFIRM_MS);
+    return () => window.clearTimeout(timer);
+  }, [resetConfirm]);
+
   if (!settings || !draft) {
     return (
       <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
@@ -76,6 +90,7 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
 
   const currentDraft = draft;
   const dirty = isDirty(currentDraft, settings);
+  const dirtyFieldCount = countDirtyFields(currentDraft, settings);
   const snapshot = formatSettingsSnapshot(settings);
   const fieldError = (field: SettingsField): string | undefined =>
     saveState.tag === "error" && saveState.field === field ? saveState.message : undefined;
@@ -238,12 +253,24 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
                 type="button"
                 disabled={!dirty || saveState.tag === "saving"}
                 onClick={() => {
+                  if (!resetConfirm) {
+                    setResetConfirm(true);
+                    return;
+                  }
                   setDraft(toDraft(settings));
                   setSaveState((s) => (s.tag === "error" ? { tag: "idle" } : s));
+                  setResetConfirm(false);
                 }}
-                className="rounded text-xs text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-live="polite"
+                className={`rounded text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-40 ${
+                  resetConfirm && dirty
+                    ? "bg-amber-500/15 px-2 py-1 font-medium text-amber-200 hover:bg-amber-500/25"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
               >
-                Reset
+                {resetConfirm && dirty
+                  ? `Click again to discard ${dirtyFieldCount} unsaved field${dirtyFieldCount === 1 ? "" : "s"}`
+                  : "Reset"}
               </button>
               {saveState.tag === "saved" && (
                 <span className="text-xs text-emerald-300">Saved.</span>

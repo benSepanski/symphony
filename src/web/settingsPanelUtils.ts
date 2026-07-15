@@ -28,6 +28,15 @@ export interface SettingsDraft {
 
 export type SettingsField = keyof SettingsDraft;
 
+export function countDirtyFields(draft: SettingsDraft, current: ApiOrchestratorSettings): number {
+  let n = 0;
+  if (Number(draft.pollIntervalMs) !== current.pollIntervalMs) n++;
+  if (Number(draft.maxConcurrentAgents) !== current.maxConcurrentAgents) n++;
+  if (Number(draft.maxTurns) !== current.maxTurns) n++;
+  if (draft.maxTurnsState !== current.maxTurnsState) n++;
+  return n;
+}
+
 export interface ValidatedDraft {
   pollIntervalMs: number;
   maxConcurrentAgents: number;
