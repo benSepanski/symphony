@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ApiOrchestratorSettings } from "./api.js";
 import {
+  countDirtyFields,
   formatSettingsSnapshot,
   settingsPanelInitialOpen,
   validateDraft,
@@ -50,6 +51,54 @@ describe("formatSettingsSnapshot", () => {
 
   it("uses seconds for sub-minute polls", () => {
     expect(formatSettingsSnapshot(makeSettings({ pollIntervalMs: 5_000 }))).toContain("poll 5s");
+  });
+});
+
+describe("countDirtyFields", () => {
+  function makeSettings(overrides: Partial<ApiOrchestratorSettings> = {}): ApiOrchestratorSettings {
+    return {
+      pollIntervalMs: 60_000,
+      maxConcurrentAgents: 1,
+      maxTurns: 5,
+      maxTurnsState: "Blocked",
+      pollingMode: "auto",
+      ...overrides,
+    };
+  }
+  function makeDraft(overrides: Partial<SettingsDraft> = {}): SettingsDraft {
+    return {
+      pollIntervalMs: "60000",
+      maxConcurrentAgents: "1",
+      maxTurns: "5",
+      maxTurnsState: "Blocked",
+      ...overrides,
+    };
+  }
+
+  it("returns 0 when the draft matches the settings exactly", () => {
+    expect(countDirtyFields(makeDraft(), makeSettings())).toBe(0);
+  });
+
+  it("counts a single changed numeric field", () => {
+    expect(countDirtyFields(makeDraft({ pollIntervalMs: "120000" }), makeSettings())).toBe(1);
+  });
+
+  it("counts a single changed string field", () => {
+    expect(countDirtyFields(makeDraft({ maxTurnsState: "Rework" }), makeSettings())).toBe(1);
+  });
+
+  it("counts every changed field independently", () => {
+    expect(
+      countDirtyFields(
+        makeDraft({
+          pollIntervalMs: "120000",
+          maxConcurrentAgents: "3",
+          maxTurns: "12",
+          maxTurnsState: "Rework",
+        }),
+        makeSettings(),
+      ),
+    ).toBe(4);
   });
 });
 
