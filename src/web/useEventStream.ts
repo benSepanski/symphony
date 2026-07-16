@@ -1,16 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type StreamStatus = "connecting" | "connected" | "disconnected";
+
+export interface StreamHandle {
+  status: StreamStatus;
+  reconnect: () => void;
+}
 
 export function useEventStream(
   eventNames: string[],
   onEvent: (name: string, data: unknown) => void | Promise<void>,
-): StreamStatus {
+): StreamHandle {
   const [status, setStatus] = useState<StreamStatus>("connecting");
+  const [reconnectKey, setReconnectKey] = useState(0);
   const callback = useRef(onEvent);
   callback.current = onEvent;
 
   useEffect(() => {
+    setStatus("connecting");
     const es = new EventSource("/api/events");
     const handlers = eventNames.map((name) => {
       const h = (ev: MessageEvent) => {
@@ -34,7 +41,11 @@ export function useEventStream(
       }
       es.close();
     };
-  }, [eventNames.join("|")]);
+  }, [eventNames.join("|"), reconnectKey]);
 
-  return status;
+  const reconnect = useCallback(() => {
+    setReconnectKey((k) => k + 1);
+  }, []);
+
+  return { status, reconnect };
 }

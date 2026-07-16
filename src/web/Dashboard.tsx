@@ -49,7 +49,7 @@ export function Dashboard() {
   const [settings, setSettings] = useState<ApiOrchestratorSettings | null>(null);
   const [workflow, setWorkflow] = useState<ApiWorkflowSummary | null>(null);
 
-  const streamStatus = useEventStream(
+  const { status: streamStatus, reconnect: reconnectStream } = useEventStream(
     ["runStarted", "turn", "runFinished", "usageUpdated", "tick", "settingsUpdated"],
     async (name, data) => {
       if (name === "usageUpdated") {
@@ -155,7 +155,12 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <HealthStrip state={state} usage={usage} streamStatus={streamStatus} />
+      <HealthStrip
+        state={state}
+        usage={usage}
+        streamStatus={streamStatus}
+        onReconnectStream={reconnectStream}
+      />
       <SettingsPanel
         settings={settings}
         workflow={workflow}

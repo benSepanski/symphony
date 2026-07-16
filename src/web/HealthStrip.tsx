@@ -7,11 +7,12 @@ interface Props {
   state: ApiOrchestratorState | null;
   usage: ApiUsage | null;
   streamStatus: StreamStatus;
+  onReconnectStream?: () => void;
 }
 
 type RefreshState = { tag: "idle" } | { tag: "running" } | { tag: "error"; message: string };
 
-export function HealthStrip({ state, usage, streamStatus }: Props) {
+export function HealthStrip({ state, usage, streamStatus, onReconnectStream }: Props) {
   const [now, setNow] = useState(() => Date.now());
   const [refresh, setRefresh] = useState<RefreshState>({ tag: "idle" });
   useEffect(() => {
@@ -47,9 +48,24 @@ export function HealthStrip({ state, usage, streamStatus }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
-        <span className="inline-flex items-center gap-2 text-slate-400">
-          <span className={`inline-block size-2 rounded-full ${streamColor}`} />
+        <span
+          role="status"
+          aria-live="polite"
+          className="inline-flex items-center gap-2 text-slate-400"
+        >
+          <span aria-hidden="true" className={`inline-block size-2 rounded-full ${streamColor}`} />
+          <span className="sr-only">Live stream: </span>
           {streamLabel}
+          {streamStatus === "disconnected" && onReconnectStream && (
+            <button
+              type="button"
+              onClick={onReconnectStream}
+              className="ml-1 rounded bg-slate-800/60 px-1.5 py-0.5 text-slate-200 hover:bg-slate-700/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+              title="Re-establish the event stream"
+            >
+              reconnect
+            </button>
+          )}
         </span>
         {state ? (
           <>
