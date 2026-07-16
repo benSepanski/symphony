@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ApiRun } from "./api.js";
+import { successPctColorClass } from "./metricsPanelUtils.js";
 import { StatusBadge } from "./shared.js";
 
 type WindowKey = "24h" | "7d" | "all";
@@ -54,8 +55,12 @@ export function MetricsPanel({ runs }: Props) {
               <span className="font-mono text-base">{stats.total}</span>{" "}
               <span className="text-slate-500">runs</span>
             </span>
-            <span className="text-emerald-300">
+            <span className={successPctColorClass(stats.successPct)}>
               success <span className="font-mono">{stats.successPct}%</span>
+              <span className="text-slate-500 font-mono">
+                {" "}
+                · {stats.completed}/{stats.total}
+              </span>
             </span>
             <span className="text-slate-400">
               median turns <span className="font-mono text-slate-200">{stats.medianTurns}</span>
@@ -98,6 +103,7 @@ export function MetricsPanel({ runs }: Props) {
 
 interface Stats {
   total: number;
+  completed: number;
   successPct: number;
   medianTurns: number;
   medianDuration: string;
@@ -132,6 +138,7 @@ function computeStats(runs: ApiRun[]): Stats {
 
   return {
     total,
+    completed,
     successPct: total === 0 ? 0 : Math.round((completed / total) * 100),
     medianTurns: median(turnCounts),
     medianDuration: durations.length === 0 ? "—" : formatDuration(median(durations)),
