@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ApiEvent } from "./api.js";
 import {
+  MAX_VISIBLE_ERRORS,
   SUMMARY_EXPAND_THRESHOLD,
+  errorFeedHeader,
   fullPayload,
   shouldExpand,
   summarize,
@@ -79,5 +81,20 @@ describe("shouldExpand", () => {
 
   it("is false at exactly the threshold", () => {
     expect(shouldExpand("x".repeat(SUMMARY_EXPAND_THRESHOLD))).toBe(false);
+  });
+});
+
+describe("errorFeedHeader", () => {
+  it("returns the plain header when the total fits under the cap", () => {
+    expect(errorFeedHeader(0)).toBe("Recent errors");
+    expect(errorFeedHeader(1)).toBe("Recent errors");
+    expect(errorFeedHeader(MAX_VISIBLE_ERRORS)).toBe("Recent errors");
+  });
+
+  it("exposes shown vs. true total once the total exceeds the cap", () => {
+    expect(errorFeedHeader(MAX_VISIBLE_ERRORS + 1)).toBe(
+      `Recent errors (${MAX_VISIBLE_ERRORS} of ${MAX_VISIBLE_ERRORS + 1})`,
+    );
+    expect(errorFeedHeader(47)).toBe(`Recent errors (${MAX_VISIBLE_ERRORS} of 47)`);
   });
 });

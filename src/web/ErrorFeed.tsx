@@ -1,6 +1,12 @@
 import { useState } from "react";
 import type { ApiEvent, ApiRun } from "./api.js";
-import { fullPayload, shouldExpand, summarize } from "./errorFeedUtils.js";
+import {
+  MAX_VISIBLE_ERRORS,
+  errorFeedHeader,
+  fullPayload,
+  shouldExpand,
+  summarize,
+} from "./errorFeedUtils.js";
 import { formatTs } from "./shared.js";
 
 interface Props {
@@ -24,9 +30,9 @@ export function ErrorFeed({ events, runs }: Props) {
 
   return (
     <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-      <h2 className="text-sm font-medium text-slate-200 mb-3">Recent errors</h2>
+      <h2 className="text-sm font-medium text-slate-200 mb-3">{errorFeedHeader(events.length)}</h2>
       <ul className="divide-y divide-slate-800/60">
-        {events.slice(0, 10).map((e) => {
+        {events.slice(0, MAX_VISIBLE_ERRORS).map((e) => {
           const run = idByRun.get(e.runId);
           const label = LABEL[e.eventType] ?? {
             text: e.eventType,
