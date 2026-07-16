@@ -2,6 +2,14 @@ import type { ApiEvent } from "./api.js";
 
 export const SUMMARY_EXPAND_THRESHOLD = 120;
 
+export const MAX_VISIBLE_ERRORS = 10;
+
+export function errorFeedHeader(total: number): string {
+  return total > MAX_VISIBLE_ERRORS
+    ? `Recent errors (${MAX_VISIBLE_ERRORS} of ${total})`
+    : "Recent errors";
+}
+
 export function summarize(e: ApiEvent): string {
   if (!e.payload) return "";
   let parsed: unknown;
