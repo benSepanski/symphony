@@ -61,6 +61,11 @@ async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function readErrorBody(res: Response, context: string): Promise<string> {
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  return body.error ?? `${context} returned ${res.status}`;
+}
+
 export function fetchRuns(): Promise<ApiRun[]> {
   return getJson<ApiRun[]>("/api/runs");
 }
@@ -161,12 +166,12 @@ export async function patchSettings(
     headers: { "content-type": "application/json" },
     body: JSON.stringify(patch),
   });
-  const body = (await res.json()) as {
-    settings?: ApiOrchestratorSettings;
-    error?: string;
-  };
-  if (!res.ok || !body.settings) {
-    throw new Error(body.error ?? `/api/settings PATCH returned ${res.status}`);
+  if (!res.ok) {
+    throw new HttpError(res.status, await readErrorBody(res, "/api/settings PATCH"));
+  }
+  const body = (await res.json()) as { settings?: ApiOrchestratorSettings };
+  if (!body.settings) {
+    throw new HttpError(res.status, "/api/settings PATCH returned no settings");
   }
   return body.settings;
 }
@@ -174,8 +179,7 @@ export async function patchSettings(
 export async function requestManualTick(): Promise<void> {
   const res = await fetch("/api/orchestrator/tick", { method: "POST" });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `/api/orchestrator/tick returned ${res.status}`);
+    throw new HttpError(res.status, await readErrorBody(res, "/api/orchestrator/tick"));
   }
 }
 
