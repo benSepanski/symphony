@@ -33,6 +33,23 @@ export function formatTs(ts: string): string {
   return d.toLocaleTimeString();
 }
 
+// Run-level timestamp: time-only for today, "MMM D · HH:MM AM/PM" for earlier
+// calendar days. `now` is threaded in so callers can pass a stable clock for
+// tests. Used on RunDetail and the Dashboard runs table where cross-day audits
+// need the date visible at a glance; for in-run surfaces (events, tool calls)
+// keep using `formatTs`.
+export function formatRunTimestamp(iso: string, now: Date): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) return time;
+  const date = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return `${date} · ${time}`;
+}
+
 export function formatInterval(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const seconds = Math.round(ms / 1000);

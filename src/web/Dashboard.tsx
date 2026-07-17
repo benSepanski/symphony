@@ -31,7 +31,7 @@ import {
   runCardAriaLabel,
   sumTokens,
 } from "./runsTable.js";
-import { StatusBadge, formatTs } from "./shared.js";
+import { StatusBadge, formatRunTimestamp } from "./shared.js";
 
 type LoadState =
   | { tag: "loading" }
@@ -246,6 +246,7 @@ function DashboardErrorCard({
 }
 
 function RunsTable({ runs }: { runs: ApiRun[] }) {
+  const now = new Date();
   return (
     <>
       <section aria-labelledby="runs-heading-mobile" className="sm:hidden">
@@ -254,7 +255,7 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
         </h2>
         <ul className="flex flex-col gap-2">
           {runs.map((r) => (
-            <RunCard key={r.id} run={r} />
+            <RunCard key={r.id} run={r} now={now} />
           ))}
         </ul>
       </section>
@@ -330,10 +331,14 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
                   {formatCost(r.totalCostUsd)}
                 </span>
                 <span role="cell" aria-labelledby="col-started" className="text-slate-400">
-                  {formatTs(r.startedAt)}
+                  <time dateTime={r.startedAt}>{formatRunTimestamp(r.startedAt, now)}</time>
                 </span>
                 <span role="cell" aria-labelledby="col-finished" className="text-slate-400">
-                  {r.finishedAt ? formatTs(r.finishedAt) : "—"}
+                  {r.finishedAt ? (
+                    <time dateTime={r.finishedAt}>{formatRunTimestamp(r.finishedAt, now)}</time>
+                  ) : (
+                    "—"
+                  )}
                 </span>
               </li>
             ))}
@@ -344,7 +349,7 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
   );
 }
 
-function RunCard({ run: r }: { run: ApiRun }) {
+function RunCard({ run: r, now }: { run: ApiRun; now: Date }) {
   const metaLine = formatRunMetaLine(r);
   return (
     <li className="relative rounded-lg border border-slate-800 bg-slate-900/60 p-3 hover:bg-slate-900 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset">
@@ -367,8 +372,18 @@ function RunCard({ run: r }: { run: ApiRun }) {
         </p>
       )}
       <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
-        <span>Started {formatTs(r.startedAt)}</span>
-        <span>{r.finishedAt ? `Finished ${formatTs(r.finishedAt)}` : "—"}</span>
+        <span>
+          Started <time dateTime={r.startedAt}>{formatRunTimestamp(r.startedAt, now)}</time>
+        </span>
+        <span>
+          {r.finishedAt ? (
+            <>
+              Finished <time dateTime={r.finishedAt}>{formatRunTimestamp(r.finishedAt, now)}</time>
+            </>
+          ) : (
+            "—"
+          )}
+        </span>
       </div>
     </li>
   );
