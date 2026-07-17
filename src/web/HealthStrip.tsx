@@ -12,6 +12,8 @@ interface Props {
 
 type RefreshState = { tag: "idle" } | { tag: "running" } | { tag: "error"; message: string };
 
+const REFRESH_ERROR_AUTO_CLEAR_MS = 5000;
+
 export function HealthStrip({ state, usage, streamStatus, onReconnectStream }: Props) {
   const [now, setNow] = useState(() => Date.now());
   const [refresh, setRefresh] = useState<RefreshState>({ tag: "idle" });
@@ -19,6 +21,24 @@ export function HealthStrip({ state, usage, streamStatus, onReconnectStream }: P
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // A fresh usage snapshot means the tracker is talking to us again — a
+  // stale error banner would misrepresent live state, so drop it.
+  useEffect(() => {
+    if (!usage) return;
+    setRefresh((s) => (s.tag === "error" ? { tag: "idle" } : s));
+  }, [usage]);
+
+  // Backstop: even if no tick arrives, don't leave the failure on-screen
+  // forever. Cancel on unmount / state change so we never fire against a stale
+  // error.
+  useEffect(() => {
+    if (refresh.tag !== "error") return;
+    const id = window.setTimeout(() => {
+      setRefresh((s) => (s.tag === "error" ? { tag: "idle" } : s));
+    }, REFRESH_ERROR_AUTO_CLEAR_MS);
+    return () => window.clearTimeout(id);
+  }, [refresh]);
 
   async function onRefresh() {
     setRefresh({ tag: "running" });
@@ -101,7 +121,13 @@ export function HealthStrip({ state, usage, streamStatus, onReconnectStream }: P
             >
               {refresh.tag === "running" ? "refreshing…" : "refresh now"}
             </button>
-            {refresh.tag === "error" && <span className="text-rose-300">{refresh.message}</span>}
+            <span
+              role="status"
+              aria-live="polite"
+              className={refresh.tag === "error" ? "text-rose-300" : "sr-only"}
+            >
+              {refresh.tag === "error" ? refresh.message : ""}
+            </span>
           </>
         ) : (
           <span className="text-slate-500">orchestrator idle (replay mode)</span>
