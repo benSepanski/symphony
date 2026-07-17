@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RunHeader } from "./appHeader.js";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
-import { StatusBadge, formatTs } from "./shared.js";
+import { StatusBadge, formatRunTimestamp, formatTs } from "./shared.js";
 import { useEventStream } from "./useEventStream.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
@@ -67,6 +67,7 @@ export function RunDetail({
   const { run, turns, events } = state.detail;
   const errorEvent = events.find((e) => e.eventType === "error");
   const isLive = run.status === "running";
+  const now = new Date();
 
   return (
     <div className="space-y-6">
@@ -77,9 +78,14 @@ export function RunDetail({
         </div>
         {run.issueTitle && <p className="mt-1 text-slate-300">{run.issueTitle}</p>}
         <p className="mt-1 text-xs text-slate-500">
-          Started {formatTs(run.startedAt)}
-          {run.finishedAt && <> · finished {formatTs(run.finishedAt)}</>}
-          {run.scenario && <> · scenario {run.scenario}</>}
+          Started <time dateTime={run.startedAt}>{formatRunTimestamp(run.startedAt, now)}</time>
+          {run.finishedAt && (
+            <>
+              {" · Finished "}
+              <time dateTime={run.finishedAt}>{formatRunTimestamp(run.finishedAt, now)}</time>
+            </>
+          )}
+          {run.scenario && <> · Scenario {run.scenario}</>}
         </p>
       </section>
 

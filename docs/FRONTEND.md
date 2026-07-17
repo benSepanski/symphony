@@ -71,10 +71,16 @@ This keeps a live run from triggering a full table refetch per turn.
   component in [`shared.tsx`](../src/web/shared.tsx) and reused across
   Dashboard, RunDetail, MetricsPanel, and Search. Don't duplicate the mapping.
   A new run status (e.g. `cancelled`) requires updating that map.
-- Timestamps render through the `formatTs` helper in
-  [`shared.tsx`](../src/web/shared.tsx), which delegates to
-  `Date.prototype.toLocaleTimeString`. Use `formatTs` — don't call
-  `toLocaleTimeString` or reformat dates ad-hoc in components.
+- Timestamps render through the helpers in
+  [`shared.tsx`](../src/web/shared.tsx) — don't call `toLocaleTimeString` or
+  reformat dates ad-hoc in components:
+  - `formatTs` — time-only, for in-run surfaces (events log, error rows) where
+    the date is already fixed by the surrounding run context.
+  - `formatRunTimestamp(iso, now)` — time-only for today, `MMM D · HH:MM AM/PM`
+    for earlier calendar days, wrapped in `<time dateTime={iso}>` at the
+    callsite so the exact ISO stays available on hover / to screen readers.
+    Use this on any cross-run surface (RunDetail header, Dashboard runs table)
+    so cross-day audits keep the date visible.
 
 ## Building
 
