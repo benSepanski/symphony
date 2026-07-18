@@ -36,7 +36,7 @@ describe("documentTitleForRoute", () => {
   it("returns 'Symphony · <identifier>' when on a run route with a matching header", () => {
     expect(
       documentTitleForRoute(
-        { view: "run", runId: "deb3bc1b-1234-4111-8abc-000000000001" },
+        { view: "run", runId: "deb3bc1b-1234-4111-8abc-000000000001", fragment: null },
         {
           runId: "deb3bc1b-1234-4111-8abc-000000000001",
           issueIdentifier: "DEMO-1",
@@ -47,14 +47,17 @@ describe("documentTitleForRoute", () => {
 
   it("returns 'Symphony' on the run route before the header resolves", () => {
     expect(
-      documentTitleForRoute({ view: "run", runId: "deb3bc1b-1234-4111-8abc-000000000001" }, null),
+      documentTitleForRoute(
+        { view: "run", runId: "deb3bc1b-1234-4111-8abc-000000000001", fragment: null },
+        null,
+      ),
     ).toBe("Symphony");
   });
 
   it("returns 'Symphony' when the loaded header is for a different run", () => {
     expect(
       documentTitleForRoute(
-        { view: "run", runId: "deb3bc1b-1234-4111-8abc-000000000001" },
+        { view: "run", runId: "deb3bc1b-1234-4111-8abc-000000000001", fragment: null },
         {
           runId: "aaaaaaaa-1234-4111-8abc-000000000002",
           issueIdentifier: "DEMO-2",

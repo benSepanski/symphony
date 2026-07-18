@@ -5,6 +5,7 @@ import {
   SUGGESTED_QUERIES,
   availableStatuses,
   filterMatches,
+  matchHref,
   summarizeMatches,
   toggleSetMember,
 } from "./searchUtils.js";
@@ -18,6 +19,7 @@ function match(overrides: Partial<ApiSearchMatch> = {}): ApiSearchMatch {
     matchKind: "turn",
     turnNumber: 1,
     eventType: null,
+    eventId: null,
     snippet: "hello",
     ...overrides,
   };
@@ -114,6 +116,45 @@ describe("SUGGESTED_QUERIES", () => {
 
   it("has no duplicates", () => {
     expect(new Set(SUGGESTED_QUERIES).size).toBe(SUGGESTED_QUERIES.length);
+  });
+});
+
+describe("matchHref", () => {
+  it("appends a #turn-N fragment for turn matches with a turn number", () => {
+    expect(matchHref(match({ runId: "abc", matchKind: "turn", turnNumber: 7 }))).toBe(
+      "#/runs/abc#turn-7",
+    );
+  });
+
+  it("appends a #event-N fragment for event matches with an event id", () => {
+    expect(
+      matchHref(
+        match({
+          runId: "abc",
+          matchKind: "event",
+          turnNumber: null,
+          eventType: "runFinished",
+          eventId: 42,
+        }),
+      ),
+    ).toBe("#/runs/abc#event-42");
+  });
+
+  it("falls back to the bare run link when the anchor id is missing", () => {
+    expect(matchHref(match({ runId: "abc", matchKind: "turn", turnNumber: null }))).toBe(
+      "#/runs/abc",
+    );
+    expect(
+      matchHref(
+        match({
+          runId: "abc",
+          matchKind: "event",
+          turnNumber: null,
+          eventType: "runFinished",
+          eventId: null,
+        }),
+      ),
+    ).toBe("#/runs/abc");
   });
 });
 

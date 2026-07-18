@@ -41,6 +41,10 @@ export function eventDomId(eventId: number): string {
   return `event-${eventId}`;
 }
 
+export function turnDomId(turnNumber: number): string {
+  return `turn-${turnNumber}`;
+}
+
 export type RenderedPromptView =
   | { kind: "none" }
   | { kind: "same" }

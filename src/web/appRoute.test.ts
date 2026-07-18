@@ -14,6 +14,31 @@ describe("parseHash", () => {
     expect(parseHash("#/runs/deb3bc1b-1234")).toEqual({
       view: "run",
       runId: "deb3bc1b-1234",
+      fragment: null,
+    });
+  });
+
+  it("extracts a sub-fragment from #/runs/<id>#turn-N", () => {
+    expect(parseHash("#/runs/deb3bc1b-1234#turn-7")).toEqual({
+      view: "run",
+      runId: "deb3bc1b-1234",
+      fragment: "turn-7",
+    });
+  });
+
+  it("extracts a sub-fragment from #/runs/<id>#event-N", () => {
+    expect(parseHash("#/runs/deb3bc1b-1234#event-42")).toEqual({
+      view: "run",
+      runId: "deb3bc1b-1234",
+      fragment: "event-42",
+    });
+  });
+
+  it("treats an empty sub-fragment (#/runs/<id>#) as no fragment", () => {
+    expect(parseHash("#/runs/deb3bc1b-1234#")).toEqual({
+      view: "run",
+      runId: "deb3bc1b-1234",
+      fragment: null,
     });
   });
 

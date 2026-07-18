@@ -14,6 +14,7 @@ import {
   renderedPromptView,
   shouldCollapseTurn,
   stepCursor,
+  turnDomId,
   turnLineCount,
   turnLineThreshold,
   type RenderedPromptView,
@@ -27,9 +28,11 @@ type LoadState =
 
 export function RunDetail({
   runId,
+  fragment,
   onHeaderResolved,
 }: {
   runId: string;
+  fragment: string | null;
   onHeaderResolved?: (header: RunHeader) => void;
 }) {
   const [state, setState] = useState<LoadState>({ tag: "loading" });
@@ -60,6 +63,8 @@ export function RunDetail({
       cancelled = true;
     };
   }, [runId, onHeaderResolved]);
+
+  useScrollToFragment(fragment, state.tag === "ready");
 
   if (state.tag === "loading") return <p className="text-slate-400">loading…</p>;
   if (state.tag === "error") return <RunLoadErrorCard runId={runId} error={state.error} />;
@@ -214,7 +219,10 @@ function TurnCard({ turn, promptView }: { turn: ApiTurn; promptView: RenderedPro
   const summary = showCollapsed ? collapsedSummary(turn.content, threshold) : null;
 
   return (
-    <li className="rounded border border-slate-800 bg-slate-900/60 p-3">
+    <li
+      id={turnDomId(turn.turnNumber)}
+      className="rounded border border-slate-800 bg-slate-900/60 p-3"
+    >
       <div className="flex items-center justify-between text-xs text-slate-400">
         <span>
           <span className="font-mono text-cyan-400">#{turn.turnNumber}</span>{" "}
@@ -439,4 +447,28 @@ function formatPctOrDash(util: number | null): string {
   if (util === null || !Number.isFinite(util)) return "—";
   const pct = util <= 1 ? util * 100 : util;
   return `${pct.toFixed(0)}%`;
+}
+
+const FRAGMENT_HIGHLIGHT_CLASSES = [
+  "ring-2",
+  "ring-cyan-500",
+  "ring-offset-2",
+  "ring-offset-slate-950",
+];
+const FRAGMENT_HIGHLIGHT_MS = 1800;
+
+function useScrollToFragment(fragment: string | null, ready: boolean) {
+  useEffect(() => {
+    if (!ready || !fragment) return;
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(fragment);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add(...FRAGMENT_HIGHLIGHT_CLASSES);
+      window.setTimeout(() => {
+        el.classList.remove(...FRAGMENT_HIGHLIGHT_CLASSES);
+      }, FRAGMENT_HIGHLIGHT_MS);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [fragment, ready]);
 }

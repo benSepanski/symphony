@@ -5,12 +5,14 @@ import {
   TOOL_LINE_THRESHOLD,
   classifyRunLoadError,
   collapsedSummary,
+  eventDomId,
   findErrorEvents,
   hasStartContextSnapshot,
   hasTokenUsage,
   renderedPromptView,
   shouldCollapseTurn,
   stepCursor,
+  turnDomId,
   turnLineCount,
   turnLineThreshold,
 } from "./runDetailUtils.js";
@@ -210,6 +212,17 @@ describe("renderedPromptView", () => {
       kind: "distinct",
       prompt: "prompt-a\n",
     });
+  });
+});
+
+describe("turnDomId / eventDomId", () => {
+  it("returns turn-<n> anchors for turn cards", () => {
+    expect(turnDomId(0)).toBe("turn-0");
+    expect(turnDomId(42)).toBe("turn-42");
+  });
+  it("returns event-<n> anchors for event rows", () => {
+    expect(eventDomId(1)).toBe("event-1");
+    expect(eventDomId(9999)).toBe("event-9999");
   });
 });
 

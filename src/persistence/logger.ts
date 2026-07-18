@@ -105,6 +105,7 @@ export interface SearchMatch {
   matchKind: "turn" | "event";
   turnNumber: number | null;
   eventType: string | null;
+  eventId: number | null;
   snippet: string;
 }
 
@@ -430,6 +431,7 @@ export class SymphonyLogger {
                   'turn' AS matchKind,
                   t.turn_number AS turnNumber,
                   NULL AS eventType,
+                  NULL AS eventId,
                   t.content AS snippet,
                   t.created_at AS matchedAt
            FROM turns t JOIN runs r ON r.id = t.run_id
@@ -442,6 +444,7 @@ export class SymphonyLogger {
                   'event' AS matchKind,
                   NULL AS turnNumber,
                   e.event_type AS eventType,
+                  e.id AS eventId,
                   e.payload AS snippet,
                   e.ts AS matchedAt
            FROM log_events e JOIN runs r ON r.id = e.run_id
