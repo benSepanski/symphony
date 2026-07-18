@@ -71,6 +71,7 @@ export function HealthStrip({ state, usage, streamStatus, onReconnectStream }: P
         <span
           role="status"
           aria-live="polite"
+          aria-atomic="true"
           className="inline-flex items-center gap-2 text-slate-400"
         >
           <span aria-hidden="true" className={`inline-block size-2 rounded-full ${streamColor}`} />
@@ -142,7 +143,12 @@ export function HealthStrip({ state, usage, streamStatus, onReconnectStream }: P
         )}
       </div>
       {rateLimited && usage?.snapshot && (
-        <div className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 p-4 text-sm">
+        <div
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+          className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 p-4 text-sm"
+        >
           <div className="font-medium text-fuchsia-200">
             Rate limited — no new agents will spawn
           </div>
