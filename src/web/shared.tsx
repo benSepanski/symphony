@@ -23,7 +23,8 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function formatPct(utilization: number): string {
+export function formatPct(utilization: number | null): string {
+  if (utilization === null || !Number.isFinite(utilization)) return "—";
   const pct = utilization <= 1 ? utilization * 100 : utilization;
   return `${pct.toFixed(0)}%`;
 }

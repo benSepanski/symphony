@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatInterval, formatRunTimestamp } from "./shared.js";
+import { formatInterval, formatPct, formatRunTimestamp } from "./shared.js";
 
 describe("formatInterval", () => {
   it("renders sub-second intervals as ms", () => {
@@ -14,6 +14,25 @@ describe("formatInterval", () => {
   it("renders longer intervals rounded to minutes", () => {
     expect(formatInterval(60_000)).toBe("1m");
     expect(formatInterval(30 * 60_000)).toBe("30m");
+  });
+});
+
+describe("formatPct", () => {
+  it("scales fractions in [0, 1] to percent", () => {
+    expect(formatPct(0)).toBe("0%");
+    expect(formatPct(0.5)).toBe("50%");
+    expect(formatPct(1)).toBe("100%");
+  });
+
+  it("passes through values already expressed as percent", () => {
+    expect(formatPct(42)).toBe("42%");
+    expect(formatPct(120)).toBe("120%");
+  });
+
+  it("returns an em dash for null or non-finite input", () => {
+    expect(formatPct(null)).toBe("—");
+    expect(formatPct(Number.NaN)).toBe("—");
+    expect(formatPct(Number.POSITIVE_INFINITY)).toBe("—");
   });
 });
 

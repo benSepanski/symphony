@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RunHeader } from "./appHeader.js";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
-import { StatusBadge, formatRunTimestamp, formatTs } from "./shared.js";
+import { StatusBadge, formatPct, formatRunTimestamp, formatTs } from "./shared.js";
 import { useEventStream } from "./useEventStream.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
@@ -421,9 +421,9 @@ function HistoryFacts({ run }: { run: ApiRun }) {
             <dt className="text-slate-500">auth</dt>
             <dd>{run.authStatus ?? "—"}</dd>
             <dt className="text-slate-500">5h utilization</dt>
-            <dd className="tabular-nums">{formatPctOrDash(run.startFiveHourUtil)}</dd>
+            <dd className="tabular-nums">{formatPct(run.startFiveHourUtil)}</dd>
             <dt className="text-slate-500">7d utilization</dt>
-            <dd className="tabular-nums">{formatPctOrDash(run.startSevenDayUtil)}</dd>
+            <dd className="tabular-nums">{formatPct(run.startSevenDayUtil)}</dd>
           </dl>
         </div>
       )}
@@ -439,14 +439,7 @@ function formatCount(n: number | null): string {
 function formatCostDetailed(usd: number | null): string {
   if (usd === null || !Number.isFinite(usd)) return "—";
   if (usd === 0) return "$0";
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
   return `$${usd.toFixed(4)}`;
-}
-
-function formatPctOrDash(util: number | null): string {
-  if (util === null || !Number.isFinite(util)) return "—";
-  const pct = util <= 1 ? util * 100 : util;
-  return `${pct.toFixed(0)}%`;
 }
 
 const FRAGMENT_HIGHLIGHT_CLASSES = [
