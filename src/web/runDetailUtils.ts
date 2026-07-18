@@ -1,7 +1,7 @@
 import { HttpError, type ApiEvent, type ApiRun } from "./api.js";
 
 export const ASSISTANT_LINE_THRESHOLD = 12;
-export const TOOL_LINE_THRESHOLD = 1;
+export const TOOL_LINE_THRESHOLD = 12;
 
 export function turnLineThreshold(role: string): number {
   return role === "tool" ? TOOL_LINE_THRESHOLD : ASSISTANT_LINE_THRESHOLD;

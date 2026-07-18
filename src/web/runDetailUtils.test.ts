@@ -69,8 +69,13 @@ describe("shouldCollapseTurn", () => {
     );
     expect(shouldCollapseTurn(exact, ASSISTANT_LINE_THRESHOLD)).toBe(false);
   });
-  it("collapses any multi-line tool content above the tool threshold", () => {
-    expect(shouldCollapseTurn("a\nb", TOOL_LINE_THRESHOLD)).toBe(true);
+  it("keeps short tool output (<= threshold) inline", () => {
+    const short = Array.from({ length: TOOL_LINE_THRESHOLD }, (_, i) => `line ${i}`).join("\n");
+    expect(shouldCollapseTurn(short, TOOL_LINE_THRESHOLD)).toBe(false);
+  });
+  it("collapses tool content above the tool threshold", () => {
+    const long = Array.from({ length: TOOL_LINE_THRESHOLD + 1 }, (_, i) => `line ${i}`).join("\n");
+    expect(shouldCollapseTurn(long, TOOL_LINE_THRESHOLD)).toBe(true);
   });
 });
 
@@ -86,9 +91,13 @@ describe("collapsedSummary", () => {
     expect(out.head).toBe("line 0\nline 1\nline 2\nline 3\nline 4");
     expect(out.remaining).toBe(15);
   });
-  it("collapses tool output to the first line when threshold is 1", () => {
-    const out = collapsedSummary("first\nsecond\nthird", TOOL_LINE_THRESHOLD);
-    expect(out).toEqual({ head: "first", remaining: 2 });
+  it("collapses tool output to the first TOOL_LINE_THRESHOLD lines", () => {
+    const total = TOOL_LINE_THRESHOLD + 3;
+    const lines = Array.from({ length: total }, (_, i) => `line ${i}`);
+    const out = collapsedSummary(lines.join("\n"), TOOL_LINE_THRESHOLD);
+    expect(out.head.split("\n")).toHaveLength(TOOL_LINE_THRESHOLD);
+    expect(out.head).toBe(lines.slice(0, TOOL_LINE_THRESHOLD).join("\n"));
+    expect(out.remaining).toBe(3);
   });
 });
 
