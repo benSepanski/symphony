@@ -36,9 +36,15 @@ type SearchMatch = {
   matchKind: "turn" | "event";
   turnNumber: number | null;
   eventType: string | null;
+  eventId: number | null;
   snippet: string;
 }
 ```
+
+`turnNumber` and `eventId` are the anchor targets consumed by the web UI:
+`#/search` links to `#/runs/<id>#turn-<n>` for turn matches and
+`#/runs/<id>#event-<id>` for event matches so the reader lands on the exact
+card they searched for, not the top of the run page.
 
 ## Invariants
 

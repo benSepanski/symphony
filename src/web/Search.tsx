@@ -4,6 +4,7 @@ import { StatusBadge } from "./shared.js";
 import {
   EMPTY_FILTERS,
   SUGGESTED_QUERIES,
+  matchHref,
   type MatchKind,
   type SearchFilters,
   availableStatuses,
@@ -213,7 +214,7 @@ function SearchResults({
               className="rounded border border-slate-800 bg-slate-900/60 p-3"
             >
               <a
-                href={`#/runs/${m.runId}`}
+                href={matchHref(m)}
                 className="flex flex-wrap items-baseline gap-2 text-sm rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
               >
                 <span className="font-mono text-cyan-400">{m.issueIdentifier}</span>

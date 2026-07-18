@@ -153,8 +153,10 @@ describe("SymphonyLogger", () => {
     const turnMatch = matches.find((m) => m.matchKind === "turn");
     expect(turnMatch?.snippet).toContain("magic needle");
     expect(turnMatch?.turnNumber).toBe(1);
+    expect(turnMatch?.eventId).toBeNull();
     const eventMatch = matches.find((m) => m.matchKind === "event");
     expect(eventMatch?.eventType).toBe("note");
+    expect(typeof eventMatch?.eventId).toBe("number");
   });
 
   it("returns an empty list for an empty query", () => {

@@ -56,7 +56,13 @@ export function App() {
       </header>
       <main className="px-4 py-4 sm:px-6 sm:py-6">
         {route.view === "dashboard" && <Dashboard />}
-        {route.view === "run" && <RunDetail runId={route.runId} onHeaderResolved={setRunHeader} />}
+        {route.view === "run" && (
+          <RunDetail
+            runId={route.runId}
+            fragment={route.fragment}
+            onHeaderResolved={setRunHeader}
+          />
+        )}
         {route.view === "search" && <Search query={route.query} />}
         {route.view === "notFound" && <NotFound hash={route.hash} />}
       </main>

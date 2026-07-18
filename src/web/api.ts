@@ -82,6 +82,7 @@ export interface ApiSearchMatch {
   matchKind: "turn" | "event";
   turnNumber: number | null;
   eventType: string | null;
+  eventId: number | null;
   snippet: string;
 }
 

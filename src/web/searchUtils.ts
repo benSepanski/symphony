@@ -66,3 +66,14 @@ export function toggleSetMember<T>(set: ReadonlySet<T>, value: T): Set<T> {
   else next.add(value);
   return next;
 }
+
+export function matchHref(match: ApiSearchMatch): string {
+  const base = `#/runs/${match.runId}`;
+  if (match.matchKind === "turn" && match.turnNumber !== null) {
+    return `${base}#turn-${match.turnNumber}`;
+  }
+  if (match.matchKind === "event" && match.eventId !== null) {
+    return `${base}#event-${match.eventId}`;
+  }
+  return base;
+}
