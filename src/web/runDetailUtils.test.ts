@@ -16,6 +16,7 @@ import {
   turnDomId,
   turnLineCount,
   turnLineThreshold,
+  turnRoleStyle,
 } from "./runDetailUtils.js";
 
 function ev(id: number, eventType: string): ApiEvent {
@@ -252,6 +253,27 @@ describe("stepCursor", () => {
   });
   it("wraps backward at the start", () => {
     expect(stepCursor(3, 0, -1)).toBe(2);
+  });
+});
+
+describe("turnRoleStyle", () => {
+  it("returns a distinct border color per known role", () => {
+    const roles = ["assistant", "user", "system", "tool"];
+    const borders = roles.map((r) => turnRoleStyle(r).cardBorder);
+    expect(new Set(borders).size).toBe(roles.length);
+  });
+  it("returns a distinct chip color per known role", () => {
+    const roles = ["assistant", "user", "system", "tool"];
+    const chips = roles.map((r) => turnRoleStyle(r).chip);
+    expect(new Set(chips).size).toBe(roles.length);
+  });
+  it("falls back to slate for unknown roles", () => {
+    expect(turnRoleStyle("mystery")).toEqual(turnRoleStyle("user"));
+    expect(turnRoleStyle("")).toEqual(turnRoleStyle("user"));
+  });
+  it("uses the StatusBadge cyan / amber vocabulary for assistant and system", () => {
+    expect(turnRoleStyle("assistant").chip).toContain("cyan");
+    expect(turnRoleStyle("system").chip).toContain("amber");
   });
 });
 

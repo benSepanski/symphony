@@ -106,3 +106,40 @@ export function classifyRunLoadError(err: unknown): RunLoadError {
   const message = err instanceof Error ? err.message : String(err);
   return { kind: "generic", message };
 }
+
+// Per-role card affordances for `TurnCard`. Reuses the StatusBadge palette so
+// cyan / slate / amber vocabulary carries in from other views. Tool turns get
+// emerald — they're always the tail of an assistant thought, so tinting them
+// like a "completed" event reads naturally.
+export type TurnRoleStyle = {
+  cardBorder: string;
+  chip: string;
+};
+
+const ROLE_STYLES: Record<string, TurnRoleStyle> = {
+  assistant: {
+    cardBorder: "border-l-cyan-500/60",
+    chip: "bg-cyan-500/10 text-cyan-300",
+  },
+  user: {
+    cardBorder: "border-l-slate-500/40",
+    chip: "bg-slate-500/10 text-slate-300",
+  },
+  system: {
+    cardBorder: "border-l-amber-500/60",
+    chip: "bg-amber-500/10 text-amber-300",
+  },
+  tool: {
+    cardBorder: "border-l-emerald-500/60",
+    chip: "bg-emerald-500/10 text-emerald-300",
+  },
+};
+
+const FALLBACK_ROLE_STYLE: TurnRoleStyle = {
+  cardBorder: "border-l-slate-500/40",
+  chip: "bg-slate-500/10 text-slate-300",
+};
+
+export function turnRoleStyle(role: string): TurnRoleStyle {
+  return ROLE_STYLES[role] ?? FALLBACK_ROLE_STYLE;
+}
