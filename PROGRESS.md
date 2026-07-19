@@ -10,7 +10,7 @@ for a live smoke test against Linear with a real `claude` CLI.
 
 ## Gate status
 
-- `pnpm all` — green. 217 unit tests + 5 eval scenarios.
+- `pnpm all` — green. 300 unit tests + 5 eval scenarios.
 - `pnpm dev WORKFLOW.md --mock` — full mock run with live dashboard.
 - `pnpm build:web` — produces `dist/web`, served by Hono at `/`.
 - `symphony replay <run_id>` — replays any recorded run over SSE.
@@ -18,6 +18,10 @@ for a live smoke test against Linear with a real `claude` CLI.
   ClaudeCodeAgent and fails fast if `LINEAR_API_KEY` is missing.
 
 ## Checkpoint log (most recent first)
+
+> Note: commit SHAs below reflect the pre-rebase history at time of writing
+> and may no longer resolve in `git log`. Use the referenced Linear IDs
+> (BEN-\*) or PR numbers to locate the authoritative history.
 
 Architecture (BEN-27):
 
