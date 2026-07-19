@@ -37,6 +37,31 @@ export function stepCursor(total: number, current: number, dir: 1 | -1): number 
   return (current + dir + total) % total;
 }
 
+export type ErrorNavState = {
+  label: string;
+  ariaLabel: string;
+  canGoPrev: boolean;
+  canGoNext: boolean;
+};
+
+export function errorNavState(total: number, cursor: number): ErrorNavState {
+  if (total <= 0) {
+    return { label: "", ariaLabel: "No errors", canGoPrev: false, canGoNext: false };
+  }
+  if (cursor < 0) {
+    const noun = total === 1 ? "error" : "errors";
+    const label = `${total} ${noun}`;
+    return { label, ariaLabel: label, canGoPrev: true, canGoNext: true };
+  }
+  const bounded = Math.min(Math.max(cursor, 0), total - 1);
+  return {
+    label: `${bounded + 1} / ${total}`,
+    ariaLabel: `Error ${bounded + 1} of ${total}`,
+    canGoPrev: bounded !== 0,
+    canGoNext: bounded !== total - 1,
+  };
+}
+
 export function eventDomId(eventId: number): string {
   return `event-${eventId}`;
 }

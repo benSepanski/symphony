@@ -7,6 +7,7 @@ import {
   ASSISTANT_LINE_THRESHOLD,
   classifyRunLoadError,
   collapsedSummary,
+  errorNavState,
   eventDomId,
   findErrorEvents,
   hasStartContextSnapshot,
@@ -145,7 +146,10 @@ function TurnsSection({
     sentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [autoFollow, turns.length]);
 
+  const errorNav = errorNavState(errorEvents.length, errorCursor);
+
   const jumpError = (dir: 1 | -1) => {
+    if (dir === 1 ? !errorNav.canGoNext : !errorNav.canGoPrev) return;
     const next = stepCursor(errorEvents.length, errorCursor, dir);
     if (next < 0) return;
     setErrorCursor(next);
@@ -160,21 +164,28 @@ function TurnsSection({
         <div className="flex flex-wrap items-center gap-2">
           {errorEvents.length > 0 && (
             <div className="flex items-center gap-1 rounded border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs">
-              <span className="text-slate-400">
-                {errorEvents.length === 1 ? "1 error" : `${errorEvents.length} errors`}
-              </span>
               <button
                 type="button"
                 onClick={() => jumpError(-1)}
-                className="rounded px-2 py-0.5 text-rose-300 hover:bg-rose-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                disabled={!errorNav.canGoPrev}
+                className="rounded px-2 py-0.5 text-rose-300 hover:bg-rose-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 aria-label="Jump to previous error event"
               >
                 ↑ prev
               </button>
+              <span
+                className="min-w-[3.5rem] px-1 text-center tabular-nums text-slate-400"
+                aria-live="polite"
+                aria-atomic="true"
+                aria-label={errorNav.ariaLabel}
+              >
+                {errorNav.label}
+              </span>
               <button
                 type="button"
                 onClick={() => jumpError(1)}
-                className="rounded px-2 py-0.5 text-rose-300 hover:bg-rose-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                disabled={!errorNav.canGoNext}
+                className="rounded px-2 py-0.5 text-rose-300 hover:bg-rose-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 aria-label="Jump to next error event"
               >
                 ↓ next

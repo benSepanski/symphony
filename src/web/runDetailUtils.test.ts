@@ -5,6 +5,7 @@ import {
   TOOL_LINE_THRESHOLD,
   classifyRunLoadError,
   collapsedSummary,
+  errorNavState,
   eventDomId,
   findErrorEvents,
   hasStartContextSnapshot,
@@ -251,5 +252,66 @@ describe("stepCursor", () => {
   });
   it("wraps backward at the start", () => {
     expect(stepCursor(3, 0, -1)).toBe(2);
+  });
+});
+
+describe("errorNavState", () => {
+  it("returns an empty, fully-disabled state when total is 0", () => {
+    expect(errorNavState(0, -1)).toEqual({
+      label: "",
+      ariaLabel: "No errors",
+      canGoPrev: false,
+      canGoNext: false,
+    });
+  });
+  it("shows the count and enables both buttons before the user seeds the cursor", () => {
+    expect(errorNavState(3, -1)).toEqual({
+      label: "3 errors",
+      ariaLabel: "3 errors",
+      canGoPrev: true,
+      canGoNext: true,
+    });
+  });
+  it("uses singular 'error' when only one is present", () => {
+    expect(errorNavState(1, -1)).toEqual({
+      label: "1 error",
+      ariaLabel: "1 error",
+      canGoPrev: true,
+      canGoNext: true,
+    });
+  });
+  it("shows N / total once the cursor is seeded", () => {
+    expect(errorNavState(3, 1)).toEqual({
+      label: "2 / 3",
+      ariaLabel: "Error 2 of 3",
+      canGoPrev: true,
+      canGoNext: true,
+    });
+  });
+  it("disables prev at the first position and keeps next enabled", () => {
+    const s = errorNavState(3, 0);
+    expect(s.label).toBe("1 / 3");
+    expect(s.canGoPrev).toBe(false);
+    expect(s.canGoNext).toBe(true);
+  });
+  it("disables next at the last position and keeps prev enabled", () => {
+    const s = errorNavState(3, 2);
+    expect(s.label).toBe("3 / 3");
+    expect(s.canGoPrev).toBe(true);
+    expect(s.canGoNext).toBe(false);
+  });
+  it("disables both when the only error is selected", () => {
+    const s = errorNavState(1, 0);
+    expect(s.label).toBe("1 / 1");
+    expect(s.canGoPrev).toBe(false);
+    expect(s.canGoNext).toBe(false);
+  });
+  it("clamps a stale cursor past the end without going out of bounds", () => {
+    expect(errorNavState(2, 5)).toEqual({
+      label: "2 / 2",
+      ariaLabel: "Error 2 of 2",
+      canGoPrev: true,
+      canGoNext: false,
+    });
   });
 });
