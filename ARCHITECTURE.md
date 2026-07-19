@@ -69,18 +69,20 @@ it's duplicated.
 
 ## Business domains
 
-Symphony has six long-lived domains. Each is owned by a single directory and
-is described in a dedicated product spec under
-[`docs/product-specs/`](docs/product-specs/).
+Symphony has seven long-lived domains. Each is owned by a single directory
+and is described in either a product spec under
+[`docs/product-specs/`](docs/product-specs/) or a design note under
+[`docs/design-docs/`](docs/design-docs/).
 
-| Domain       | Directory                           | Product spec                                                                   | Quality grade                                        |
-| ------------ | ----------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| Tracker      | `src/tracker/`                      | [`docs/product-specs/tracker.md`](docs/product-specs/tracker.md)               | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
-| Agent        | `src/agent/`                        | [`docs/product-specs/agent.md`](docs/product-specs/agent.md)                   | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
-| Workspace    | `src/workspace/`                    | [`docs/product-specs/isolated-runs.md`](docs/product-specs/isolated-runs.md)   | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
-| Orchestrator | `src/orchestrator.ts`, `src/cli.ts` | [`docs/product-specs/orchestrator.md`](docs/product-specs/orchestrator.md)     | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
-| Dashboard    | `src/api/`, `src/web/`              | [`docs/product-specs/live-dashboard.md`](docs/product-specs/live-dashboard.md) | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
-| Usage        | `src/usage/`                        | [`docs/product-specs/usage.md`](docs/product-specs/usage.md)                   | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
+| Domain       | Directory                           | Spec                                                                           | Quality grade                                                                                    |
+| ------------ | ----------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Tracker      | `src/tracker/`                      | [`docs/product-specs/tracker.md`](docs/product-specs/tracker.md)               | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md)                                             |
+| Agent        | `src/agent/`                        | [`docs/product-specs/agent.md`](docs/product-specs/agent.md)                   | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md)                                             |
+| Workspace    | `src/workspace/`                    | [`docs/product-specs/isolated-runs.md`](docs/product-specs/isolated-runs.md)   | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md)                                             |
+| Orchestrator | `src/orchestrator.ts`, `src/cli.ts` | [`docs/product-specs/orchestrator.md`](docs/product-specs/orchestrator.md)     | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md)                                             |
+| Dashboard    | `src/api/`, `src/web/`              | [`docs/product-specs/live-dashboard.md`](docs/product-specs/live-dashboard.md) | graded as separate **API** + **Web UI** rows in [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md) |
+| Usage        | `src/usage/`                        | [`docs/product-specs/usage.md`](docs/product-specs/usage.md)                   | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md)                                             |
+| Self-update  | `src/self-update/`                  | [`docs/design-docs/self-update.md`](docs/design-docs/self-update.md)           | see [`docs/QUALITY_SCORE.md`](docs/QUALITY_SCORE.md)                                             |
 
 ---
 
