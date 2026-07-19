@@ -18,6 +18,7 @@ import {
   turnDomId,
   turnLineCount,
   turnLineThreshold,
+  turnRoleStyle,
   type RenderedPromptView,
   type RunLoadError,
 } from "./runDetailUtils.js";
@@ -228,16 +229,21 @@ function TurnCard({ turn, promptView }: { turn: ApiTurn; promptView: RenderedPro
   const [expanded, setExpanded] = useState(false);
   const showCollapsed = collapsible && !expanded;
   const summary = showCollapsed ? collapsedSummary(turn.content, threshold) : null;
+  const roleStyle = turnRoleStyle(turn.role);
 
   return (
     <li
       id={turnDomId(turn.turnNumber)}
-      className="rounded border border-slate-800 bg-slate-900/60 p-3"
+      className={`rounded border border-l-2 border-slate-800 bg-slate-900/60 p-3 ${roleStyle.cardBorder}`}
     >
       <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>
-          <span className="font-mono text-cyan-400">#{turn.turnNumber}</span>{" "}
-          <span className="uppercase">{turn.role}</span>
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-cyan-400">#{turn.turnNumber}</span>
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${roleStyle.chip}`}
+          >
+            {turn.role}
+          </span>
         </span>
         {turn.finalState && (
           <span className="rounded bg-amber-500/10 px-2 py-0.5 text-amber-300">
