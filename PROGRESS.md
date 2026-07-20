@@ -97,7 +97,10 @@ moves, roughly in priority order, for a future context:
    `.symphony/logs/` grows uncomfortably large in real use.
 4. **Web-ui component tests.** Adding `@testing-library/react` +
    `jsdom` would let us pin the dashboard + run-detail rendering
-   contract. Currently we only assert via the API layer.
+   contract. Extracted `*Utils.ts` helpers already cover the
+   branching logic (route parsing, SSE reducer, label formatting,
+   threshold decisions); what's missing is jsdom-level component
+   render + user-interaction coverage.
 
 ## Decisions log
 
