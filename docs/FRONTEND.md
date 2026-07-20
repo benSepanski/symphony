@@ -90,10 +90,20 @@ This keeps a live run from triggering a full table refetch per turn.
 
 ## Testing
 
-The web UI currently has no component-test suite — it's asserted via the API
-layer + manual QA in mock mode. This is tracked as tech debt in
-[`docs/exec-plans/tech-debt-tracker.md`](exec-plans/tech-debt-tracker.md). If
-you add UI that drifts from the API behavior, add a test then.
+Web logic is extracted into small helper modules (`appRoute.ts`,
+`appHeader.ts`, `dashboardEvents.ts`, `dashboardLoadUtils.ts`,
+`runDetailUtils.ts`, `errorFeedUtils.ts`, `metricsPanelUtils.ts`,
+`runsTable.ts`, `searchUtils.ts`, `settingsPanelUtils.ts`, `shared.tsx`) and
+unit-tested in Vitest alongside the API and orchestrator suites. When a
+component grows a non-trivial branch — a reducer over SSE events, a route
+parser, a label formatter, a threshold decision — extract it to a pure
+helper first, then test the helper. This is why `runDetailUtils.ts` and
+`dashboardEvents.ts` exist as siblings of their components.
+
+There is still no jsdom + `@testing-library/react` suite, so cross-component
+render + interaction behavior relies on the API layer + manual QA in mock
+mode. That remaining gap is tracked in
+[`docs/exec-plans/tech-debt-tracker.md`](exec-plans/tech-debt-tracker.md).
 
 ## Visual inventory
 
