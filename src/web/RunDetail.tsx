@@ -79,6 +79,18 @@ export function RunDetail({
   return (
     <div className="space-y-6">
       <section>
+        <nav aria-label="Breadcrumb" className="mb-2 text-xs text-slate-500">
+          <a
+            href="#/"
+            className="rounded text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+          >
+            ← Runs
+          </a>
+          <span aria-hidden="true"> / </span>
+          <span aria-current="page" className="font-mono text-slate-400">
+            {run.issueIdentifier}
+          </span>
+        </nav>
         <div className="flex items-baseline gap-3">
           <h2 className="text-lg font-semibold font-mono">{run.issueIdentifier}</h2>
           <StatusBadge status={run.status} />
