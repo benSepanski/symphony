@@ -3,6 +3,7 @@ import { HttpError, type ApiEvent, type ApiRun } from "./api.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
   TOOL_LINE_THRESHOLD,
+  autoFollowUiState,
   classifyRunLoadError,
   collapsedSummary,
   errorNavState,
@@ -274,6 +275,37 @@ describe("turnRoleStyle", () => {
   it("uses the StatusBadge cyan / amber vocabulary for assistant and system", () => {
     expect(turnRoleStyle("assistant").chip).toContain("cyan");
     expect(turnRoleStyle("system").chip).toContain("amber");
+  });
+});
+
+describe("autoFollowUiState", () => {
+  it("renders the toggle while the run is live regardless of history", () => {
+    expect(autoFollowUiState({ isLive: true, autoFollow: false, wasAutoFollowing: false })).toEqual(
+      { kind: "toggle", autoFollow: false },
+    );
+    expect(autoFollowUiState({ isLive: true, autoFollow: true, wasAutoFollowing: false })).toEqual({
+      kind: "toggle",
+      autoFollow: true,
+    });
+    expect(autoFollowUiState({ isLive: true, autoFollow: false, wasAutoFollowing: true })).toEqual({
+      kind: "toggle",
+      autoFollow: false,
+    });
+  });
+  it("hides the affordance for a finished run that was never followed", () => {
+    expect(
+      autoFollowUiState({ isLive: false, autoFollow: false, wasAutoFollowing: false }),
+    ).toEqual({ kind: "hidden" });
+  });
+  it("swaps in the finished pill when the user had turned auto-follow on", () => {
+    expect(autoFollowUiState({ isLive: false, autoFollow: false, wasAutoFollowing: true })).toEqual(
+      { kind: "finishedPill" },
+    );
+  });
+  it("still shows the pill during the reset frame where autoFollow is briefly true post-finish", () => {
+    expect(autoFollowUiState({ isLive: false, autoFollow: true, wasAutoFollowing: true })).toEqual({
+      kind: "finishedPill",
+    });
   });
 });
 

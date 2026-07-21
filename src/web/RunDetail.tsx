@@ -5,6 +5,7 @@ import { StatusBadge, formatPct, formatRunTimestamp, formatTs } from "./shared.j
 import { useEventStream } from "./useEventStream.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
+  autoFollowUiState,
   classifyRunLoadError,
   collapsedSummary,
   errorNavState,
@@ -134,6 +135,7 @@ function TurnsSection({
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const programmaticUntil = useRef<number>(0);
   const lastY = useRef<number>(typeof window !== "undefined" ? window.scrollY : 0);
+  const wasAutoFollowingRef = useRef(false);
   const [autoFollow, setAutoFollow] = useState(false);
   const [errorCursor, setErrorCursor] = useState(-1);
 
@@ -158,6 +160,20 @@ function TurnsSection({
     programmaticUntil.current = Date.now() + 600;
     sentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [autoFollow, turns.length]);
+
+  useEffect(() => {
+    if (isLive && autoFollow) wasAutoFollowingRef.current = true;
+  }, [isLive, autoFollow]);
+
+  useEffect(() => {
+    if (!isLive && autoFollow) setAutoFollow(false);
+  }, [isLive, autoFollow]);
+
+  const followUi = autoFollowUiState({
+    isLive,
+    autoFollow,
+    wasAutoFollowing: wasAutoFollowingRef.current,
+  });
 
   const errorNav = errorNavState(errorEvents.length, errorCursor);
 
@@ -205,19 +221,28 @@ function TurnsSection({
               </button>
             </div>
           )}
-          {isLive && (
+          {followUi.kind === "toggle" && (
             <button
               type="button"
               onClick={() => setAutoFollow((on) => !on)}
-              aria-pressed={autoFollow}
+              aria-pressed={followUi.autoFollow}
               className={`rounded border px-2 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
-                autoFollow
+                followUi.autoFollow
                   ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-200"
                   : "border-slate-800 bg-slate-900/60 text-slate-300 hover:text-slate-100"
               }`}
             >
-              {autoFollow ? "● Auto-follow on" : "○ Auto-follow"}
+              {followUi.autoFollow ? "● Auto-follow on" : "○ Auto-follow"}
             </button>
+          )}
+          {followUi.kind === "finishedPill" && (
+            <span
+              role="status"
+              aria-live="polite"
+              className="rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200"
+            >
+              ● Run finished — auto-follow off
+            </span>
           )}
         </div>
       </div>
