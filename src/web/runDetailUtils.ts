@@ -143,3 +143,27 @@ const FALLBACK_ROLE_STYLE: TurnRoleStyle = {
 export function turnRoleStyle(role: string): TurnRoleStyle {
   return ROLE_STYLES[role] ?? FALLBACK_ROLE_STYLE;
 }
+
+export type AutoFollowUiState =
+  | { kind: "toggle"; autoFollow: boolean }
+  | { kind: "finishedPill" }
+  | { kind: "hidden" };
+
+// The Auto-follow toggle is only meaningful for a live run. When a run finishes
+// mid-view we want the transition to be *visible* — dropping the toggle to a
+// bare header would leave the user wondering "did the toggle just move?". If
+// auto-follow was ever on during the live phase, replace the toggle with a
+// short pill so the section header still carries the run-finished signal.
+export function autoFollowUiState({
+  isLive,
+  autoFollow,
+  wasAutoFollowing,
+}: {
+  isLive: boolean;
+  autoFollow: boolean;
+  wasAutoFollowing: boolean;
+}): AutoFollowUiState {
+  if (isLive) return { kind: "toggle", autoFollow };
+  if (wasAutoFollowing) return { kind: "finishedPill" };
+  return { kind: "hidden" };
+}
