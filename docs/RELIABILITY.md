@@ -110,7 +110,7 @@ Covered by: turn-limit scenario in the eval suite.
 
 ## 10. Pruning is idempotent
 
-`symphony prune --older-than 30d` deletes `runs`, `turns`, `log_events`, and
+`pnpm tsx src/cli.ts prune --older-than 30d` deletes `runs`, `turns`, `log_events`, and
 the per-run JSONL file inside a single sqlite transaction. A repeat run is a
 no-op.
 

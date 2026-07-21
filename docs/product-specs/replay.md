@@ -2,7 +2,7 @@
 
 _Last reviewed:_ 2026-04-18
 
-`symphony replay <runId>` replays any recorded run over SSE so it looks like
+`pnpm tsx src/cli.ts replay <runId>` replays any recorded run over SSE so it looks like
 a live run in the dashboard. This is the operator's primary post-mortem tool.
 
 ## Users
