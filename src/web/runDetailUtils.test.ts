@@ -12,6 +12,7 @@ import {
   hasStartContextSnapshot,
   hasTokenUsage,
   renderedPromptView,
+  runLoadingSrText,
   shouldCollapseTurn,
   stepCursor,
   turnDomId,
@@ -195,6 +196,19 @@ describe("classifyRunLoadError", () => {
   });
   it("stringifies non-Error thrown values", () => {
     expect(classifyRunLoadError("boom")).toEqual({ kind: "generic", message: "boom" });
+  });
+});
+
+describe("runLoadingSrText", () => {
+  it("includes the runId so screen readers know which run is being fetched", () => {
+    expect(runLoadingSrText("r-42")).toBe("Fetching turns and events for run r-42.");
+  });
+  it("falls back to a generic sentence when the runId is empty or whitespace", () => {
+    expect(runLoadingSrText("")).toBe("Fetching run turns and events.");
+    expect(runLoadingSrText("   ")).toBe("Fetching run turns and events.");
+  });
+  it("trims surrounding whitespace on the runId", () => {
+    expect(runLoadingSrText("  BEN-1  ")).toBe("Fetching turns and events for run BEN-1.");
   });
 });
 

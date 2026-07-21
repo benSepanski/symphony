@@ -107,6 +107,15 @@ export function classifyRunLoadError(err: unknown): RunLoadError {
   return { kind: "generic", message };
 }
 
+// sr-only text spoken while the RunDetail loading card is visible. Threading
+// the runId through gives screen-reader users the same context that sighted
+// users get from the URL bar / breadcrumb.
+export function runLoadingSrText(runId: string): string {
+  const trimmed = runId.trim();
+  if (!trimmed) return "Fetching run turns and events.";
+  return `Fetching turns and events for run ${trimmed}.`;
+}
+
 // Per-role card affordances for `TurnCard`. Reuses the StatusBadge palette so
 // cyan / slate / amber vocabulary carries in from other views. Tool turns get
 // emerald — they're always the tail of an assistant thought, so tinting them
