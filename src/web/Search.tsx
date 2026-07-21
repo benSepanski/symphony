@@ -79,6 +79,14 @@ export function Search({ query: initialQuery }: { query: string }) {
     window.location.hash = `#/search?q=${encodeURIComponent(q)}`;
   };
 
+  const clearInput = () => {
+    setInput("");
+    setActiveQuery("");
+    if (window.location.hash !== "#/search") {
+      window.history.replaceState(null, "", "#/search");
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <form
@@ -88,13 +96,31 @@ export function Search({ query: initialQuery }: { query: string }) {
         }}
         className="flex gap-2"
       >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Search turn content and event payloads…"
-          className="flex-1 rounded border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-600 focus-visible:ring-2 focus-visible:ring-cyan-500"
-          autoFocus
-        />
+        <div className="relative flex-1">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && input) {
+                e.preventDefault();
+                clearInput();
+              }
+            }}
+            placeholder="Search turn content and event payloads…"
+            className="w-full rounded border border-slate-800 bg-slate-900 px-3 py-2 pr-8 text-sm text-slate-100 focus:outline-none focus:border-cyan-600 focus-visible:ring-2 focus-visible:ring-cyan-500"
+            autoFocus
+          />
+          {input && (
+            <button
+              type="button"
+              onClick={clearInput}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded text-slate-500 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+            >
+              ✕
+            </button>
+          )}
+        </div>
         <button
           type="submit"
           className="rounded bg-cyan-600 hover:bg-cyan-500 px-3 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
@@ -203,9 +229,16 @@ function SearchResults({
         )}
       </div>
       {filtered.length === 0 ? (
-        <p className="text-sm text-slate-400">
-          No matches under the current filters. Toggle a chip to widen.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-slate-400">No matches under the current filters.</p>
+          <button
+            type="button"
+            onClick={() => setFilters(EMPTY_FILTERS)}
+            className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-xs text-slate-300 hover:border-cyan-600 hover:text-cyan-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+          >
+            Reset filters
+          </button>
+        </div>
       ) : (
         <ul className="space-y-2">
           {filtered.map((m, i) => (
