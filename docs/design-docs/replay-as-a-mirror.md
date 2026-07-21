@@ -22,7 +22,7 @@ The orchestrator is one such emitter (live runs). `createReplayEmitter` is
 the other: it reads a run from SQLite and produces an emitter that streams
 past events as if they were happening now.
 
-`symphony replay <runId> --speed 5` wires up the replay emitter + API server
+`pnpm tsx src/cli.ts replay <runId> --speed 5` wires up the replay emitter + API server
 and opens the dashboard at `http://localhost:4000`. Nothing on the web side
 knows the difference between live and replayed.
 

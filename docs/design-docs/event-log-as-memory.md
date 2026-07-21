@@ -85,7 +85,7 @@ authoritative reference.
 
 ## Retention
 
-The CLI's `symphony prune --older-than <duration>` deletes runs + JSONL
+The CLI's `pnpm tsx src/cli.ts prune --older-than <duration>` deletes runs + JSONL
 files older than the cutoff. Prune is idempotent; running it twice is a
 no-op.
 
