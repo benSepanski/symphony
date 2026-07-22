@@ -1,6 +1,6 @@
 # orchestrator: the poll loop
 
-_Last reviewed:_ 2026-04-18
+_Last reviewed:_ 2026-07-22
 
 The orchestrator is the kernel: a poll loop that picks candidate issues,
 creates workspaces, spawns sessions, records turns, and cleans up. It knows
@@ -36,6 +36,15 @@ interface OrchestratorOptions {
 - `turn: { runId, issue, turn }`
 - `runFinished: { runId, issue, status, error? }`
 - `error: Error` (operational only — fatal tick failures)
+- `tick: OrchestratorState` (start + end of each tick and after any state
+  change; the dashboard drives its "next-poll" countdown from this).
+- `settingsUpdated: OrchestratorSettings` (fires when `applySettings` merges
+  a `PATCH /api/settings` payload).
+- `usageUpdated: { snapshot, rateLimitedWindow }` (fires on the throttled
+  `refreshUsage` step; see [`usage.md`](usage.md) for the payload shape).
+- `selfUpdated: { result }` / `selfUpdateError: { error }` (fire from the
+  opt-in `SelfUpdater.maybeFetch()` step — see
+  [`../design-docs/self-update.md`](../design-docs/self-update.md)).
 
 ## Lifecycle
 
@@ -89,5 +98,7 @@ Documented in the execution model doc. Summary:
 
 ## Changelog
 
+- 2026-07-22 — Doc `tick`, `settingsUpdated`, `usageUpdated`, `selfUpdated`,
+  `selfUpdateError` events (present in code, previously undocumented here).
 - 2026-04-18 — Finalizer pattern: state + workspace cleanup in `finally`.
 - 2026-04-18 — New `cancelled` status for SIGINT drains.
