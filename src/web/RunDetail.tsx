@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { RunHeader } from "./appHeader.js";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
 import {
+  MessageCard,
   SkeletonLoadingCard,
   StatusBadge,
   formatPct,
@@ -368,8 +369,7 @@ function EventsSection({ events }: { events: ApiEvent[] }) {
 function RunLoadErrorCard({ runId, error }: { runId: string; error: RunLoadError }) {
   const heading = error.kind === "not-found" ? "Run not found" : "Couldn't load run";
   return (
-    <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
-      <h2 className="text-lg font-medium mb-2">{heading}</h2>
+    <MessageCard heading={heading}>
       <p className="text-slate-400 text-sm">
         {error.kind === "not-found" ? (
           <>
@@ -389,7 +389,7 @@ function RunLoadErrorCard({ runId, error }: { runId: string; error: RunLoadError
       >
         ← Back to runs
       </a>
-    </div>
+    </MessageCard>
   );
 }
 

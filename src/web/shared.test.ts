@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LOADING_CARD_DELAY_MS,
+  MessageCard,
   SkeletonLoadingCard,
   formatInterval,
   formatPct,
@@ -95,5 +96,11 @@ describe("SkeletonLoadingCard", () => {
 
   it("is a callable React component", () => {
     expect(typeof SkeletonLoadingCard).toBe("function");
+  });
+});
+
+describe("MessageCard", () => {
+  it("is a callable React component", () => {
+    expect(typeof MessageCard).toBe("function");
   });
 });
