@@ -4,6 +4,7 @@ import { parseHash } from "./appRoute.js";
 import { Dashboard } from "./Dashboard.js";
 import { RunDetail } from "./RunDetail.js";
 import { Search } from "./Search.js";
+import { MessageCard } from "./shared.js";
 
 function currentRoute() {
   return parseHash(window.location.hash);
@@ -86,8 +87,7 @@ function RunBreadcrumb({ runId, header }: { runId: string; header: RunHeader | n
 
 function NotFound({ hash }: { hash: string }) {
   return (
-    <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
-      <h2 className="text-lg font-medium mb-2">Page not found</h2>
+    <MessageCard heading="Page not found">
       <p className="text-slate-400 text-sm">
         No route matches <code className="font-mono text-slate-300">{hash}</code>.
       </p>
@@ -97,6 +97,6 @@ function NotFound({ hash }: { hash: string }) {
       >
         ← Back to runs
       </a>
-    </div>
+    </MessageCard>
   );
 }

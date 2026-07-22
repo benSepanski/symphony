@@ -35,7 +35,7 @@ import {
   runCardAriaLabel,
   sumTokens,
 } from "./runsTable.js";
-import { SkeletonLoadingCard, StatusBadge, formatRunTimestamp } from "./shared.js";
+import { MessageCard, SkeletonLoadingCard, StatusBadge, formatRunTimestamp } from "./shared.js";
 
 type LoadState =
   | { tag: "loading" }
@@ -188,14 +188,13 @@ export function Dashboard() {
 
 function EmptyState({ variant }: { variant: DashboardEmptyStateVariant }) {
   return (
-    <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
-      <h2 className="text-lg font-medium mb-2">No runs yet</h2>
+    <MessageCard heading="No runs yet">
       {variant.kind === "mock" ? (
         <MockEmptyStateBody />
       ) : (
         <ProductionEmptyStateBody activeStates={variant.activeStates} />
       )}
-    </div>
+    </MessageCard>
   );
 }
 
@@ -238,8 +237,7 @@ function DashboardErrorCard({
   onRetry: () => void;
 }) {
   return (
-    <div role="alert" className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
-      <h2 className="text-lg font-medium mb-2">Couldn't load dashboard</h2>
+    <MessageCard role="alert" heading="Couldn't load dashboard">
       <p className="text-slate-400 text-sm">
         {failures.length === 1
           ? "One request failed while loading the dashboard."
@@ -260,7 +258,7 @@ function DashboardErrorCard({
       >
         Try again
       </button>
-    </div>
+    </MessageCard>
   );
 }
 

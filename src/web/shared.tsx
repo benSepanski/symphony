@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 const STATUS_STYLES: Record<string, string> = {
   completed: "bg-emerald-500/10 text-emerald-300",
@@ -58,6 +58,28 @@ export function formatInterval(ms: number): string {
   const seconds = Math.round(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
   return `${Math.round(seconds / 60)}m`;
+}
+
+// Neutral card wrapper used by empty states, "not found" screens, and error
+// surfaces on the dashboard. Keep the class string in one place so a visual
+// tweak (border, radius, padding, background) applies to every callsite.
+// `role` is passed through for the a11y-role-carrying variants
+// ("alert" for DashboardErrorCard, "status" for SkeletonLoadingCard).
+export function MessageCard({
+  heading,
+  role,
+  children,
+}: {
+  heading: string;
+  role?: "alert" | "status";
+  children: ReactNode;
+}) {
+  return (
+    <div role={role} className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
+      <h2 className="text-lg font-medium mb-2">{heading}</h2>
+      {children}
+    </div>
+  );
 }
 
 // Delay before a loading skeleton fades in. Short enough that slow loads still
