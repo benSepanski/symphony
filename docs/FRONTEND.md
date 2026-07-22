@@ -22,8 +22,8 @@ what the agents are doing.
 | `#/runs/<id>` | [`RunDetail`](../src/web/RunDetail.tsx) | Per-turn transcript, rendered prompt, events.  |
 | `#/search`    | [`Search`](../src/web/Search.tsx)       | Full-text search across turn content + events. |
 
-Add a route by adding a branch in `App.tsx`'s switch and a single component
-file. Don't install a router.
+Add a route by adding a branch in `App.tsx`'s route conditional and a single
+component file. Don't install a router.
 
 ## Data sources
 
@@ -32,6 +32,12 @@ file. Don't install a router.
 - `GET /api/search?q=...` — `SearchMatch[]`.
 - `GET /api/events` — Server-Sent Events stream, consumed via
   [`useEventStream`](../src/web/useEventStream.ts).
+- `GET /api/events/recent?types=…` — the recent-events tail (feeds `ErrorFeed`).
+- `GET /api/health` — orchestrator + usage snapshot (feeds `HealthStrip`).
+- `GET /api/usage` — usage snapshot (feeds `MetricsPanel`).
+- `GET /api/settings` + `PATCH /api/settings` — live orchestrator settings
+  (feed `SettingsPanel`).
+- `POST /api/orchestrator/tick` — operator-triggered manual tick.
 
 All fetches live in [`src/web/api.ts`](../src/web/api.ts). Never call `fetch`
 from a component.
