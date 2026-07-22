@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RunHeader } from "./appHeader.js";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
-import { StatusBadge, formatPct, formatRunTimestamp, formatTs } from "./shared.js";
+import {
+  SkeletonLoadingCard,
+  StatusBadge,
+  formatPct,
+  formatRunTimestamp,
+  formatTs,
+} from "./shared.js";
 import { useEventStream } from "./useEventStream.js";
 import {
   ASSISTANT_LINE_THRESHOLD,
@@ -24,8 +30,6 @@ import {
   type RenderedPromptView,
   type RunLoadError,
 } from "./runDetailUtils.js";
-
-const LOADING_CARD_DELAY_MS = 200;
 
 type LoadState =
   | { tag: "loading" }
@@ -72,7 +76,8 @@ export function RunDetail({
 
   useScrollToFragment(fragment, state.tag === "ready");
 
-  if (state.tag === "loading") return <RunLoadingCard runId={runId} />;
+  if (state.tag === "loading")
+    return <SkeletonLoadingCard heading="Loading run…" srText={runLoadingSrText(runId)} />;
   if (state.tag === "error") return <RunLoadErrorCard runId={runId} error={state.error} />;
 
   const { run, turns, events } = state.detail;
@@ -357,30 +362,6 @@ function EventsSection({ events }: { events: ApiEvent[] }) {
         })}
       </ul>
     </section>
-  );
-}
-
-function RunLoadingCard({ runId }: { runId: string }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), LOADING_CARD_DELAY_MS);
-    return () => clearTimeout(t);
-  }, []);
-  if (!visible) return <div aria-hidden="true" />;
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6"
-    >
-      <h2 className="text-lg font-medium mb-2">Loading run…</h2>
-      <p className="sr-only">{runLoadingSrText(runId)}</p>
-      <div className="space-y-2" aria-hidden="true">
-        <div className="h-3 w-3/4 animate-pulse rounded bg-slate-800" />
-        <div className="h-3 w-1/2 animate-pulse rounded bg-slate-800" />
-        <div className="h-3 w-5/6 animate-pulse rounded bg-slate-800" />
-      </div>
-    </div>
   );
 }
 

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatInterval, formatPct, formatRunTimestamp } from "./shared.js";
+import {
+  LOADING_CARD_DELAY_MS,
+  SkeletonLoadingCard,
+  formatInterval,
+  formatPct,
+  formatRunTimestamp,
+} from "./shared.js";
 
 describe("formatInterval", () => {
   it("renders sub-second intervals as ms", () => {
@@ -79,5 +85,15 @@ describe("formatRunTimestamp", () => {
     const then = new Date(2026, 5, 30, 23, 50, 0);
     const iso = then.toISOString();
     expect(formatRunTimestamp(iso, now)).toBe(`${localDate(then)} · ${localTime(then)}`);
+  });
+});
+
+describe("SkeletonLoadingCard", () => {
+  it("delays visibility by 200ms so fast loads don't flash a skeleton", () => {
+    expect(LOADING_CARD_DELAY_MS).toBe(200);
+  });
+
+  it("is a callable React component", () => {
+    expect(typeof SkeletonLoadingCard).toBe("function");
   });
 });

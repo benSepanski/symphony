@@ -35,14 +35,12 @@ import {
   runCardAriaLabel,
   sumTokens,
 } from "./runsTable.js";
-import { StatusBadge, formatRunTimestamp } from "./shared.js";
+import { SkeletonLoadingCard, StatusBadge, formatRunTimestamp } from "./shared.js";
 
 type LoadState =
   | { tag: "loading" }
   | { tag: "ready" }
   | { tag: "error"; failures: DashboardLoadFailure[] };
-
-const LOADING_CARD_DELAY_MS = 200;
 
 export function Dashboard() {
   const [load, setLoad] = useState<LoadState>({ tag: "loading" });
@@ -153,7 +151,13 @@ export function Dashboard() {
     };
   }, [loadDashboard]);
 
-  if (load.tag === "loading") return <DashboardLoadingCard />;
+  if (load.tag === "loading")
+    return (
+      <SkeletonLoadingCard
+        heading="Loading dashboard…"
+        srText="Fetching runs, health, recent events, and settings."
+      />
+    );
   if (load.tag === "error")
     return <DashboardErrorCard failures={load.failures} onRetry={loadDashboard} />;
 
@@ -223,30 +227,6 @@ function MockEmptyStateBody() {
       active state. Demo issues are seeded at boot; pass <code>--no-demo</code> to skip, or{" "}
       <code>--seed &lt;file.yaml&gt;</code> to supply your own.
     </p>
-  );
-}
-
-function DashboardLoadingCard() {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), LOADING_CARD_DELAY_MS);
-    return () => clearTimeout(t);
-  }, []);
-  if (!visible) return <div aria-hidden="true" />;
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6"
-    >
-      <h2 className="text-lg font-medium mb-2">Loading dashboard…</h2>
-      <p className="sr-only">Fetching runs, health, recent events, and settings.</p>
-      <div className="space-y-2" aria-hidden="true">
-        <div className="h-3 w-3/4 animate-pulse rounded bg-slate-800" />
-        <div className="h-3 w-1/2 animate-pulse rounded bg-slate-800" />
-        <div className="h-3 w-5/6 animate-pulse rounded bg-slate-800" />
-      </div>
-    </div>
   );
 }
 
