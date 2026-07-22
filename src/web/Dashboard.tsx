@@ -12,6 +12,10 @@ import {
   type ApiUsage,
   type ApiWorkflowSummary,
 } from "./api.js";
+import {
+  dashboardEmptyStateVariant,
+  type DashboardEmptyStateVariant,
+} from "./dashboardEmptyState.js";
 import { applyRunFinishedEvent, applyTurnEvent, hasRun, replaceRun } from "./dashboardEvents.js";
 import { collectDashboardFailures, type DashboardLoadFailure } from "./dashboardLoadUtils.js";
 import { useEventStream } from "./useEventStream.js";
@@ -169,21 +173,56 @@ export function Dashboard() {
       <MetricsPanel runs={runs} />
       <ErrorFeed events={events} runs={runs} />
       <HistoryTotals runs={runs} />
-      {runs.length === 0 ? <EmptyState /> : <RunsTable runs={runs} />}
+      {runs.length === 0 ? (
+        <EmptyState variant={dashboardEmptyStateVariant(workflow)} />
+      ) : (
+        <RunsTable runs={runs} />
+      )}
     </div>
   );
 }
 
-function EmptyState() {
+function EmptyState({ variant }: { variant: DashboardEmptyStateVariant }) {
   return (
     <div className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6">
       <h2 className="text-lg font-medium mb-2">No runs yet</h2>
-      <p className="text-slate-400 text-sm">
-        Symphony will poll your tracker and start a run as soon as a ticket enters an active state.
-        In mock mode, demo issues are seeded at boot (pass <code>--no-demo</code> to skip, or{" "}
-        <code>--seed &lt;file.yaml&gt;</code> to supply your own).
-      </p>
+      {variant.kind === "mock" ? (
+        <MockEmptyStateBody />
+      ) : (
+        <ProductionEmptyStateBody activeStates={variant.activeStates} />
+      )}
     </div>
+  );
+}
+
+function ProductionEmptyStateBody({ activeStates }: { activeStates: string[] }) {
+  return (
+    <p className="text-slate-400 text-sm">
+      Symphony will start a run as soon as a tracker ticket enters an active state
+      {activeStates.length > 0 ? (
+        <>
+          {" ("}
+          {activeStates.map((s, i) => (
+            <span key={s}>
+              {i > 0 && ", "}
+              <code>{s}</code>
+            </span>
+          ))}
+          {")"}
+        </>
+      ) : null}
+      . Check the header for the poll status if this looks stuck.
+    </p>
+  );
+}
+
+function MockEmptyStateBody() {
+  return (
+    <p className="text-slate-400 text-sm">
+      Symphony is running in mock mode and will start a run as soon as a seeded ticket enters an
+      active state. Demo issues are seeded at boot; pass <code>--no-demo</code> to skip, or{" "}
+      <code>--seed &lt;file.yaml&gt;</code> to supply your own.
+    </p>
   );
 }
 
