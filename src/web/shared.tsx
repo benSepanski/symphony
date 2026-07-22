@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 const STATUS_STYLES: Record<string, string> = {
   completed: "bg-emerald-500/10 text-emerald-300",
   running: "bg-cyan-500/10 text-cyan-300",
@@ -56,4 +58,33 @@ export function formatInterval(ms: number): string {
   const seconds = Math.round(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
   return `${Math.round(seconds / 60)}m`;
+}
+
+// Delay before a loading skeleton fades in. Short enough that slow loads still
+// get visible feedback; long enough that fast loads (SSR-warmed cache, replay)
+// don't flash a skeleton the user never had time to read.
+export const LOADING_CARD_DELAY_MS = 200;
+
+export function SkeletonLoadingCard({ heading, srText }: { heading: string; srText: string }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), LOADING_CARD_DELAY_MS);
+    return () => clearTimeout(t);
+  }, []);
+  if (!visible) return <div aria-hidden="true" />;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="max-w-xl rounded-lg border border-slate-800 bg-slate-900 p-6"
+    >
+      <h2 className="text-lg font-medium mb-2">{heading}</h2>
+      <p className="sr-only">{srText}</p>
+      <div className="space-y-2" aria-hidden="true">
+        <div className="h-3 w-3/4 animate-pulse rounded bg-slate-800" />
+        <div className="h-3 w-1/2 animate-pulse rounded bg-slate-800" />
+        <div className="h-3 w-5/6 animate-pulse rounded bg-slate-800" />
+      </div>
+    </div>
+  );
 }
