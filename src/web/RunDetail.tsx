@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { RunHeader } from "./appHeader.js";
 import { fetchRun, type ApiEvent, type ApiRun, type ApiRunDetail, type ApiTurn } from "./api.js";
 import {
@@ -460,36 +460,44 @@ function HistoryFacts({ run }: { run: ApiRun }) {
   return (
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {showUsage && (
-        <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
-          <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">Token usage</h3>
-          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-mono text-slate-300">
-            <dt className="text-slate-500">input</dt>
-            <dd className="tabular-nums">{formatCount(run.tokensInput)}</dd>
-            <dt className="text-slate-500">output</dt>
-            <dd className="tabular-nums">{formatCount(run.tokensOutput)}</dd>
-            <dt className="text-slate-500">cache read</dt>
-            <dd className="tabular-nums">{formatCount(run.tokensCacheRead)}</dd>
-            <dt className="text-slate-500">cache create</dt>
-            <dd className="tabular-nums">{formatCount(run.tokensCacheCreation)}</dd>
-            <dt className="text-slate-500">total cost</dt>
-            <dd className="tabular-nums">{formatCostDetailed(run.totalCostUsd)}</dd>
-          </dl>
-        </div>
+        <FactCard heading="Token usage">
+          <dt className="text-slate-500">input</dt>
+          <dd className="tabular-nums">{formatCount(run.tokensInput)}</dd>
+          <dt className="text-slate-500">output</dt>
+          <dd className="tabular-nums">{formatCount(run.tokensOutput)}</dd>
+          <dt className="text-slate-500">cache read</dt>
+          <dd className="tabular-nums">{formatCount(run.tokensCacheRead)}</dd>
+          <dt className="text-slate-500">cache create</dt>
+          <dd className="tabular-nums">{formatCount(run.tokensCacheCreation)}</dd>
+          <dt className="text-slate-500">total cost</dt>
+          <dd className="tabular-nums">{formatCostDetailed(run.totalCostUsd)}</dd>
+        </FactCard>
       )}
       {showStartContext && (
-        <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
-          <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">Start context</h3>
-          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-mono text-slate-300">
-            <dt className="text-slate-500">auth</dt>
-            <dd>{run.authStatus ?? "—"}</dd>
-            <dt className="text-slate-500">5h utilization</dt>
-            <dd className="tabular-nums">{formatPct(run.startFiveHourUtil)}</dd>
-            <dt className="text-slate-500">7d utilization</dt>
-            <dd className="tabular-nums">{formatPct(run.startSevenDayUtil)}</dd>
-          </dl>
-        </div>
+        <FactCard heading="Start context">
+          <dt className="text-slate-500">auth</dt>
+          <dd>{run.authStatus ?? "—"}</dd>
+          <dt className="text-slate-500">5h utilization</dt>
+          <dd className="tabular-nums">{formatPct(run.startFiveHourUtil)}</dd>
+          <dt className="text-slate-500">7d utilization</dt>
+          <dd className="tabular-nums">{formatPct(run.startSevenDayUtil)}</dd>
+        </FactCard>
       )}
     </section>
+  );
+}
+
+// Two-column dt/dd grid used by the RunDetail history facts (token usage,
+// start context). Keeps card chrome and dl grid in one place so a future
+// visual tweak applies to every side-by-side facts panel.
+function FactCard({ heading, children }: { heading: string; children: ReactNode }) {
+  return (
+    <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
+      <h3 className="text-xs font-semibold uppercase text-slate-400 mb-2">{heading}</h3>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-mono text-slate-300">
+        {children}
+      </dl>
+    </div>
   );
 }
 
