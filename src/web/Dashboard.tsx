@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import {
   fetchHealth,
   fetchRecentEvents,
@@ -33,6 +33,7 @@ import {
   formatTokenTotal,
   hasUsage,
   runCardAriaLabel,
+  shouldNavigateOnRowClick,
   sumTokens,
 } from "./runsTable.js";
 import { MessageCard, SkeletonLoadingCard, StatusBadge, formatRunTimestamp } from "./shared.js";
@@ -300,17 +301,17 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
               <li
                 key={r.id}
                 role="row"
-                className={`relative grid ${RUNS_TABLE_GRID_COLS} gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset`}
+                onClick={(e) => handleRunNavigationClick(e, r.id)}
+                className={`grid ${RUNS_TABLE_GRID_COLS} gap-x-4 items-center px-2 py-2 hover:bg-slate-900/60 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset`}
               >
                 <span role="cell" aria-labelledby="col-issue" className="font-mono">
                   <a
                     href={`#/runs/${r.id}`}
                     aria-label={runCardAriaLabel(r)}
-                    className="absolute inset-0 focus:outline-none"
+                    className="rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                   >
-                    <span className="sr-only">Open</span>
+                    {r.issueIdentifier}
                   </a>
-                  {r.issueIdentifier}
                 </span>
                 <span role="cell" aria-labelledby="col-title" className="text-slate-200 truncate">
                   {r.issueTitle ?? "—"}
@@ -369,16 +370,18 @@ function RunsTable({ runs }: { runs: ApiRun[] }) {
 function RunCard({ run: r, now }: { run: ApiRun; now: Date }) {
   const metaLine = formatRunMetaLine(r);
   return (
-    <li className="relative rounded-lg border border-slate-800 bg-slate-900/60 p-3 hover:bg-slate-900 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset">
-      <a
-        href={`#/runs/${r.id}`}
-        aria-label={runCardAriaLabel(r)}
-        className="absolute inset-0 focus:outline-none"
-      >
-        <span className="sr-only">Open</span>
-      </a>
+    <li
+      onClick={(e) => handleRunNavigationClick(e, r.id)}
+      className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 hover:bg-slate-900 focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-inset"
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-slate-200">{r.issueIdentifier}</span>
+        <a
+          href={`#/runs/${r.id}`}
+          aria-label={runCardAriaLabel(r)}
+          className="font-mono text-slate-200 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+        >
+          {r.issueIdentifier}
+        </a>
         <StatusBadge status={r.status} />
       </div>
       <p className="mt-1 line-clamp-2 text-sm text-slate-200">{r.issueTitle ?? "—"}</p>
@@ -404,6 +407,25 @@ function RunCard({ run: r, now }: { run: ApiRun; now: Date }) {
       </div>
     </li>
   );
+}
+
+const INTERACTIVE_TARGET_SELECTOR = "a, button, input, select, textarea, [role='button']";
+
+function handleRunNavigationClick(e: MouseEvent<HTMLLIElement>, runId: string): void {
+  const target = e.target as Element | null;
+  const targetIsInteractive = target?.closest(INTERACTIVE_TARGET_SELECTOR) != null;
+  const selection = typeof window !== "undefined" ? window.getSelection() : null;
+  const hasNonCollapsedSelection = selection ? !selection.isCollapsed : false;
+  const navigate = shouldNavigateOnRowClick({
+    button: e.button,
+    metaKey: e.metaKey,
+    ctrlKey: e.ctrlKey,
+    shiftKey: e.shiftKey,
+    altKey: e.altKey,
+    hasNonCollapsedSelection,
+    targetIsInteractive,
+  });
+  if (navigate) window.location.hash = `#/runs/${runId}`;
 }
 
 function HistoryTotals({ runs }: { runs: ApiRun[] }) {

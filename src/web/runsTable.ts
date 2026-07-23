@@ -79,3 +79,24 @@ export function runCardAriaLabel(r: ApiRun): string {
   const title = r.issueTitle ? `: ${r.issueTitle}` : "";
   return `Open run ${r.issueIdentifier}${title} · ${r.status}`;
 }
+
+// Decides whether a mouse click on a Dashboard run row/card should navigate.
+// Split out so the row can stay text-selectable and right-clickable while
+// still giving mouse users a row-wide click affordance (BEN-141).
+export type RowClickIntent = {
+  button: number;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+  hasNonCollapsedSelection: boolean;
+  targetIsInteractive: boolean;
+};
+
+export function shouldNavigateOnRowClick(intent: RowClickIntent): boolean {
+  if (intent.button !== 0) return false;
+  if (intent.metaKey || intent.ctrlKey || intent.shiftKey || intent.altKey) return false;
+  if (intent.hasNonCollapsedSelection) return false;
+  if (intent.targetIsInteractive) return false;
+  return true;
+}

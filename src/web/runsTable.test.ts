@@ -10,7 +10,9 @@ import {
   formatTokenTotal,
   hasUsage,
   runCardAriaLabel,
+  shouldNavigateOnRowClick,
   sumTokens,
+  type RowClickIntent,
 } from "./runsTable.js";
 
 describe("RUNS_TABLE_GRID_COLS", () => {
@@ -210,5 +212,45 @@ describe("runCardAriaLabel", () => {
   it("omits the title suffix when issueTitle is null", () => {
     const r = makeRun({ issueIdentifier: "BEN-42", issueTitle: null, status: "failed" });
     expect(runCardAriaLabel(r)).toBe("Open run BEN-42 · failed");
+  });
+});
+
+describe("shouldNavigateOnRowClick (BEN-141)", () => {
+  function intent(overrides: Partial<RowClickIntent> = {}): RowClickIntent {
+    return {
+      button: 0,
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      hasNonCollapsedSelection: false,
+      targetIsInteractive: false,
+      ...overrides,
+    };
+  }
+
+  it("navigates on a plain left-click on non-interactive content with no active selection", () => {
+    expect(shouldNavigateOnRowClick(intent())).toBe(true);
+  });
+
+  it("does not navigate when the user is text-selecting (selection is not collapsed)", () => {
+    expect(shouldNavigateOnRowClick(intent({ hasNonCollapsedSelection: true }))).toBe(false);
+  });
+
+  it("does not navigate when the click target is already an interactive element", () => {
+    // The anchor / button handles its own navigation; the row must not double-navigate.
+    expect(shouldNavigateOnRowClick(intent({ targetIsInteractive: true }))).toBe(false);
+  });
+
+  it("does not navigate on non-primary buttons so middle-click doesn't hijack the row", () => {
+    expect(shouldNavigateOnRowClick(intent({ button: 1 }))).toBe(false);
+    expect(shouldNavigateOnRowClick(intent({ button: 2 }))).toBe(false);
+  });
+
+  it("does not navigate when a modifier key is held (ctrl/cmd/shift/alt reserved for the anchor)", () => {
+    expect(shouldNavigateOnRowClick(intent({ metaKey: true }))).toBe(false);
+    expect(shouldNavigateOnRowClick(intent({ ctrlKey: true }))).toBe(false);
+    expect(shouldNavigateOnRowClick(intent({ shiftKey: true }))).toBe(false);
+    expect(shouldNavigateOnRowClick(intent({ altKey: true }))).toBe(false);
   });
 });
