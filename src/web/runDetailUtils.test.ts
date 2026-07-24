@@ -19,6 +19,7 @@ import {
   turnLineCount,
   turnLineThreshold,
   turnRoleStyle,
+  turnsEmptyState,
 } from "./runDetailUtils.js";
 
 function ev(id: number, eventType: string): ApiEvent {
@@ -320,6 +321,44 @@ describe("autoFollowUiState", () => {
     expect(autoFollowUiState({ isLive: false, autoFollow: true, wasAutoFollowing: true })).toEqual({
       kind: "finishedPill",
     });
+  });
+});
+
+describe("turnsEmptyState", () => {
+  it("prompts screen readers that we're waiting for the first turn on a live run", () => {
+    expect(turnsEmptyState("running")).toEqual({
+      text: "Waiting for the first turn…",
+      live: true,
+    });
+  });
+  it("points the reader up to the ErrorSurface when the run failed before any turns", () => {
+    expect(turnsEmptyState("failed")).toEqual({
+      text: "No turns were recorded before the run ended.",
+      live: false,
+    });
+  });
+  it("uses the same 'ended before any turns' copy for a cancelled run", () => {
+    expect(turnsEmptyState("cancelled")).toEqual({
+      text: "No turns were recorded before the run ended.",
+      live: false,
+    });
+  });
+  it("falls back to a neutral 'no turns recorded' message for other terminal statuses", () => {
+    expect(turnsEmptyState("completed")).toEqual({
+      text: "No turns recorded for this run.",
+      live: false,
+    });
+    expect(turnsEmptyState("max_turns")).toEqual({
+      text: "No turns recorded for this run.",
+      live: false,
+    });
+    expect(turnsEmptyState("rate_limited")).toEqual({
+      text: "No turns recorded for this run.",
+      live: false,
+    });
+  });
+  it("does not mark unknown statuses as live to avoid noisy screen-reader announcements", () => {
+    expect(turnsEmptyState("some_new_status").live).toBe(false);
   });
 });
 

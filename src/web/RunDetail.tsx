@@ -28,6 +28,7 @@ import {
   turnLineCount,
   turnLineThreshold,
   turnRoleStyle,
+  turnsEmptyState,
   type RenderedPromptView,
   type RunLoadError,
 } from "./runDetailUtils.js";
@@ -124,7 +125,7 @@ export function RunDetail({
 
       <HistoryFacts run={run} />
 
-      <TurnsSection turns={turns} events={events} isLive={isLive} />
+      <TurnsSection turns={turns} events={events} isLive={isLive} status={run.status} />
 
       <EventsSection events={events} />
     </div>
@@ -135,10 +136,12 @@ function TurnsSection({
   turns,
   events,
   isLive,
+  status,
 }: {
   turns: ApiTurn[];
   events: ApiEvent[];
   isLive: boolean;
+  status: string;
 }) {
   const errorEvents = useMemo(() => findErrorEvents(events), [events]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -255,6 +258,7 @@ function TurnsSection({
           )}
         </div>
       </div>
+      {turns.length === 0 && <TurnsEmpty status={status} />}
       <ul className="space-y-3">
         {turns.map((t, i) => (
           <TurnCard
@@ -266,6 +270,16 @@ function TurnsSection({
       </ul>
       <div ref={sentinelRef} aria-hidden="true" className="h-px" />
     </section>
+  );
+}
+
+function TurnsEmpty({ status }: { status: string }) {
+  const { text, live } = turnsEmptyState(status);
+  const liveProps = live ? { role: "status" as const, "aria-live": "polite" as const } : {};
+  return (
+    <p className="text-xs text-slate-500 italic" {...liveProps}>
+      {text}
+    </p>
   );
 }
 
