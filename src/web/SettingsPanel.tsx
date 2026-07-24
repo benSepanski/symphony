@@ -41,6 +41,40 @@ function inputClass(hasError: boolean): string {
   return `${INPUT_BASE} ${hasError ? INPUT_ERR : INPUT_OK}`;
 }
 
+interface DraftFieldSpec {
+  field: SettingsField;
+  label: string;
+  hint?: string;
+  type: "number" | "text";
+  min?: number;
+  step?: number;
+}
+
+const DRAFT_FIELDS: DraftFieldSpec[] = [
+  {
+    field: "pollIntervalMs",
+    label: "Poll interval (ms)",
+    hint: "Minimum 1000. Timer restarts on save.",
+    type: "number",
+    min: 1000,
+    step: 500,
+  },
+  {
+    field: "maxConcurrentAgents",
+    label: "Max concurrent agents",
+    type: "number",
+    min: 1,
+    step: 1,
+  },
+  { field: "maxTurns", label: "Max turns", type: "number", min: 1, step: 1 },
+  {
+    field: "maxTurnsState",
+    label: "Max turns state",
+    hint: "Tracker state applied when an agent hits max_turns.",
+    type: "text",
+  },
+];
+
 export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) {
   const [draft, setDraft] = useState<SettingsDraft | null>(() =>
     settings ? toDraft(settings) : null,
@@ -125,11 +159,6 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
     void apply(result.values);
   }
 
-  const pollErr = fieldError("pollIntervalMs");
-  const concurrencyErr = fieldError("maxConcurrentAgents");
-  const turnsErr = fieldError("maxTurns");
-  const turnsStateErr = fieldError("maxTurnsState");
-
   return (
     <section className="rounded-lg border border-slate-800 bg-slate-900/40">
       <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="group">
@@ -168,78 +197,18 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
           </div>
 
           <form onSubmit={save} className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field
-              label="Poll interval (ms)"
-              hint="Minimum 1000. Timer restarts on save."
-              error={pollErr}
-              errorId={FIELD_ERROR_ID.pollIntervalMs}
-            >
-              <input
-                type="number"
-                min={1000}
-                step={500}
-                value={currentDraft.pollIntervalMs}
-                onChange={(e) => {
-                  setDraft({ ...currentDraft, pollIntervalMs: e.target.value });
-                  clearFieldError("pollIntervalMs");
+            {DRAFT_FIELDS.map((spec) => (
+              <DraftField
+                key={spec.field}
+                spec={spec}
+                value={currentDraft[spec.field]}
+                error={fieldError(spec.field)}
+                onChange={(value) => {
+                  setDraft({ ...currentDraft, [spec.field]: value });
+                  clearFieldError(spec.field);
                 }}
-                aria-invalid={pollErr ? true : undefined}
-                aria-describedby={pollErr ? FIELD_ERROR_ID.pollIntervalMs : undefined}
-                className={inputClass(Boolean(pollErr))}
               />
-            </Field>
-            <Field
-              label="Max concurrent agents"
-              error={concurrencyErr}
-              errorId={FIELD_ERROR_ID.maxConcurrentAgents}
-            >
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={currentDraft.maxConcurrentAgents}
-                onChange={(e) => {
-                  setDraft({ ...currentDraft, maxConcurrentAgents: e.target.value });
-                  clearFieldError("maxConcurrentAgents");
-                }}
-                aria-invalid={concurrencyErr ? true : undefined}
-                aria-describedby={concurrencyErr ? FIELD_ERROR_ID.maxConcurrentAgents : undefined}
-                className={inputClass(Boolean(concurrencyErr))}
-              />
-            </Field>
-            <Field label="Max turns" error={turnsErr} errorId={FIELD_ERROR_ID.maxTurns}>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={currentDraft.maxTurns}
-                onChange={(e) => {
-                  setDraft({ ...currentDraft, maxTurns: e.target.value });
-                  clearFieldError("maxTurns");
-                }}
-                aria-invalid={turnsErr ? true : undefined}
-                aria-describedby={turnsErr ? FIELD_ERROR_ID.maxTurns : undefined}
-                className={inputClass(Boolean(turnsErr))}
-              />
-            </Field>
-            <Field
-              label="Max turns state"
-              hint="Tracker state applied when an agent hits max_turns."
-              error={turnsStateErr}
-              errorId={FIELD_ERROR_ID.maxTurnsState}
-            >
-              <input
-                type="text"
-                value={currentDraft.maxTurnsState}
-                onChange={(e) => {
-                  setDraft({ ...currentDraft, maxTurnsState: e.target.value });
-                  clearFieldError("maxTurnsState");
-                }}
-                aria-invalid={turnsStateErr ? true : undefined}
-                aria-describedby={turnsStateErr ? FIELD_ERROR_ID.maxTurnsState : undefined}
-                className={inputClass(Boolean(turnsStateErr))}
-              />
-            </Field>
+            ))}
 
             <div className="md:col-span-2 flex items-center gap-3">
               <button
@@ -283,6 +252,34 @@ export function SettingsPanel({ settings, workflow, onSettingsChanged }: Props) 
         </div>
       </details>
     </section>
+  );
+}
+
+function DraftField({
+  spec,
+  value,
+  error,
+  onChange,
+}: {
+  spec: DraftFieldSpec;
+  value: string;
+  error?: string;
+  onChange: (next: string) => void;
+}) {
+  const errorId = FIELD_ERROR_ID[spec.field];
+  return (
+    <Field label={spec.label} hint={spec.hint} error={error} errorId={errorId}>
+      <input
+        type={spec.type}
+        min={spec.min}
+        step={spec.step}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        className={inputClass(Boolean(error))}
+      />
+    </Field>
   );
 }
 
