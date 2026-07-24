@@ -31,6 +31,26 @@ export function findErrorEvents(events: ReadonlyArray<ApiEvent>): ApiEvent[] {
   return events.filter((e) => ERROR_EVENT_RE.test(e.eventType));
 }
 
+export type TurnsEmptyState = {
+  text: string;
+  live: boolean;
+};
+
+// Copy for the "no turns yet" empty state, branched on run.status so a
+// running-but-pre-first-turn run reads as "waiting" and a failed pre-turn
+// run points the reader's eye up to the ErrorSurface instead of leaving a
+// mystery gap under the Turns heading. `live` marks the running case so the
+// caller can wire aria-live for screen-reader announcements.
+export function turnsEmptyState(status: string): TurnsEmptyState {
+  if (status === "running") {
+    return { text: "Waiting for the first turn…", live: true };
+  }
+  if (status === "failed" || status === "cancelled") {
+    return { text: "No turns were recorded before the run ended.", live: false };
+  }
+  return { text: "No turns recorded for this run.", live: false };
+}
+
 export function stepCursor(total: number, current: number, dir: 1 | -1): number {
   if (total <= 0) return -1;
   if (current < 0) return dir === 1 ? 0 : total - 1;
