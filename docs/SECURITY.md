@@ -109,8 +109,8 @@ design note in [`design-docs/`](design-docs/) and a gate in the layer map.
 
 - **`LINEAR_API_KEY`.** Read from `process.env` in `cli.ts`. Never logged.
   Never written to the DB. Not echoed on startup.
-- **`CLAUDE_CLI`.** Optional override for the claude binary path; no secret
-  content.
+- **`claude` binary path.** Optionally overridable via the `claude_code.command`
+  key in `WORKFLOW.md`; defaults to `claude` on `$PATH`. No secret content.
 - **Any hook-script secrets.** Hooks inherit the parent `process.env` minus
   explicit overrides. If a hook needs a credential (e.g. `GITHUB_TOKEN`), the
   operator injects it _before_ launching Symphony; the harness does not

@@ -1,6 +1,6 @@
 CLAUDE CODE CLI — snapshot reference
 ====================================
-Binary: `claude` (path configurable via `WORKFLOW.md` or `CLAUDE_CLI` env var).
+Binary: `claude` (path configurable via `claude_code.command` in `WORKFLOW.md`).
 Used by: src/agent/claude-code.ts.
 
 Invocation Symphony uses
