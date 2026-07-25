@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { requestManualTick, type ApiOrchestratorState, type ApiUsage } from "./api.js";
 import type { StreamStatus } from "./useEventStream.js";
+import { pollStatusPill } from "./healthStripUtils.js";
 import { formatInterval, formatPct } from "./shared.js";
 
 interface Props {
@@ -96,12 +97,15 @@ export function HealthStrip({ state, usage, streamStatus, onReconnectStream }: P
               {state.lastTickAt !== null && (
                 <span className="text-slate-500"> · last {formatAge(now, state.lastTickAt)}</span>
               )}
-              {state.pollingMode === "manual" && (
-                <span className="ml-2 text-amber-300">manual</span>
-              )}
-              {state.pollingMode === "auto" && !state.polling && (
-                <span className="ml-2 text-rose-300">paused</span>
-              )}
+              {(() => {
+                const pill = pollStatusPill(state);
+                if (!pill) return null;
+                return (
+                  <span className={`ml-2 ${pill.className}`} title={pill.title}>
+                    {pill.label}
+                  </span>
+                );
+              })()}
             </span>
             <Pill label="slots" value={`${state.concurrency.current}/${state.concurrency.max}`} />
             <Pill label="queue" value={String(state.queueDepth)} />
