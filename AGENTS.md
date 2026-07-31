@@ -76,9 +76,10 @@ pins and framework snippets.
 - `src/usage/` — rate limit monitoring via Claude Code OAuth endpoint. See [`docs/product-specs/usage.md`](docs/product-specs/usage.md).
 - `src/orchestrator.ts` — the poll loop, concurrency, state transitions.
 - `src/persistence/` — Drizzle schema + `SymphonyLogger` (dual SQLite + JSONL).
-- `src/api/` — Hono server (`/api/runs`, `/api/events` SSE, `/api/search`, plus
-  `/api/health`, `/api/usage`, `/api/settings`, `/api/orchestrator/tick`; full
-  list in [`docs/product-specs/live-dashboard.md`](docs/product-specs/live-dashboard.md)).
+- `src/api/` — Hono server (`/api/runs`, `/api/runs/:id`, `/api/events` SSE,
+  `/api/events/recent`, `/api/search`, plus `/api/health`, `/api/usage`,
+  `/api/settings`, `/api/orchestrator/tick`; full list in
+  [`docs/product-specs/live-dashboard.md`](docs/product-specs/live-dashboard.md)).
 - `src/web/` — Vite + React + Tailwind dashboard.
 - `src/eval/` — scenario-based regression eval (green as part of `pnpm all`).
 - `src/self-update/` — optional `git fetch origin/main` from the poll loop. See [`docs/design-docs/self-update.md`](docs/design-docs/self-update.md).
@@ -125,4 +126,5 @@ then come back to the original task.
 
 _AGENTS.md line budget: keep this file at roughly 100–120 lines. If a section
 starts to bloat, promote it into `docs/` and replace with a link. Stale entries
-are detected by the doc-gardening eval (see [`docs/design-docs/doc-gardening.md`](docs/design-docs/doc-gardening.md))._
+will be detected by the doc-gardening eval (proposed — see
+[`docs/design-docs/doc-gardening.md`](docs/design-docs/doc-gardening.md))._
