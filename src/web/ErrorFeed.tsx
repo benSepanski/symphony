@@ -1,9 +1,11 @@
 import { useState } from "react";
 import type { ApiEvent, ApiRun } from "./api.js";
 import {
-  MAX_VISIBLE_ERRORS,
   errorFeedHeader,
+  errorFeedToggleLabel,
+  errorFeedVisibleCount,
   fullPayload,
+  MAX_VISIBLE_ERRORS,
   shouldExpand,
   summarize,
 } from "./errorFeedUtils.js";
@@ -23,16 +25,21 @@ const LABEL: Record<string, { text: string; cls: string }> = {
 };
 
 export function ErrorFeed({ events, runs }: Props) {
+  const [showAll, setShowAll] = useState(false);
   if (events.length === 0) return null;
 
   const idByRun = new Map<string, ApiRun>();
   for (const r of runs) idByRun.set(r.id, r);
 
+  const total = events.length;
+  const truncated = total > MAX_VISIBLE_ERRORS;
+  const visible = errorFeedVisibleCount(total, showAll);
+
   return (
     <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-      <h2 className="text-sm font-medium text-slate-200 mb-3">{errorFeedHeader(events.length)}</h2>
+      <h2 className="text-sm font-medium text-slate-200 mb-3">{errorFeedHeader(total, showAll)}</h2>
       <ul className="divide-y divide-slate-800/60">
-        {events.slice(0, MAX_VISIBLE_ERRORS).map((e) => {
+        {events.slice(0, visible).map((e) => {
           const run = idByRun.get(e.runId);
           const label = LABEL[e.eventType] ?? {
             text: e.eventType,
@@ -41,6 +48,18 @@ export function ErrorFeed({ events, runs }: Props) {
           return <ErrorRow key={e.id} event={e} run={run} label={label} />;
         })}
       </ul>
+      {truncated && (
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            aria-expanded={showAll}
+            className="rounded px-3 py-1 text-xs font-medium text-cyan-300 hover:text-cyan-100 hover:bg-slate-800/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+          >
+            {errorFeedToggleLabel(total, showAll)}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

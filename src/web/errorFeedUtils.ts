@@ -4,10 +4,19 @@ export const SUMMARY_EXPAND_THRESHOLD = 120;
 
 export const MAX_VISIBLE_ERRORS = 10;
 
-export function errorFeedHeader(total: number): string {
-  return total > MAX_VISIBLE_ERRORS
-    ? `Recent errors (${MAX_VISIBLE_ERRORS} of ${total})`
-    : "Recent errors";
+export function errorFeedHeader(total: number, showAll: boolean = false): string {
+  if (total <= MAX_VISIBLE_ERRORS) return "Recent errors";
+  if (showAll) return `Recent errors (${total})`;
+  return `Recent errors (${MAX_VISIBLE_ERRORS} of ${total})`;
+}
+
+export function errorFeedVisibleCount(total: number, showAll: boolean): number {
+  if (showAll || total <= MAX_VISIBLE_ERRORS) return total;
+  return MAX_VISIBLE_ERRORS;
+}
+
+export function errorFeedToggleLabel(total: number, showAll: boolean): string {
+  return showAll ? "Show fewer" : `Show all ${total} errors`;
 }
 
 export function summarize(e: ApiEvent): string {
