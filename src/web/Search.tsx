@@ -106,6 +106,8 @@ export function Search({ query: initialQuery }: { query: string }) {
                 clearInput();
               }
             }}
+            type="search"
+            aria-label="Search runs"
             placeholder="Search turn content and event payloads…"
             className="w-full rounded border border-slate-800 bg-slate-900 px-3 py-2 pr-8 text-sm text-slate-100 focus:outline-none focus:border-cyan-600 focus-visible:ring-2 focus-visible:ring-cyan-500"
             autoFocus
