@@ -7,6 +7,7 @@ import {
   matchHref,
   type MatchKind,
   type SearchFilters,
+  type SearchSummary,
   availableStatuses,
   filterMatches,
   summarizeMatches,
@@ -87,6 +88,12 @@ export function Search({ query: initialQuery }: { query: string }) {
     }
   };
 
+  const readyMatches = state.tag === "ready" ? state.matches : null;
+  const summary = useMemo(
+    () => (readyMatches ? summarizeMatches(readyMatches) : null),
+    [readyMatches],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <form
@@ -131,37 +138,58 @@ export function Search({ query: initialQuery }: { query: string }) {
         </button>
       </form>
 
-      {state.tag === "idle" && (
-        <div className="space-y-3">
-          <p className="text-sm text-slate-400">
-            Type a phrase that might appear in a turn's content or an event payload. Results update
-            as you type — searches are case-insensitive substring matches.
-          </p>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-slate-500">try:</span>
-            {SUGGESTED_QUERIES.map((q) => (
-              <button
-                key={q}
-                type="button"
-                onClick={() => runSuggestion(q)}
-                className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 font-mono text-slate-300 hover:border-cyan-600 hover:text-cyan-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-              >
-                {q}
-              </button>
-            ))}
+      <div role="status" aria-live="polite" aria-atomic="true" className="text-sm">
+        {state.tag === "loading" && (
+          <span className="text-slate-400">Searching for "{activeQuery}"…</span>
+        )}
+        {state.tag === "error" && <span className="text-rose-400">{state.message}</span>}
+        {state.tag === "ready" && summary && state.matches.length === 0 && (
+          <span className="text-slate-300">No matches for "{activeQuery}".</span>
+        )}
+        {state.tag === "ready" && summary && state.matches.length > 0 && (
+          <span className="text-slate-300">
+            <span className="font-medium">{summary.total}</span>{" "}
+            {summary.total === 1 ? "match" : "matches"} across{" "}
+            <span className="font-medium">{summary.runs}</span>{" "}
+            {summary.runs === 1 ? "run" : "runs"} · {summary.turns}{" "}
+            {summary.turns === 1 ? "turn" : "turns"} · {summary.events}{" "}
+            {summary.events === 1 ? "event" : "events"}
+          </span>
+        )}
+      </div>
+
+      <div aria-busy={state.tag === "loading"}>
+        {state.tag === "idle" && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-400">
+              Type a phrase that might appear in a turn's content or an event payload. Results
+              update as you type — searches are case-insensitive substring matches.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-500">try:</span>
+              {SUGGESTED_QUERIES.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => runSuggestion(q)}
+                  className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 font-mono text-slate-300 hover:border-cyan-600 hover:text-cyan-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-      {state.tag === "loading" && <p className="text-slate-400 text-sm">searching…</p>}
-      {state.tag === "error" && <p className="text-rose-400 text-sm">{state.message}</p>}
-      {state.tag === "ready" && (
-        <SearchResults
-          query={activeQuery}
-          matches={state.matches}
-          filters={filters}
-          setFilters={setFilters}
-        />
-      )}
+        )}
+        {state.tag === "ready" && summary && (
+          <SearchResults
+            query={activeQuery}
+            matches={state.matches}
+            summary={summary}
+            filters={filters}
+            setFilters={setFilters}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -169,27 +197,25 @@ export function Search({ query: initialQuery }: { query: string }) {
 function SearchResults({
   query,
   matches,
+  summary,
   filters,
   setFilters,
 }: {
   query: string;
   matches: ApiSearchMatch[];
+  summary: SearchSummary;
   filters: SearchFilters;
   setFilters: (f: SearchFilters) => void;
 }) {
-  const summary = useMemo(() => summarizeMatches(matches), [matches]);
   const statuses = useMemo(() => availableStatuses(matches), [matches]);
   const filtered = useMemo(() => filterMatches(matches, filters), [matches, filters]);
 
   if (matches.length === 0) {
     return (
-      <div className="space-y-1">
-        <p className="text-sm text-slate-300">No matches for "{query}".</p>
-        <p className="text-xs text-slate-500">
-          Tip: searches are case-insensitive substring matches over turn content and event payloads.
-          Try broader terms or check that the phrase appears verbatim.
-        </p>
-      </div>
+      <p className="text-xs text-slate-500">
+        Tip: searches are case-insensitive substring matches over turn content and event payloads.
+        Try broader terms or check that the phrase appears verbatim.
+      </p>
     );
   }
 
@@ -203,14 +229,7 @@ function SearchResults({
 
   return (
     <div className="space-y-3">
-      <div className="text-sm text-slate-300">
-        <span className="font-medium">{summary.total}</span>{" "}
-        {summary.total === 1 ? "match" : "matches"} across{" "}
-        <span className="font-medium">{summary.runs}</span> {summary.runs === 1 ? "run" : "runs"} ·{" "}
-        {summary.turns} {summary.turns === 1 ? "turn" : "turns"} · {summary.events}{" "}
-        {summary.events === 1 ? "event" : "events"}
-        {filteredOut > 0 && <span className="text-slate-500"> · showing {filtered.length}</span>}
-      </div>
+      {filteredOut > 0 && <div className="text-xs text-slate-500">showing {filtered.length}</div>}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="text-slate-500">kind:</span>
         <Chip active={filters.kinds.has("turn")} onClick={() => toggleKind("turn")}>
