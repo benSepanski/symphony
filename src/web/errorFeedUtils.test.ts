@@ -4,6 +4,8 @@ import {
   MAX_VISIBLE_ERRORS,
   SUMMARY_EXPAND_THRESHOLD,
   errorFeedHeader,
+  errorFeedToggleLabel,
+  errorFeedVisibleCount,
   fullPayload,
   shouldExpand,
   summarize,
@@ -96,5 +98,47 @@ describe("errorFeedHeader", () => {
       `Recent errors (${MAX_VISIBLE_ERRORS} of ${MAX_VISIBLE_ERRORS + 1})`,
     );
     expect(errorFeedHeader(47)).toBe(`Recent errors (${MAX_VISIBLE_ERRORS} of 47)`);
+  });
+
+  it("shows just the true total when the user has expanded the feed", () => {
+    expect(errorFeedHeader(47, true)).toBe("Recent errors (47)");
+    expect(errorFeedHeader(MAX_VISIBLE_ERRORS + 1, true)).toBe(
+      `Recent errors (${MAX_VISIBLE_ERRORS + 1})`,
+    );
+  });
+
+  it("ignores the showAll flag when the total is already within the cap", () => {
+    expect(errorFeedHeader(3, true)).toBe("Recent errors");
+    expect(errorFeedHeader(MAX_VISIBLE_ERRORS, true)).toBe("Recent errors");
+  });
+});
+
+describe("errorFeedVisibleCount", () => {
+  it("returns the total unchanged when it fits under the cap", () => {
+    expect(errorFeedVisibleCount(0, false)).toBe(0);
+    expect(errorFeedVisibleCount(MAX_VISIBLE_ERRORS, false)).toBe(MAX_VISIBLE_ERRORS);
+  });
+
+  it("caps at MAX_VISIBLE_ERRORS by default when the total overflows", () => {
+    expect(errorFeedVisibleCount(MAX_VISIBLE_ERRORS + 1, false)).toBe(MAX_VISIBLE_ERRORS);
+    expect(errorFeedVisibleCount(47, false)).toBe(MAX_VISIBLE_ERRORS);
+  });
+
+  it("returns the total when the user has expanded the feed", () => {
+    expect(errorFeedVisibleCount(47, true)).toBe(47);
+    expect(errorFeedVisibleCount(MAX_VISIBLE_ERRORS + 1, true)).toBe(MAX_VISIBLE_ERRORS + 1);
+  });
+});
+
+describe("errorFeedToggleLabel", () => {
+  it("names the total when collapsed so the button is scannable", () => {
+    expect(errorFeedToggleLabel(47, false)).toBe("Show all 47 errors");
+    expect(errorFeedToggleLabel(MAX_VISIBLE_ERRORS + 1, false)).toBe(
+      `Show all ${MAX_VISIBLE_ERRORS + 1} errors`,
+    );
+  });
+
+  it("collapses back to a simple label when expanded", () => {
+    expect(errorFeedToggleLabel(47, true)).toBe("Show fewer");
   });
 });

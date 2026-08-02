@@ -61,6 +61,15 @@ const DEFAULT_ERROR_EVENT_TYPES = [
   "workspace_destroy_error",
 ];
 
+const RELAYED_EVENTS = [
+  "runStarted",
+  "turn",
+  "runFinished",
+  "usageUpdated",
+  "tick",
+  "settingsUpdated",
+] as const;
+
 function parseBoundedLimit(
   raw: string | undefined,
   { fallback, max, min = 1 }: { fallback: number; max: number; min?: number },
@@ -195,28 +204,16 @@ export function createServer({
       const push = (event: string, data: unknown) => {
         queue.push({ event, data });
       };
-      const onRunStarted = (e: unknown) => push("runStarted", e);
-      const onTurn = (e: unknown) => push("turn", e);
-      const onRunFinished = (e: unknown) => push("runFinished", e);
-      const onUsageUpdated = (e: unknown) => push("usageUpdated", e);
-      const onTick = (e: unknown) => push("tick", e);
-      const onSettingsUpdated = (e: unknown) => push("settingsUpdated", e);
-      events.on("runStarted", onRunStarted);
-      events.on("turn", onTurn);
-      events.on("runFinished", onRunFinished);
-      events.on("usageUpdated", onUsageUpdated);
-      events.on("tick", onTick);
-      events.on("settingsUpdated", onSettingsUpdated);
+      const listeners = RELAYED_EVENTS.map((name) => {
+        const listener = (e: unknown) => push(name, e);
+        events.on(name, listener);
+        return [name, listener] as const;
+      });
       if (getUsage) push("usageUpdated", getUsage());
       if (getState) push("tick", getState());
       if (getSettings) push("settingsUpdated", getSettings());
       stream.onAbort(() => {
-        events.off("runStarted", onRunStarted);
-        events.off("turn", onTurn);
-        events.off("runFinished", onRunFinished);
-        events.off("usageUpdated", onUsageUpdated);
-        events.off("tick", onTick);
-        events.off("settingsUpdated", onSettingsUpdated);
+        for (const [name, listener] of listeners) events.off(name, listener);
       });
       while (!stream.aborted) {
         while (queue.length > 0) {

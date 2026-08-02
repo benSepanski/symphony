@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useState } from "react";
 import { documentTitleForRoute, runHeaderLabel, type RunHeader } from "./appHeader.js";
 import { parseHash } from "./appRoute.js";
@@ -8,6 +9,11 @@ import { MessageCard } from "./shared.js";
 
 function currentRoute() {
   return parseHash(window.location.hash);
+}
+
+function focusMainSkipLink(event: React.MouseEvent<HTMLAnchorElement>) {
+  event.preventDefault();
+  document.getElementById("main")?.focus();
 }
 
 export function App() {
@@ -26,6 +32,13 @@ export function App() {
 
   return (
     <div className="min-h-screen">
+      <a
+        href="#main"
+        onClick={focusMainSkipLink}
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-slate-900 focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+      >
+        Skip to content
+      </a>
       <header className="border-b border-slate-800 px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <a
           href="#/"
@@ -55,7 +68,7 @@ export function App() {
         </nav>
         {route.view === "run" && <RunBreadcrumb runId={route.runId} header={runHeader} />}
       </header>
-      <main className="px-4 py-4 sm:px-6 sm:py-6">
+      <main id="main" tabIndex={-1} className="px-4 py-4 sm:px-6 sm:py-6 focus:outline-none">
         {route.view === "dashboard" && <Dashboard />}
         {route.view === "run" && (
           <RunDetail

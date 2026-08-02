@@ -326,8 +326,11 @@ function ModeToggle({
         <button
           key={m}
           type="button"
-          disabled={disabled || mode === m}
-          onClick={() => onChange(m)}
+          disabled={disabled}
+          aria-pressed={mode === m}
+          onClick={() => {
+            if (mode !== m) onChange(m);
+          }}
           className={`rounded px-2 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
             mode === m ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400 hover:text-slate-200"
           } disabled:cursor-not-allowed`}
