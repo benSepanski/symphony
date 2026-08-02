@@ -61,6 +61,14 @@ const DEFAULT_ERROR_EVENT_TYPES = [
   "workspace_destroy_error",
 ];
 
+function parseBoundedLimit(
+  raw: string | undefined,
+  { fallback, max, min = 1 }: { fallback: number; max: number; min?: number },
+): number {
+  if (!raw) return fallback;
+  return Math.max(min, Math.min(max, Number(raw)));
+}
+
 const PLACEHOLDER_HTML = `<!doctype html>
 <meta charset="utf-8">
 <title>Symphony</title>
@@ -119,8 +127,7 @@ export function createServer({
           .map((t) => t.trim())
           .filter((t) => t.length > 0)
       : DEFAULT_ERROR_EVENT_TYPES;
-    const limitRaw = c.req.query("limit");
-    const limit = limitRaw ? Math.max(1, Math.min(200, Number(limitRaw))) : 50;
+    const limit = parseBoundedLimit(c.req.query("limit"), { fallback: 50, max: 200 });
     return c.json({ events: logger.listRecentEvents(types, limit) });
   });
 
@@ -178,8 +185,7 @@ export function createServer({
 
   app.get("/api/search", (c) => {
     const q = c.req.query("q") ?? "";
-    const limitRaw = c.req.query("limit");
-    const limit = limitRaw ? Math.max(1, Math.min(500, Number(limitRaw))) : 100;
+    const limit = parseBoundedLimit(c.req.query("limit"), { fallback: 100, max: 500 });
     return c.json({ query: q, matches: logger.search(q, limit) });
   });
 
